@@ -7,11 +7,13 @@ import (
 	"sync/atomic"
 	"time"
 
+	stdhttp "net/http"
+
+	"github.com/dlclark/regexp2"
 	http "github.com/haoxingxing/OpenNG/http"
 	logging "github.com/haoxingxing/OpenNG/logging"
+	ngtls "github.com/haoxingxing/OpenNG/tls"
 	utils "github.com/haoxingxing/OpenNG/utils"
-
-	stdhttp "net/http"
 )
 
 const PrefixAuthPolicy string = "/pb"
@@ -62,8 +64,6 @@ func (p *policy) check(username string, path string) uint8 {
 	}
 	return 0
 }
-
-type username string
 
 type policyBaseAuth struct {
 	policygroup
@@ -126,7 +126,7 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	var session *session
 	if cookie != nil {
 		p.muSession.RLock()
-		session, _ = p.sessions[cookie.Value]
+		session = p.sessions[cookie.Value]
 		p.muSession.RUnlock()
 
 		session.updateSession()
@@ -164,7 +164,7 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 	var session *session
 	if cookie != nil {
 		l.muSession.RLock()
-		session, _ = l.sessions[cookie.Value]
+		session = l.sessions[cookie.Value]
 		l.muSession.RUnlock()
 	}
 
@@ -341,4 +341,41 @@ func (mgr *policyBaseAuth) Clean() {
 		}
 		session.muS.Unlock()
 	}
+}
+
+func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts []string, paths []string) error {
+	p := &policy{
+		name:      name,
+		allowance: allow,
+		users:     map[string]bool{},
+		hosts:     []*regexp2.Regexp{},
+		hup:       nil,
+		paths:     []*regexp2.Regexp{},
+		pup:       nil,
+	}
+	for _, u := range users {
+		p.users[u] = true
+	}
+	p.hup = utils.NewBufferedLookup(func(s string) interface{} {
+		return p.hosts.MatchString(s)
+	})
+	p.pup = utils.NewBufferedLookup(func(s string) interface{} {
+		return p.paths.MatchString(s)
+	})
+
+	if len(hosts) == 0 {
+		p.hosts = append(p.hosts, regexpforall)
+	} else {
+		p.hosts = utils.MustCompileRegexp(ngtls.Dnsname2Regexp(hosts))
+	}
+
+	if len(paths) == 0 {
+		p.paths = append(p.paths, regexpforall)
+	} else {
+		p.paths = utils.MustCompileRegexp((paths))
+	}
+
+	LGM.policygroup = append(LGM.policygroup, p)
+	LGM.policyBuf.Refresh()
+	return nil
 }

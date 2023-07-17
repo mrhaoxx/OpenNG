@@ -1,4 +1,9 @@
-# NetGATE - HomeLab Inbound Gateway
+<h1 align="center">
+  <img src="./res/NetGATE.svg" alt="Clash" width="200">
+  <br>OpenNG<br>
+</h1>
+
+
 OpenNG is a network ingress manager.   
 It is a highly configurable, extensible network ingress manager designed for homelab    
 It currently supports linux, windows, macos  
