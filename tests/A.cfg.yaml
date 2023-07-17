@@ -1,7 +1,0 @@
-version: 2
-Startup:
-  - ctl=NewController()
-  - goaway=NewTCPGoAway()
-  - ctl.AddService("GOAWAY",goaway)
-  - ctl.Bind("",["$GOAWAY"])
-  - ctl.Listen("0.0.0.0:23333") 

@@ -25,8 +25,8 @@ type Cfg struct {
 
 var TcpController = tcp.Controller{
 	Services: map[string]tcp.ServiceHandler{
-		"tls": TlsMgr,
-		// "knock":   Knock,
+		"tls":     TlsMgr,
+		"knock":   Knock,
 		"proxier": TcpProxier,
 		"pph":     tcp.NewTCPProxyProtocolHandler(),
 		"rdtls":   http.NewTCPRedirectToTls(),
@@ -52,16 +52,16 @@ var TlsMgr = tls.NewTlsMgr()
 
 var Auth = auth.NewAuthMgr([]auth.AuthHandle{auth.NewPBAuth()})
 
-// var Knock = auth.NewKnockMgr()
+var Knock = auth.NewKnockMgr()
 
 func init() {
 	HttpMidware.AddService("Proxier", HttpProxier)
 	HttpMidware.AddService("Auth", Auth)
-	// HttpMidware.AddService("Knock", Knock)
+	HttpMidware.AddService("Knock", Knock)
 	HttpMidware.AddService("InPx", http.NewInternalProxier())
 	HttpMidware.AddService("NgUI", &UI{})
 
-	// HttpMidware.AddServiceInternal(Auth)
+	//HttpMidware.AddServiceInternal(Auth)
 }
 func LoadCfg(cfgs []byte) error {
 	var cfg Cfg

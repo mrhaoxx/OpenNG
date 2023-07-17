@@ -4,8 +4,8 @@
 WantedBy=multi-user.target
 
 [Service]
-ExecStart=/home/ubuntu/github.com/haoxingxing/OpenNGOpenNG
-WorkingDirectory=/home/ubuntu/github.com/haoxingxing/OpenNG
+ExecStart=/home/ubuntu/OpenNG
+WorkingDirectory=/home/ubuntu/OpenNG
 User=ubuntu
 Restart=always
 RestartSec=5

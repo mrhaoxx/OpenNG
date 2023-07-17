@@ -99,6 +99,11 @@ func NewPBAuth() *policyBaseAuth {
 		return r
 	})
 
+	go func() {
+		for range time.Tick(time.Minute * 10) {
+			po.Clean()
+		}
+	}()
 	return po
 
 }

@@ -24,7 +24,6 @@ type authMgr struct {
 }
 
 func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
-	ctx.Store(InternalAuthPath, ctx.NilLoad(http.InternalPath).(string)[len(PrefixAuth):])
 
 	for _, h := range mgr.h {
 		switch h.HandleAuth(ctx) {
@@ -46,8 +45,17 @@ func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 func (l *authMgr) Hosts() []*regexp2.Regexp {
 	return []*regexp2.Regexp{regexpforall}
 }
+func (l *authMgr) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
+	ctx.Store(InternalAuthPath, ctx.NilLoad(http.InternalPath).(string)[len(PrefixAuth):])
+	
+}
 
 var regexpforall = regexp2.MustCompile("^.*$", 0)
+var regexpforit = regexp2.MustCompile("^"+PrefixAuth+"/.*$", 0)
+
+func (l *authMgr) PathsInternal() []*regexp2.Regexp {
+	return []*regexp2.Regexp{regexpforit}
+}
 
 func NewAuthMgr(h []AuthHandle) *authMgr {
 	return &authMgr{h: h}
