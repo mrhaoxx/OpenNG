@@ -1,0 +1,283 @@
+package http
+
+import (
+	"errors"
+	"fmt"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
+	logging "github.com/haoxingxing/OpenNG/logging"
+	tcp "github.com/haoxingxing/OpenNG/tcp"
+	tls "github.com/haoxingxing/OpenNG/tls"
+	utils "github.com/haoxingxing/OpenNG/utils"
+
+	"github.com/dlclark/regexp2"
+)
+
+//ng:generate def obj Midware
+type Midware struct {
+	current               []*ServiceStruct
+	bufferedLookupForHost utils.BufferedLookup
+	bufferedLookupForSNI  utils.BufferedLookup
+
+	services map[string]Service
+
+	sni utils.GroupRegexp
+
+	muActiveRequest sync.RWMutex
+	activeRequests  map[uint64]*HttpCtx
+}
+type ServiceStruct struct {
+	ServiceHandler
+	Id    string
+	Hosts utils.GroupRegexp
+}
+
+// //dng:generate def func Midware::AddService
+// //@Desc Add service to midware
+// //@Param string name the service's registered name
+// //@Param _nocheck:Service s the service
+// func (h *Midware) AddService(name string, s Service) error {
+// 	h.services[name] = s
+// 	return nil
+// }
+
+func (h *Midware) Handle(c *tcp.Connection) tcp.SerRet {
+	top := c.TopProtocol()
+	sni, _ := c.Load(tcp.KeyTlsSni)
+	if !h.bufferedLookupForSNI.Lookup(sni.(string)).(bool) {
+		return tcp.Continue
+	}
+	switch top {
+	case "HTTP1", "HTTP2":
+		ServeHTTP(c.TopConn(), func(hctx *HttpCtx) {
+			h.Process(c, hctx)
+		}, top)
+		return tcp.Close
+	default:
+		return tcp.Continue
+	}
+}
+
+func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
+	RequestCtx.conn = Conn
+
+	h.muActiveRequest.Lock()
+	h.activeRequests[RequestCtx.Id] = RequestCtx
+	h.muActiveRequest.Unlock()
+
+	defer RequestCtx.Resp.Close()
+
+	var RequestPath string // record the path of the request
+
+	defer func() { //cleanup
+		RequestCtx.Close()
+
+		h.muActiveRequest.Lock()
+		delete(h.activeRequests, RequestCtx.Id)
+		h.muActiveRequest.Unlock()
+
+		if RequestCtx.Resp.code == 0 {
+			RequestCtx.ErrorPage(http.StatusTeapot, "It seems that the server didn't give response.")
+			RequestPath += "#"
+		}
+
+		logging.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
+			"c"+strconv.FormatUint(Conn.Id, 10),
+			RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
+			RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)
+	}()
+
+	defer func() {
+		if err := recover(); err != nil {
+			RequestPath += "$ "
+
+			if RequestCtx.Resp.code == 0 {
+				RequestCtx.ErrorPage(http.StatusInternalServerError, fmt.Sprintf("Panic: %v", err))
+			}
+		}
+	}()
+
+	// internal content handle
+	if strings.HasPrefix(RequestCtx.Req.URL.Path, PrefixNg) {
+		if ngInternalServiceHandler(RequestCtx) != Continue {
+			RequestPath += "@"
+			return
+		}
+	}
+
+	{
+		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host).([]*ServiceStruct)
+
+		for i := 0; i < len(ServicesToExecute); i++ {
+
+			RequestPath += ServicesToExecute[i].Id + " " // record the executed service
+			switch ServicesToExecute[i].ServiceHandler(RequestCtx) {
+			case RequestEnd:
+				RequestPath += "-"
+				return
+			case Continue:
+				continue
+			}
+		}
+	}
+
+}
+
+type Service interface {
+	Hosts() []*regexp2.Regexp
+	HandleHTTP(*HttpCtx) Ret
+}
+type ServiceInternal interface {
+	PathsInternal() []*regexp2.Regexp
+	HandleHTTPInternal(*HttpCtx) Ret
+}
+
+func NewHttpMidware(sni []string) *Midware {
+	hmw := &Midware{
+		services:       map[string]Service{},
+		sni:            nil,
+		activeRequests: map[uint64]*HttpCtx{},
+	}
+	hmw.current = make([]*ServiceStruct, 0)
+	hmw.bufferedLookupForHost = *utils.NewBufferedLookup(func(s string) interface{} {
+		ret := make([]*ServiceStruct, 0)
+		for _, r := range hmw.current {
+			if r.Hosts.MatchString(s) {
+				ret = append(ret, r)
+			}
+		}
+		return ret
+	})
+	hmw.bufferedLookupForSNI = *utils.NewBufferedLookup(func(s string) interface{} {
+		return hmw.sni == nil || hmw.sni.MatchString(s)
+	})
+	hmw.sni = utils.MustCompileRegexp(tls.Dnsname2Regexp(sni))
+	return hmw
+}
+
+type serviceholder struct {
+	sl    ServiceHandler
+	il    ServiceHandler
+	hosts []*regexp2.Regexp
+	paths []*regexp2.Regexp
+}
+
+func (h *serviceholder) PathsInternal() []*regexp2.Regexp {
+	return h.paths
+}
+
+func (h *serviceholder) HandleHTTPInternal(ctx *HttpCtx) Ret {
+	return h.il(ctx)
+}
+
+func (h *serviceholder) Hosts() []*regexp2.Regexp {
+	return h.hosts
+}
+func (h *serviceholder) HandleHTTP(ctx *HttpCtx) Ret {
+	return h.sl(ctx)
+}
+
+func NewServiceHolder(hosts []*regexp2.Regexp, sl ServiceHandler, paths []*regexp2.Regexp, il ServiceHandler) Service {
+	return &serviceholder{
+		sl:    sl,
+		il:    il,
+		hosts: hosts,
+		paths: paths,
+	}
+}
+
+// @Desc Get the binded services of the http midware
+// @RetVal []*ServiceStruct the binded services
+//
+//ng:generate def func Midware::GetBind
+func (HMW *Midware) GetBind() []*ServiceStruct {
+	return HMW.current
+}
+
+func (HMW *Midware) AddService(id string, svc Service) {
+	HMW.services[id] = svc
+	// if p := svc.PathsInternal(); p != nil {
+	// 	addInternal(svc.HandleHTTPInternal, p)
+	// }
+}
+func (HMW *Midware) AddServiceInternal(svc ServiceInternal) {
+	// HMW.services[id] = svc
+	// if p := svc.PathsInternal(); p != nil {
+	addInternal(svc.HandleHTTPInternal, svc.PathsInternal())
+	// }
+}
+
+// @Desc Bind a service to the http midware
+// @Param string id the id of the service
+// @Param string id identificator of the service
+// @OptionalParam []string=[]string{"(.*)"} hosts the specificed hosts
+//
+//ng:generate def func Midware::Bind
+func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) {
+	if id == "" {
+		id = serviceid
+	}
+	var hosts []*regexp2.Regexp
+	service := HMW.services[serviceid]
+	if len(_hosts) == 0 {
+		hosts = service.Hosts()
+	} else {
+		hosts = utils.MustCompileRegexp(tls.Dnsname2Regexp(_hosts))
+	}
+	HMW.current = append(HMW.current, &ServiceStruct{
+		Id:             id,
+		Hosts:          hosts,
+		ServiceHandler: service.HandleHTTP,
+	})
+
+	HMW.bufferedLookupForHost.Refresh()
+}
+
+func (ctl *Midware) ReportActiveRequests() map[uint64]interface{} {
+	ctl.muActiveRequest.RLock()
+	defer ctl.muActiveRequest.RUnlock()
+	ret := make(map[uint64]interface{})
+	for _, req := range ctl.activeRequests {
+		ret[req.Id] = map[string]interface{}{
+			"code":        req.Resp.code,                             // FIXME: race r
+			"src":         req.Req.RemoteAddr,                        // unsync r
+			"starttime":   req.starttime,                             // unsync r
+			"protocol":    req.Req.Proto,                             // unsync r
+			"uri":         req.Req.RequestURI,                        // unsync r
+			"respwritten": atomic.LoadUint64(&req.Resp.writtenBytes), // atomic
+			"cid":         req.conn.Id,                               // unsync r
+			"method":      req.Req.Method,                            // unsync r
+			"enc":         req.Resp.encoding.String(),                // FIXME: race r
+			"host":        req.Req.Host,                              // unsync r
+		}
+	}
+	return ret
+}
+
+func (HMW *Midware) KillRequest(rid uint64) error {
+	HMW.muActiveRequest.RLock()
+	defer HMW.muActiveRequest.RUnlock()
+	ctx, ok := HMW.activeRequests[rid]
+	if !ok {
+		return errors.New("request not found")
+	}
+	ctx.Signal(Killsig, struct{}{})
+	return nil
+}
+
+// @RetVal tcp.ServiceHandler RedirectToTls
+//
+//ng:generate def func NewTCPRedirectToTls
+func NewTCPRedirectToTls() tcp.ServiceHandler {
+	return tcp.NewServiceFunction(func(conn *tcp.Connection) tcp.SerRet {
+		ServeHTTP(conn.TopConn(), func(ctx *HttpCtx) {
+			ctx.Redirect("https://"+ctx.Req.Host+ctx.Req.RequestURI, StatusFound)
+		}, "HTTP1")
+		return tcp.Close
+	})
+}

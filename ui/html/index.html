@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <title>NetGATE Config Editor</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" href="/ng-cgi/logo">
+</head>
+
+<body>
+
+    <button onclick="location.href = '/connections';" id="myButton" class="float-left submit-button" >Connections</button>
+    <button onclick="location.href = '/requests';" id="myButton" class="float-left submit-button" >Requests</button>
+    <button onclick="location.href = '/logs';" id="myButton" class="float-left submit-button" >Stream Logging</button>
+    <br><br>
+
+    <div id="editor" style="height: 500px; width: 650px">Please Wait For Editor To Initiate<br> Powered By ACE.js</div>
+    <br><br>
+    <button id="update" onclick="update()">Get</button>
+    <button id="save" onclick="save()">Save</button>
+    <button onclick="restart()">Restart</button>
+    <br />
+    <input id="hasky" placeholder="Text to Hash"></input><button id="Hash" onclick="hash()">Hash</button><br>
+
+    <script src="/ace.js" type="text/javascript" charset="utf-8"></script>
+    <script>
+        ace.require("ace/ext/language_tools");
+        var editor = ace.edit("editor");
+        editor.setTheme("ace/theme/chrome");
+        editor.session.setMode("ace/mode/yaml");
+        editor.setValue("# Wait For Javascript to Get The Config", 1);
+        editor.setOptions({
+            enableBasicAutocompletion: true,
+            enableSnippets: true,
+            enableLiveAutocompletion: false
+        });
+
+        function update() {
+            var client = new XMLHttpRequest();
+            client.open('GET', '/cfg/get');
+            client.onload = function (e) {
+                editor.setValue(this.responseText, 1);
+            };
+            client.send();
+        }
+
+        function save() {
+            var client = new XMLHttpRequest();
+            client.open('POST', '/cfg/save');
+            client.onload = function (E) {
+                alert(this.status)
+            }
+            client.send(editor.getValue());
+        }
+
+        function restart(a) {
+            var client = new XMLHttpRequest();
+            client.open('GET', '/restart');
+            client.onload = function (E) {
+                alert(this.status)
+            }
+            client.send();
+        }
+
+        function hash() {
+            var ha = document.getElementById("hasky")
+            var client = new XMLHttpRequest();
+            client.open('POST', '/genhash');
+            client.onload = function (e) {
+                ha.value = this.responseText
+            }
+            client.send(ha.value);
+        }
+        update()
+    </script>
+</body>
+
+</html>

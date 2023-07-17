@@ -1,0 +1,14 @@
+__debug_bin*
+tlscreds
+OpenNG
+*.log
+config.yaml
+racetest
+.vscode
+.idea
+*.generated.go
+*.my.lua
+libs/build
+
+OpenNG.exe
+*.dll

@@ -1,0 +1,14 @@
+[Unit]
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+ExecStart=/home/ubuntu/github.com/haoxingxing/OpenNGOpenNG
+WorkingDirectory=/home/ubuntu/github.com/haoxingxing/OpenNG
+User=ubuntu
+Restart=always
+RestartSec=5
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=%n

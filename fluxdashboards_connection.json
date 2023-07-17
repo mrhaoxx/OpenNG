@@ -1,0 +1,278 @@
+[
+    {
+        "apiVersion": "influxdata.com/v2alpha1",
+        "kind": "Dashboard",
+        "metadata": {
+            "name": "toasty-tereshkova-afc001"
+        },
+        "spec": {
+            "charts": [
+                {
+                    "colors": [
+                        {
+                            "id": "base",
+                            "name": "white",
+                            "type": "text",
+                            "hex": "#ffffff"
+                        }
+                    ],
+                    "decimalPlaces": 0,
+                    "height": 3,
+                    "kind": "Single_Stat",
+                    "name": "Connections",
+                    "queries": [
+                        {
+                            "query": "from(bucket: \"logs\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"connection\")\n  |> map(fn: (r) => ({ r with _value: 1}))\n  |> sum()"
+                        }
+                    ],
+                    "staticLegend": {},
+                    "width": 2
+                },
+                {
+                    "colors": [
+                        {
+                            "id": "base",
+                            "name": "white",
+                            "type": "text",
+                            "hex": "#ffffff"
+                        }
+                    ],
+                    "fieldOptions": [
+                        {
+                            "displayName": "_start",
+                            "fieldName": "_start"
+                        },
+                        {
+                            "displayName": "_stop",
+                            "fieldName": "_stop"
+                        },
+                        {
+                            "displayName": "_time",
+                            "fieldName": "_time",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_value",
+                            "fieldName": "_value"
+                        },
+                        {
+                            "displayName": "_field",
+                            "fieldName": "_field"
+                        },
+                        {
+                            "displayName": "_measurement",
+                            "fieldName": "_measurement"
+                        },
+                        {
+                            "displayName": "_field_t1",
+                            "fieldName": "_field_t1",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_field_t2",
+                            "fieldName": "_field_t2",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_measurement_t1",
+                            "fieldName": "_measurement_t1",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_measurement_t2",
+                            "fieldName": "_measurement_t2",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_start_t1",
+                            "fieldName": "_start_t1",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_start_t2",
+                            "fieldName": "_start_t2",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_stop_t1",
+                            "fieldName": "_stop_t1",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_stop_t2",
+                            "fieldName": "_stop_t2",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_value_t1",
+                            "fieldName": "_value_t1",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "_value_t2",
+                            "fieldName": "_value_t2",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "cid",
+                            "fieldName": "cid",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "code",
+                            "fieldName": "code",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "dur",
+                            "fieldName": "dur",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "enc",
+                            "fieldName": "enc",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "host",
+                            "fieldName": "host",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "method",
+                            "fieldName": "method",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "path",
+                            "fieldName": "path",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "procedure",
+                            "fieldName": "procedure",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "rid",
+                            "fieldName": "rid",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "src",
+                            "fieldName": "src",
+                            "visible": true
+                        },
+                        {
+                            "displayName": "protocol",
+                            "fieldName": "protocol",
+                            "visible": true
+                        }
+                    ],
+                    "height": 6,
+                    "kind": "Table",
+                    "name": "Connections",
+                    "queries": [
+                        {
+                            "query": "from(bucket: \"logs\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"connection\")\n  |> pivot(rowKey:[\"_time\"], columnKey: [\"_field\"], valueColumn: \"_value\")"
+                        }
+                    ],
+                    "staticLegend": {},
+                    "tableOptions": {
+                        "sortBy": "rid",
+                        "verticalTimeAxis": true
+                    },
+                    "timeFormat": "YYYY-MM-DD HH:mm:ss",
+                    "width": 12,
+                    "yPos": 3
+                },
+                {
+                    "axes": [
+                        {
+                            "name": "x"
+                        }
+                    ],
+                    "binCount": 30,
+                    "colors": [
+                        {
+                            "id": "KZ-d9Kzv-q4oFQJtpMk4-",
+                            "name": "Nineteen Eighty Four",
+                            "type": "scale",
+                            "hex": "#31C0F6"
+                        },
+                        {
+                            "id": "UQkqOibBhGYRSpufwn9c5",
+                            "name": "Nineteen Eighty Four",
+                            "type": "scale",
+                            "hex": "#A500A5"
+                        },
+                        {
+                            "id": "dz9X4Z9gMDpgNHyhl80Jb",
+                            "name": "Nineteen Eighty Four",
+                            "type": "scale",
+                            "hex": "#FF7E27"
+                        }
+                    ],
+                    "fillColumns": [
+                        "_value"
+                    ],
+                    "height": 3,
+                    "kind": "Histogram",
+                    "legendColorizeRows": true,
+                    "legendOpacity": 1,
+                    "legendOrientationThreshold": 100000000,
+                    "name": "Protocol",
+                    "position": "stacked",
+                    "queries": [
+                        {
+                            "query": "from(bucket: \"logs\")\r\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\r\n  |> filter(fn: (r) => r[\"_measurement\"] == \"connection\")\r\n  |> filter(fn: (r) => r[\"_field\"] == \"protocol\")\r\n  |> group(columns: [\"_value\"])"
+                        }
+                    ],
+                    "staticLegend": {},
+                    "width": 4,
+                    "xCol": "_time",
+                    "xPos": 2
+                },
+                {
+                    "axes": [
+                        {
+                            "name": "x"
+                        },
+                        {
+                            "label": "time(us)",
+                            "name": "y"
+                        }
+                    ],
+                    "colors": [
+                        {
+                            "hex": "#31C0F6"
+                        },
+                        {
+                            "hex": "#BC00B8"
+                        },
+                        {
+                            "hex": "#FF7E27"
+                        }
+                    ],
+                    "height": 3,
+                    "kind": "Scatter",
+                    "legendColorizeRows": true,
+                    "legendOpacity": 1,
+                    "legendOrientationThreshold": 100000000,
+                    "name": "Connection Duration",
+                    "queries": [
+                        {
+                            "query": "from(bucket: \"logs\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r[\"_measurement\"] == \"connection\")\n  |> filter(fn: (r) => r[\"_field\"] == \"dur\")"
+                        }
+                    ],
+                    "staticLegend": {},
+                    "width": 6,
+                    "xCol": "_time",
+                    "xPos": 6,
+                    "yCol": "_value"
+                }
+            ],
+            "name": "NetGATE Connections"
+        }
+    }
+]

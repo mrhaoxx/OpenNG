@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .request-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .request-item {
+            border: 1px solid #ccc;
+            margin-bottom: 10px;
+            padding: 10px;
+        }
+        .request-item h3 {
+            margin-top: 0;
+        }
+        .request-item p {
+            margin: 0;
+        }
+        .kill-button {
+            background-color: #f44336;
+            border: none;
+            color: white;
+            padding: 8px 16px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin-top: 10px;
+            cursor: pointer;
+        }
+        .result-dialog {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ccc;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+    </style>
+</head>
+<body>
+    <ul class="request-list"></ul>
+
+    <div id="resultDialog" class="result-dialog">
+        <p id="resultText"></p>
+        <button id="closeButton">Close</button>
+    </div>
+
+    <script>
+        function fetchRequests() {
+            fetch('/api/v1/http/requests')
+                .then(response => response.json())
+                .then(data => {
+                    const requestList = document.querySelector('.request-list');
+                    requestList.innerHTML = '';
+
+                    for (const requestId in data) {
+                        const request = data[requestId];
+                        const listItem = document.createElement('li');
+                        listItem.classList.add('request-item');
+
+                        const title = document.createElement('h3');
+                        title.textContent = `Request ID: ${requestId}`;
+                        listItem.appendChild(title);
+
+                        for (const key in request) {
+                            if (key === 'starttime') {
+                                const startTime = new Date(request[key]);
+                                const currentTime = new Date();
+                                const timeDiff = currentTime - startTime;
+                                const formattedTime = formatTime(timeDiff);
+                                const detail = document.createElement('p');
+                                detail.textContent = `Time Elapsed: ${formattedTime}`;
+                                listItem.appendChild(detail);
+                            } else {
+                                const detail = document.createElement('p');
+                                detail.textContent = `${key}: ${request[key]}`;
+                                listItem.appendChild(detail);
+                            }
+                        }
+
+                        const killButton = document.createElement('button');
+                        killButton.classList.add('kill-button');
+                        killButton.textContent = 'Kill Request';
+                        killButton.addEventListener('click', () => {
+                            killRequest(requestId);
+                        });
+                        listItem.appendChild(killButton);
+
+                        requestList.appendChild(listItem);
+                    }
+                })
+                .catch(error => console.log(error));
+        }
+
+        function killRequest(requestId) {
+            fetch('/api/v1/http/request/kill', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                },
+                body: `rid=${requestId}`
+            })
+                .then(response => {
+                    if (response.ok) {
+                        showResult('Request killed successfully');
+                        fetchRequests();
+                    } else {
+                        showResult('Failed to kill request');
+                    }
+                })
+                .catch(error => console.log(error));
+        }
+        function killConnection(connectionId) {
+            var formData = new FormData();
+            formData.append('cid', connectionId);
+
+            fetch('/api/v1/tcp/connection/kill', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => {
+                if (response.ok) {
+                    showResult('Connection killed successfully');
+                    fetchData()
+                } else {
+                    showResult('Failed to kill connection');
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+
+        function showResult(message) {
+            const resultText = document.getElementById('resultText');
+            resultText.textContent = message;
+
+            const resultDialog = document.getElementById('resultDialog');
+            resultDialog.style.display = 'block';
+
+            const closeButton = document.getElementById('closeButton');
+            closeButton.addEventListener('click', () => {
+                resultDialog.style.display = 'none';
+            });
+        }
+
+        function formatTime(milliseconds) {
+            const seconds = Math.floor((milliseconds / 1000) % 60);
+            const minutes = Math.floor((milliseconds / (1000 * 60)) % 60);
+            const hours = Math.floor((milliseconds / (1000 * 60 * 60)) % 24);
+
+            const formattedSeconds = seconds.toString().padStart(2, '0');
+            const formattedMinutes = minutes.toString().padStart(2, '0');
+            const formattedHours = hours.toString().padStart(2, '0');
+
+            return `${formattedHours}:${formattedMinutes}:${formattedSeconds}`;
+        }
+
+        // Fetch requests initially
+        fetchRequests();
+
+        // Fetch requests every 5 seconds
+        setInterval(fetchRequests, 1000);
+    </script>
+</body>
+</html>
