@@ -1,0 +1,95 @@
+version: 4
+
+TLS:
+  Certificates:
+    - CertFile: /path/to/certfile.cer
+      KeyFile: /path/to/keyfile.key
+
+Logger:
+  UdpLogger:
+    Address: localhost:2313
+  EnableSSE: true
+Auth:
+  Users:
+    - Username: userA
+      PasswordHash: <Bcrypted Password>
+    - Username: userB
+      PasswordHash: <Bcrypted Password>
+
+  Policies:
+
+    - Name: PolicyA
+      Users: [""] # not logged in
+      Allowance: yes # permit
+      Hosts:
+        - $backend1
+      Paths:
+        - /
+        - /pathA/.*
+        - /pathB/.*
+        - <regexp path>
+    - Name: Public
+      Allowance: yes
+      Users: [ "" ]
+      Hosts:
+        - "www.example.com"
+        - "www.example.net"
+        - $backend2
+    - Name: Private
+      Allowance: yes
+      Users: ["userA"]
+    - Name: Refuse # Refuse all that hits no policy above
+      Allowance: no
+      Users: [""]
+
+TCP:
+  Controller:
+    AddressBindings:
+      - 0.0.0.0:4444
+      - <Binding for tcp server>
+    Binds:
+      "": [det]
+      TLS: [tls,det]
+      TLS HTTP2: [http] 
+      TLS HTTP1: [http]
+      RDP: [knock,proxier]
+      HTTP1: [rdtls]
+      PROXY: [pph,det]
+      PROXY HTTP1: [rdtls]
+      PROXY TLS: [tls,det]
+      PROXY TLS HTTP1: [http]
+      PROXY TLS HTTP2: [http]
+  Proxier:
+    Routes:
+      - Name: rdp
+        Backend: <windows server>:3389
+        Protocol: RDP
+
+HTTP:
+  Midware:
+    Binds:
+      - Id: Auth
+      - Id: Knock
+        Hosts:
+          - knock.example.com
+      - Id: NgUI
+        Hosts:
+          - console.example.com
+      - Id: Proxier
+
+  Proxier:
+    Hosts:
+    - Name: backend1
+      Hosts: ["one.example.com"] 
+      Backend: https://<to_backend_1> 
+      TlsSkipVerify: true 
+    - Name: backend2
+      Hosts: ["*.example.com"] # allow wildcard domain
+      Backend: https://<to_backend_2> 
+    - Name: backend3
+      Hosts: ["3rd.example.net"] 
+      Backend: http://<to_backend_3>
+      TlsSkipVerify: false 
+    - Name: default 
+      Hosts: ["*"] 
+      Backend: http://<catch_other_backend>
