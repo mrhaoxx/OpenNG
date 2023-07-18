@@ -67,7 +67,8 @@ func (p *policy) check(username string, path string) uint8 {
 
 type policyBaseAuth struct {
 	policygroup
-	policyBuf *utils.BufferedLookup
+	policyLookupBuf *utils.BufferedLookup
+	policyCheckBuf  *utils.BufferedLookup
 
 	usrs map[string]*user
 
@@ -89,7 +90,7 @@ func NewPBAuth() *policyBaseAuth {
 		sessions: map[string]*session{},
 	}
 
-	po.policyBuf = utils.NewBufferedLookup(func(s string) interface{} {
+	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) interface{} {
 		var r []*policy = nil
 		for _, p := range po.policygroup {
 			if p.hosts.MatchString(s) {
@@ -126,7 +127,7 @@ func GenHash(data string) string {
 }
 
 func (l *policyBaseAuth) getPolicies(hos string) policygroup {
-	return l.policyBuf.Lookup(hos).([]*policy)
+	return l.policyLookupBuf.Lookup(hos).([]*policy)
 }
 
 func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
@@ -223,9 +224,14 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 			r = "passed"
 		}
 		var reqalive uint64
+		var last string
 		if session != nil {
 			reqalive = atomic.LoadUint64(&session.active)
 			user = session.user.name
+
+			session.muS.Lock()
+			last = session.lastseen.Local().String()
+			session.muS.Unlock()
 		}
 
 		ctx.WriteString(
@@ -233,7 +239,8 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 				"alive: " + strconv.FormatUint(reqalive, 10) + "\n" +
 				"host: " + ctx.Req.Host + "\n" +
 				"path: " + truepath + "\n" +
-				"status: " + r + "\n",
+				"status: " + r + "\n" +
+				"lastseen: " + last + "\n",
 		)
 		return http.RequestEnd
 	case "/uplogin":
@@ -399,6 +406,6 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 	}
 
 	LGM.policygroup = append(LGM.policygroup, p)
-	LGM.policyBuf.Refresh()
+	LGM.policyLookupBuf.Refresh()
 	return nil
 }

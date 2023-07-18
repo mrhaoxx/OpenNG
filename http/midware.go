@@ -112,7 +112,6 @@ func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
 
 	{
 		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host).([]*ServiceStruct)
-		fmt.Println(RequestCtx.Req.Host, ServicesToExecute)
 		for i := 0; i < len(ServicesToExecute); i++ {
 
 			RequestPath += ServicesToExecute[i].Id + " " // record the executed service
