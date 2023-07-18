@@ -3,14 +3,17 @@ package ui
 import (
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"io/fs"
 	stdhttp "net/http"
 	_ "net/http/pprof"
 	"os"
+	"runtime"
 	"strconv"
 	"strings"
 
+	auth "github.com/haoxingxing/OpenNG/auth"
 	http "github.com/haoxingxing/OpenNG/http"
 	utils "github.com/haoxingxing/OpenNG/utils"
 
@@ -68,10 +71,21 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		ctx.Resp.Write(curcfg)
-	// case "/genhash":
-	// 	b, _ := io.ReadAll(ctx.Req.Body)
-	// 	hashed := auth.GenHash(string(b))
-	// 	ctx.Resp.Write([]byte(hashed))
+	case "/genhash":
+		b, _ := io.ReadAll(ctx.Req.Body)
+		hashed := auth.GenHash(string(b))
+		ctx.Resp.Write([]byte(hashed))
+	case "/sys":
+		var m runtime.MemStats
+		runtime.ReadMemStats(&m)
+		ctx.WriteString(fmt.Sprint("alloc: ", m.Alloc, "\n",
+			"totalalloc: ", m.TotalAlloc, "\n",
+			"sysmem: ", m.Sys, "\n",
+			"numgc: ", m.NumGC, "\n",
+			"goroutines: ", runtime.NumGoroutine(), "\n",
+			"cpus: ", runtime.NumCPU(), "\n",
+			"ccalls: ", runtime.NumCgoCall(), "\n",
+		))
 
 	case "/204":
 		ctx.Resp.WriteHeader(204)

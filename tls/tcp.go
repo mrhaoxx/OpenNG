@@ -68,5 +68,5 @@ func (mgr *tlsMgr) Handle(c *tcp.Connection) tcp.SerRet {
 			}
 		}
 	}
-	return tcp.Continue
+	return tcp.Close
 }

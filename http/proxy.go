@@ -37,9 +37,11 @@ func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx) Ret {
 	var id string
 	if _host != nil {
 		id = _host.(*Httphost).Id
+	} else {
+		id = "nohit"
 	}
 
-	ctx.WriteString("hit: " + id + "\n")
+	ctx.WriteString("id: " + id + "\n")
 	return RequestEnd
 }
 func (*httpproxy) PathsInternal() utils.GroupRegexp {
@@ -48,9 +50,6 @@ func (*httpproxy) PathsInternal() utils.GroupRegexp {
 
 var regexpforproxy = regexp2.MustCompile("^/proxy/trace$", 0)
 
-// @RetVal *httpproxy proxier
-//
-//ng:generate def func NewHTTPProxier
 func NewHTTPProxier() *httpproxy {
 	hpx := &httpproxy{
 		hosts: make([]*Httphost, 0),
@@ -59,11 +58,13 @@ func NewHTTPProxier() *httpproxy {
 	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {
 		for _, t := range hpx.hosts {
 			if t.ServerName.MatchString(host) {
+				// fmt.Println(t.ServerName.String(), host, "success")
 				return t
 			}
+			// fmt.Println(t.ServerName.String(), host, "failed")
 		}
 		return nil
-	})
+	}) 
 	return hpx
 }
 
@@ -161,7 +162,6 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		FlushInterval: 0,
 	}
 	hpx.hosts = insert(hpx.hosts, index, &buf)
-	hpx.buf.Refresh()
 	return nil
 }
 func insert(a []*Httphost, index int, value *Httphost) []*Httphost {

@@ -120,6 +120,10 @@ func (usr *user) checkpwd(passwd string) bool {
 
 	return false
 }
+func GenHash(data string) string {
+	hashed, _ := utils.HashPassword(data)
+	return hashed
+}
 
 func (l *policyBaseAuth) getPolicies(hos string) policygroup {
 	return l.policyBuf.Lookup(hos).([]*policy)
