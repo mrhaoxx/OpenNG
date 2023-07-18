@@ -14,7 +14,9 @@ type tlsMgr struct {
 
 func NewTlsMgr() *tlsMgr {
 
-	var mgr = tlsMgr{}
+	var mgr = tlsMgr{
+		certs: make(map[string]certificate),
+	}
 
 	mgr.lookup = utils.NewBufferedLookup(func(s string) interface{} {
 		for k, v := range mgr.certs {

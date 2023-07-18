@@ -32,7 +32,7 @@ var html_requests string
 type UI struct {
 }
 
-func (*UI) Hosts() []*regexp2.Regexp {
+func (*UI) Hosts() utils.GroupRegexp {
 	return nil
 }
 func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {

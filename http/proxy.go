@@ -1,8 +1,6 @@
 package http
 
 import (
-	"github.com/haoxingxing/OpenNG/logging"
-	"github.com/haoxingxing/OpenNG/utils"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -12,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/haoxingxing/OpenNG/logging"
+	"github.com/haoxingxing/OpenNG/utils"
 
 	ngtls "github.com/haoxingxing/OpenNG/tls"
 
@@ -31,12 +32,21 @@ type httpproxy struct {
 	buf   *utils.BufferedLookup
 }
 
-func (*httpproxy) HandleHTTPInternal(*HttpCtx) Ret {
+func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx) Ret {
+	_host := h.buf.Lookup(ctx.Req.Host)
+	var id string
+	if _host != nil {
+		id = _host.(*Httphost).Id
+	}
+
+	ctx.WriteString("hit: " + id + "\n")
 	return RequestEnd
 }
-func (*httpproxy) PathsInternal() []*regexp2.Regexp {
-	return nil
+func (*httpproxy) PathsInternal() utils.GroupRegexp {
+	return []*regexp2.Regexp{regexpforproxy}
 }
+
+var regexpforproxy = regexp2.MustCompile("^/proxy/trace$", 0)
 
 // @RetVal *httpproxy proxier
 //
@@ -73,7 +83,7 @@ func (h *httpproxy) HandleHTTP(ctx *HttpCtx) Ret {
 
 var catchallexp = []*regexp2.Regexp{regexp2.MustCompile("^.*$", 0)}
 
-func (h *httpproxy) Hosts() []*regexp2.Regexp {
+func (h *httpproxy) Hosts() utils.GroupRegexp {
 	return catchallexp
 }
 

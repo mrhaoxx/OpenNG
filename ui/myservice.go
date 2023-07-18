@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"strconv"
+	"strings"
 
 	auth "github.com/haoxingxing/OpenNG/auth"
 	http "github.com/haoxingxing/OpenNG/http"
@@ -16,11 +17,11 @@ import (
 
 type Cfg struct {
 	Version int
-	// Auth    auth.Config          `yaml:"Auth,flow"`
-	TCP    tcp.Config           `yaml:"TCP,flow"`
-	TLS    tls.Config           `yaml:"TLS,flow"`
-	HTTP   http.Config          `yaml:"HTTP,flow"`
-	Logger logging.LoggerConfig `yaml:"Logger,flow"`
+	Auth    auth.Config          `yaml:"Auth,flow"`
+	TCP     tcp.Config           `yaml:"TCP,flow"`
+	TLS     tls.Config           `yaml:"TLS,flow"`
+	HTTP    http.Config          `yaml:"HTTP,flow"`
+	Logger  logging.LoggerConfig `yaml:"Logger,flow"`
 }
 
 var TcpController = tcp.Controller{
@@ -50,7 +51,8 @@ var TcpProxier = tcp.NewTcpProxier()
 
 var TlsMgr = tls.NewTlsMgr()
 
-var Auth = auth.NewAuthMgr([]auth.AuthHandle{auth.NewPBAuth()})
+var pba = auth.NewPBAuth()
+var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba})
 
 var Knock = auth.NewKnockMgr()
 
@@ -61,7 +63,8 @@ func init() {
 	HttpMidware.AddService("InPx", http.NewInternalProxier())
 	HttpMidware.AddService("NgUI", &UI{})
 
-	//HttpMidware.AddServiceInternal(Auth)
+	HttpMidware.AddServiceInternal(pba)
+	HttpMidware.AddServiceInternal(HttpProxier)
 }
 func LoadCfg(cfgs []byte) error {
 	var cfg Cfg
@@ -82,28 +85,28 @@ func LoadCfg(cfgs []byte) error {
 		ref[host.Name] = host.Hosts
 	}
 
-	// for i, policy := range cfg.Auth.Policies {
-	// 	var real_hosts []string
-	// 	for _, host := range policy.Hosts {
-	// 		if strings.HasPrefix(host, "$") {
-	// 			real_hosts = append(real_hosts, ref[host[1:]]...)
-	// 		} else {
-	// 			real_hosts = append(real_hosts, host)
-	// 		}
-	// 	}
-	// 	cfg.Auth.Policies[i].Hosts = real_hosts
-	// }
+	for i, policy := range cfg.Auth.Policies {
+		var real_hosts []string
+		for _, host := range policy.Hosts {
+			if strings.HasPrefix(host, "$") {
+				real_hosts = append(real_hosts, ref[host[1:]]...)
+			} else {
+				real_hosts = append(real_hosts, host)
+			}
+		}
+		cfg.Auth.Policies[i].Hosts = real_hosts
+	}
 
 	logging.Load(cfg.Logger)
 	if cfg.Logger.EnableSSE {
 		logging.RegisterLogger(Sselogger)
 		logging.Println("sys", "SSE Logger Registered")
 	}
-	// err = Auth.Load(cfg.Auth)
-	// if err != nil {
-	// 	logging.Println("sys", "auth", err)
-	// 	os.Exit(-1)
-	// }
+	err = pba.Load(cfg.Auth)
+	if err != nil {
+		logging.Println("sys", "auth", err)
+		os.Exit(-1)
+	}
 	err = TcpController.InitAndLoad(cfg.TCP.Controller)
 	if err != nil {
 		logging.Println("sys", "tcp", err)

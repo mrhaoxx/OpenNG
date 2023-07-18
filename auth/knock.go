@@ -4,9 +4,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/dlclark/regexp2"
 	"github.com/haoxingxing/OpenNG/http"
 	"github.com/haoxingxing/OpenNG/tcp"
+	"github.com/haoxingxing/OpenNG/utils"
 )
 
 type knockauthMgr struct {
@@ -37,7 +37,7 @@ func (mgr *knockauthMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	return http.RequestEnd
 }
 
-func (mgr *knockauthMgr) Hosts() []*regexp2.Regexp {
+func (mgr *knockauthMgr) Hosts() utils.GroupRegexp {
 	return nil
 }
 func NewKnockMgr() *knockauthMgr {

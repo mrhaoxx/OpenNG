@@ -85,8 +85,8 @@ type session struct {
 
 func NewPBAuth() *policyBaseAuth {
 	po := &policyBaseAuth{
-		usrs:        map[string]*user{},
-		policygroup: []*policy{},
+		usrs:     map[string]*user{},
+		sessions: map[string]*session{},
 	}
 
 	po.policyBuf = utils.NewBufferedLookup(func(s string) interface{} {
@@ -129,12 +129,16 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	// First Lets get user info
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
+	var user string
 	if cookie != nil {
 		p.muSession.RLock()
 		session = p.sessions[cookie.Value]
 		p.muSession.RUnlock()
 
-		session.updateSession()
+		if session != nil {
+			user = session.user.name
+			session.updateSession()
+		}
 	}
 
 	pls := p.getPolicies(ctx.Req.Host)
@@ -143,7 +147,7 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 		return CT
 	}
 
-	switch pls.check(session.user.name, ctx.Req.URL.Path) {
+	switch pls.check(user, ctx.Req.URL.Path) {
 	case 2:
 		if session != nil {
 			atomic.AddUint64(&session.active, uint64(1))
@@ -167,10 +171,15 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
+	var user string
 	if cookie != nil {
 		l.muSession.RLock()
 		session = l.sessions[cookie.Value]
 		l.muSession.RUnlock()
+
+		if session != nil {
+			user = session.user.name
+		}
 	}
 
 	policies := l.getPolicies(ctx.Req.Host)
@@ -180,7 +189,7 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		return http.RequestEnd
 	}
 
-	path := ctx.NilLoad(InternalAuthPath).(string)
+	path := ctx.NilLoad(http.InternalPath).(string)[len(PrefixAuth+PrefixAuthPolicy):]
 
 	r := ctx.Req.URL.Query().Get("r")
 	p, err := base64.URLEncoding.DecodeString(r)
@@ -194,9 +203,9 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		truepath = "/"
 	}
 
-	code := policies.check(session.user.name, truepath)
+	code := policies.check(user, truepath)
 
-	switch path[len(PrefixAuthPolicy):] {
+	switch path {
 	case "/trace":
 		ctx.Resp.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
@@ -212,14 +221,16 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		var reqalive uint64
 		if session != nil {
 			reqalive = atomic.LoadUint64(&session.active)
+			user = session.user.name
 		}
 
 		ctx.WriteString(
-			"user: " + session.user.name + "\n" +
+			"user: " + user + "\n" +
 				"alive: " + strconv.FormatUint(reqalive, 10) + "\n" +
 				"host: " + ctx.Req.Host + "\n" +
 				"path: " + truepath + "\n" +
-				"status: " + r + "\n")
+				"status: " + r + "\n",
+		)
 		return http.RequestEnd
 	case "/uplogin":
 		if session != nil {
@@ -298,6 +309,12 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 	return http.RequestEnd
 }
 
+var regexpforit = regexp2.MustCompile("^"+PrefixAuth+PrefixAuthPolicy+"/.*$", 0)
+
+func (l *policyBaseAuth) PathsInternal() utils.GroupRegexp {
+	return []*regexp2.Regexp{regexpforit}
+}
+
 func (mgr *policyBaseAuth) generateSession(usr *user) string {
 	if usr == nil {
 		return ""
@@ -325,9 +342,6 @@ func (mgr *policyBaseAuth) rmSession(session string) {
 }
 
 func (u *session) updateSession() {
-	if u == nil {
-		return
-	}
 	u.muS.Lock()
 	u.lastseen = time.Now()
 	u.muS.Unlock()

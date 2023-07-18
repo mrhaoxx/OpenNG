@@ -129,11 +129,11 @@ func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
 }
 
 type Service interface {
-	Hosts() []*regexp2.Regexp
+	Hosts() utils.GroupRegexp
 	HandleHTTP(*HttpCtx) Ret
 }
 type ServiceInternal interface {
-	PathsInternal() []*regexp2.Regexp
+	PathsInternal() utils.GroupRegexp
 	HandleHTTPInternal(*HttpCtx) Ret
 }
 
@@ -167,7 +167,7 @@ type serviceholder struct {
 	paths []*regexp2.Regexp
 }
 
-func (h *serviceholder) PathsInternal() []*regexp2.Regexp {
+func (h *serviceholder) PathsInternal() utils.GroupRegexp {
 	return h.paths
 }
 
@@ -175,14 +175,14 @@ func (h *serviceholder) HandleHTTPInternal(ctx *HttpCtx) Ret {
 	return h.il(ctx)
 }
 
-func (h *serviceholder) Hosts() []*regexp2.Regexp {
+func (h *serviceholder) Hosts() utils.GroupRegexp {
 	return h.hosts
 }
 func (h *serviceholder) HandleHTTP(ctx *HttpCtx) Ret {
 	return h.sl(ctx)
 }
 
-func NewServiceHolder(hosts []*regexp2.Regexp, sl ServiceHandler, paths []*regexp2.Regexp, il ServiceHandler) Service {
+func NewServiceHolder(hosts utils.GroupRegexp, sl ServiceHandler, paths utils.GroupRegexp, il ServiceHandler) Service {
 	return &serviceholder{
 		sl:    sl,
 		il:    il,
