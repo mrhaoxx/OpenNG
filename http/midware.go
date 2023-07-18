@@ -75,16 +75,16 @@ func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
 	var RequestPath string // record the path of the request
 
 	defer func() { //cleanup
+		if RequestCtx.Resp.code == 0 {
+			RequestCtx.ErrorPage(http.StatusTeapot, "It seems the server is not responding.")
+			RequestPath += "#"
+		}
+
 		RequestCtx.Close()
 
 		h.muActiveRequest.Lock()
 		delete(h.activeRequests, RequestCtx.Id)
 		h.muActiveRequest.Unlock()
-
-		if RequestCtx.Resp.code == 0 {
-			RequestCtx.ErrorPage(http.StatusTeapot, "It seems that the server didn't give response.")
-			RequestPath += "#"
-		}
 
 		logging.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
 			"c"+strconv.FormatUint(Conn.Id, 10),
@@ -112,7 +112,7 @@ func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
 
 	{
 		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host).([]*ServiceStruct)
-
+		fmt.Println(RequestCtx.Req.Host, ServicesToExecute)
 		for i := 0; i < len(ServicesToExecute); i++ {
 
 			RequestPath += ServicesToExecute[i].Id + " " // record the executed service

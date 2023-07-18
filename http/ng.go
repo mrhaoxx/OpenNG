@@ -18,10 +18,6 @@ func ngInternalServiceHandler(RequestCtx *HttpCtx) Ret {
 
 	path := strings.TrimPrefix(RequestCtx.Req.URL.Path, PrefixNg)
 
-	// ServiceWaiter := sync.WaitGroup{}
-
-	// ReturnSigSlot := RequestCtx.Slot(InternalReturn)
-
 	RequestCtx.Store(InternalPath, path)
 
 	s := muxBufPath.Lookup(path).([]*shInternal)
@@ -31,25 +27,15 @@ func ngInternalServiceHandler(RequestCtx *HttpCtx) Ret {
 	}
 
 	for _, t := range s {
-		// ServiceWaiter.Add(1)
-		// go func() {
-		// defer ServiceWaiter.Done()
-
-		// }()
-		// for ret := range ReturnSigSlot.Wait() {
 		switch t.ServiceHandler(RequestCtx) {
 		case RequestEnd:
 			goto _break
 		case Continue:
 			continue
 		}
-		// }
 	}
 
 _break:
-	// ReturnSigSlot.Close()
-	// ServiceWaiter.Wait()
-
 	return RequestEnd
 }
 
