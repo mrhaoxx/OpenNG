@@ -24,4 +24,4 @@
 # echo Notice: You need to make sure that you have installed luajit in the running environment.
 
 # go generate
-go build -a -ldflags "-X 'main.buildstamp=`date -u --rfc-3339=seconds`' -X 'main.gitver=`git describe --long --dirty --tags`'"
+go build -a -ldflags "-X 'main.buildstamp=`date -u --rfc-3339=seconds`' -X 'main.gitver=`git describe --long --dirty --tags`'" $@
