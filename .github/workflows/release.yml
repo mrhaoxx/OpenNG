@@ -30,3 +30,4 @@ jobs:
           goos: ${{ matrix.goos }}
           goarch: ${{ matrix.goarch }}
           build_command: bash build.sh
+          compress_assets: OFF
