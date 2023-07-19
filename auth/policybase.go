@@ -371,6 +371,7 @@ func (mgr *policyBaseAuth) Clean() {
 		}
 		session.muS.Unlock()
 	}
+	mgr.muSession.Unlock()
 }
 
 func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts []string, paths []string) error {
