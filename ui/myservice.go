@@ -60,7 +60,6 @@ func init() {
 	HttpMidware.AddService("Proxier", HttpProxier)
 	HttpMidware.AddService("Auth", Auth)
 	HttpMidware.AddService("Knock", Knock)
-	HttpMidware.AddService("InPx", http.NewInternalProxier())
 	HttpMidware.AddService("NgUI", &UI{})
 
 	HttpMidware.AddServiceInternal(pba)

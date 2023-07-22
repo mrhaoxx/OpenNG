@@ -8,7 +8,6 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/haoxingxing/OpenNG/logging"
@@ -64,7 +63,7 @@ func NewHTTPProxier() *httpproxy {
 			// fmt.Println(t.ServerName.String(), host, "failed")
 		}
 		return nil
-	}) 
+	})
 	return hpx
 }
 
@@ -193,48 +192,4 @@ func (hpx *httpproxy) Reset() error {
 	hpx.hosts = make([]*Httphost, 0)
 	hpx.buf.Refresh()
 	return nil
-}
-
-var internals = map[string]*httputil.ReverseProxy{}
-
-// @RetVal interface{} internel_proxier
-//
-//ng:generate def func NewInternalProxier
-func NewInternalProxier() Service {
-	return NewServiceHolder([]*regexp2.Regexp{}, func(ctx *HttpCtx) Ret {
-		cfg := strings.Split(ctx.Req.Host, ".")[0] // https--10-1-1-6--443
-		f1 := strings.Split(cfg, "--")
-		target := strings.Replace(f1[1], "-", ".", -1)
-		target = f1[0] + "://" + target + ":" + f1[2]
-
-		a, ok := internals[target]
-
-		if !ok {
-			c, _ := url.Parse(target)
-			a = httputil.NewSingleHostReverseProxy(c)
-			if f1[0] == "https" {
-				a.Transport = &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-					DialContext: (&net.Dialer{
-						Timeout:   30 * time.Second,
-						KeepAlive: 30 * time.Second,
-					}).DialContext,
-					ForceAttemptHTTP2:     true,
-					MaxIdleConns:          100,
-					IdleConnTimeout:       900 * time.Second,
-					TLSHandshakeTimeout:   10 * time.Second,
-					ExpectContinueTimeout: 1 * time.Second}
-			}
-			a.ErrorHandler = func(rw http.ResponseWriter, r *http.Request, e error) {
-				//rw.Header().Add("X-Ng-Proxy-Err", strconv.Quote(e.Error()))
-				if rw.(*NgResponseWriter).code == 0 {
-					http.Error(rw, "Bad Gateway\n"+strconv.Quote(e.Error()), http.StatusBadGateway)
-				}
-				logging.Println("sys", "while doing internal proxy: ", e.Error())
-			}
-			internals[target] = a
-		}
-		a.ServeHTTP(ctx.Resp, ctx.Req)
-		return RequestEnd
-	}, nil, nil)
 }
