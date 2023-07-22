@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"fmt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -35,26 +36,12 @@ type policy struct {
 	hup   *utils.BufferedLookup
 
 	paths utils.GroupRegexp
-	pup   *utils.BufferedLookup
-}
-
-type policygroup []*policy
-
-func (pg policygroup) check(Username string, path string) uint8 {
-	for _, p := range pg {
-		v := p.check(Username, path)
-		// fmt.Println(Username, "hit", p.name, v)
-		if v != 0 {
-			return v
-		}
-	}
-	return 0
 }
 
 // 0 -> next;1 -> refuse;2 -> accept
 func (p *policy) check(username string, path string) uint8 {
 	if p.users[""] || p.users[username] {
-		if p.pup.Lookup(path).(bool) {
+		if p.paths.MatchString(path) {
 			if p.allowance {
 				return 2
 			} else {
@@ -66,9 +53,8 @@ func (p *policy) check(username string, path string) uint8 {
 }
 
 type policyBaseAuth struct {
-	policygroup
+	policies        []*policy
 	policyLookupBuf *utils.BufferedLookup
-	policyCheckBuf  *utils.BufferedLookup
 
 	usrs map[string]*user
 
@@ -92,7 +78,7 @@ func NewPBAuth() *policyBaseAuth {
 
 	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) interface{} {
 		var r []*policy = nil
-		for _, p := range po.policygroup {
+		for _, p := range po.policies {
 			if p.hosts.MatchString(s) {
 				r = append(r, p)
 			}
@@ -126,19 +112,15 @@ func GenHash(data string) string {
 	return hashed
 }
 
-func (l *policyBaseAuth) getPolicies(hos string) policygroup {
-	return l.policyLookupBuf.Lookup(hos).([]*policy)
-}
-
-func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
+func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	// First Lets get user info
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
 	var user string
 	if cookie != nil {
-		p.muSession.RLock()
-		session = p.sessions[cookie.Value]
-		p.muSession.RUnlock()
+		mgr.muSession.RLock()
+		session = mgr.sessions[cookie.Value]
+		mgr.muSession.RUnlock()
 
 		if session != nil {
 			user = session.user.name
@@ -146,13 +128,7 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 		}
 	}
 
-	pls := p.getPolicies(ctx.Req.Host)
-
-	if len(pls) == 0 {
-		return CT
-	}
-
-	switch pls.check(user, ctx.Req.URL.Path) {
+	switch mgr.determine(ctx.Req.Host, ctx.Req.URL.Path, user) {
 	case 2:
 		if session != nil {
 			atomic.AddUint64(&session.active, uint64(1))
@@ -173,25 +149,18 @@ func (p *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 
 }
 
-func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
+func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
 	var user string
 	if cookie != nil {
-		l.muSession.RLock()
-		session = l.sessions[cookie.Value]
-		l.muSession.RUnlock()
+		mgr.muSession.RLock()
+		session = mgr.sessions[cookie.Value]
+		mgr.muSession.RUnlock()
 
 		if session != nil {
 			user = session.user.name
 		}
-	}
-
-	policies := l.getPolicies(ctx.Req.Host)
-
-	if len(policies) == 0 { // no policy matched, pop a error
-		ctx.ErrorPage(http.StatusForbidden, "NO HIT")
-		return http.RequestEnd
 	}
 
 	path := ctx.NilLoad(http.InternalPath).(string)[len(PrefixAuth+PrefixAuthPolicy):]
@@ -208,7 +177,7 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		truepath = "/"
 	}
 
-	code := policies.check(user, truepath)
+	code := mgr.determine(ctx.Req.Host, ctx.Req.URL.Path, user)
 
 	switch path {
 	case "/trace":
@@ -256,11 +225,11 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 					return http.RequestEnd
 				}
 
-				user := l.usrs[userl]
+				user := mgr.usrs[userl]
 
 				//check it
 				if user.checkpwd(passl) {
-					session := l.generateSession(user)
+					session := mgr.generateSession(user)
 					ctx.SetCookie(&stdhttp.Cookie{
 						Name:     verfiyCookieKey,
 						Value:    session,
@@ -310,7 +279,7 @@ func (l *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 			SameSite: stdhttp.SameSiteNoneMode,
 		})
 		if session != nil {
-			l.rmSession(cookie.Value)
+			mgr.rmSession(cookie.Value)
 			logging.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
 		ctx.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 3)
@@ -368,6 +337,7 @@ func (mgr *policyBaseAuth) Clean() {
 		session.muS.Lock()
 		if session.lastseen.Add(120 * time.Minute).Before(now) {
 			delete(mgr.sessions, key)
+			logging.Println("%", "&-", session.user.name, key)
 		}
 		session.muS.Unlock()
 	}
@@ -382,16 +352,12 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		hosts:     []*regexp2.Regexp{},
 		hup:       nil,
 		paths:     []*regexp2.Regexp{},
-		pup:       nil,
 	}
 	for _, u := range users {
 		p.users[u] = true
 	}
 	p.hup = utils.NewBufferedLookup(func(s string) interface{} {
 		return p.hosts.MatchString(s)
-	})
-	p.pup = utils.NewBufferedLookup(func(s string) interface{} {
-		return p.paths.MatchString(s)
 	})
 
 	if len(hosts) == 0 {
@@ -406,7 +372,24 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		p.paths = utils.MustCompileRegexp((paths))
 	}
 
-	LGM.policygroup = append(LGM.policygroup, p)
+	LGM.policies = append(LGM.policies, p)
 	LGM.policyLookupBuf.Refresh()
 	return nil
+}
+
+func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
+	pls := mgr.policyLookupBuf.Lookup(host).([]*policy)
+	if len(pls) == 0 {
+		return 0
+	}
+
+	for _, p := range pls {
+		v := p.check(user, path)
+		fmt.Println(p.name, host, path, user, v)
+		if v != 0 {
+			return v
+		}
+	}
+
+	return 0
 }

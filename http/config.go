@@ -40,6 +40,7 @@ func (prox *httpproxy) Load(cfg ProxierConfig, clear bool) error {
 		prox.Reset()
 	}
 	for _, host := range cfg.Hosts {
+		logging.Println("sys", "httpproxy", host.Name, host.Hosts)
 		if err := prox.Add(host.Name, host.Hosts, host.Backend, 0, host.TlsSkipVerify); err != nil {
 			return err
 		}
