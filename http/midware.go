@@ -14,6 +14,7 @@ import (
 	tcp "github.com/haoxingxing/OpenNG/tcp"
 	tls "github.com/haoxingxing/OpenNG/tls"
 	utils "github.com/haoxingxing/OpenNG/utils"
+	"golang.org/x/net/http2"
 
 	"github.com/dlclark/regexp2"
 )
@@ -53,19 +54,24 @@ func (h *Midware) Handle(c *tcp.Connection) tcp.SerRet {
 		return tcp.Continue
 	}
 	switch top {
-	case "HTTP1", "HTTP2":
-		ServeHTTP(c.TopConn(), func(hctx *HttpCtx) {
-			h.Process(c, hctx)
-		}, top)
+	case "HTTP1":
+		http.Serve(utils.ConnGetSocket(c.TopConn()), http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			h.head(rw, r, c)
+		}))
+		return tcp.Close
+	case "HTTP2":
+		h2s.ServeConn(c.TopConn(), &http2.ServeConnOpts{
+			Handler: (http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				h.head(rw, r, c)
+			})),
+		})
 		return tcp.Close
 	default:
 		return tcp.Continue
 	}
 }
 
-func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
-	RequestCtx.conn = Conn
-
+func (h *Midware) Process(RequestCtx *HttpCtx) {
 	h.muActiveRequest.Lock()
 	h.activeRequests[RequestCtx.Id] = RequestCtx
 	h.muActiveRequest.Unlock()
@@ -87,7 +93,7 @@ func (h *Midware) Process(Conn *tcp.Connection, RequestCtx *HttpCtx) {
 		h.muActiveRequest.Unlock()
 
 		logging.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
-			"c"+strconv.FormatUint(Conn.Id, 10),
+			"c"+strconv.FormatUint(RequestCtx.conn.Id, 10),
 			RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
 			RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)
 	}()
@@ -274,9 +280,9 @@ func (HMW *Midware) KillRequest(rid uint64) error {
 //ng:generate def func NewTCPRedirectToTls
 func NewTCPRedirectToTls() tcp.ServiceHandler {
 	return tcp.NewServiceFunction(func(conn *tcp.Connection) tcp.SerRet {
-		ServeHTTP(conn.TopConn(), func(ctx *HttpCtx) {
-			ctx.Redirect("https://"+ctx.Req.Host+ctx.Req.RequestURI, StatusFound)
-		}, "HTTP1")
+		http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
+		}))
 		return tcp.Close
 	})
 }

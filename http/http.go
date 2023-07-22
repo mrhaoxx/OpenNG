@@ -80,24 +80,6 @@ func (c *HttpCtx) RegCloseHandle(f func(*HttpCtx)) {
 
 var h2s = &http2.Server{}
 
-func ServeHTTP(cc net.Conn, hd func(*HttpCtx), proto string) {
-	switch proto {
-	case "HTTP1":
-		err := http.Serve(utils.ConnGetSocket(cc), (http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-			head(rw, r, hd)
-		})))
-		if err != nil {
-			return
-		}
-	case "HTTP2":
-		h2s.ServeConn(cc, &http2.ServeConnOpts{
-			Handler: (http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				head(rw, r, hd)
-			})),
-		})
-	}
-}
-
 type Ret bool
 type ServiceHandler func(*HttpCtx) Ret
 
@@ -140,7 +122,7 @@ var encoderpool = []sync.Pool{
 	EncodingBR:      {New: func() any { return brotli.NewWriter(nil) }},
 }
 
-func head(rw http.ResponseWriter, r *http.Request, hd func(*HttpCtx)) {
+func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Connection) {
 	ngrw := &NgResponseWriter{
 		writer:         nil,
 		stdrw:          rw,
@@ -158,6 +140,7 @@ func head(rw http.ResponseWriter, r *http.Request, hd func(*HttpCtx)) {
 		starttime: time.Now(),
 		kill:      kill,
 		closing:   make(chan struct{}),
+		conn:      conn,
 	}
 	n := strings.Split(r.Host, ".")
 	if len(n) >= 2 {
@@ -169,7 +152,7 @@ func head(rw http.ResponseWriter, r *http.Request, hd func(*HttpCtx)) {
 		ctx.Store(Mainhost, r.Host)
 		ctx.Store(Maindomain, r.Host)
 	}
-	hd(ctx)
+	h.Process(ctx)
 }
 
 const (
