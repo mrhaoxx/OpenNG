@@ -57,11 +57,11 @@ func itoa(buf *[]byte, i int, wid int) {
 }
 
 type LoggerConfig struct {
-	UDP            UdpLoggerConfig `yaml:"UdpLogger"`
-	Influx         InfluxConfig    `yaml:"Influx"`
-	EnableSSE      bool            `yaml:"EnableSSE"`
-	File           string          `yaml:"File"`
-	DisableConsole bool            `yaml:"DisableConsole"`
+	UDP UdpLoggerConfig `yaml:"UdpLogger"`
+	// Influx         InfluxConfig    `yaml:"Influx"`
+	EnableSSE      bool   `yaml:"EnableSSE"`
+	File           string `yaml:"File"`
+	DisableConsole bool   `yaml:"DisableConsole"`
 }
 
 func Load(cfg LoggerConfig) {
@@ -78,9 +78,9 @@ func Load(cfg LoggerConfig) {
 		RegisterLogger(NewUdpLogger(cfg.UDP))
 		Println("sys", "UDP Logger Registered", cfg.UDP.Address)
 	}
-	if cfg.Influx.Url != "" {
-		RegisterLogger(NewInfluxLogger(cfg.Influx))
-		Println("sys", "Influx DB Registered", cfg.Influx.Url, cfg.Influx.Org, cfg.Influx.Bucket)
-	}
+	// if cfg.Influx.Url != "" {
+	// 	RegisterLogger(NewInfluxLogger(cfg.Influx))
+	// 	Println("sys", "Influx DB Registered", cfg.Influx.Url, cfg.Influx.Org, cfg.Influx.Bucket)
+	// }
 
 }
