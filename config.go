@@ -9,10 +9,11 @@ var gitver = "dev"
 var buildstamp = "dev-built"
 
 // //ng:generate def func restart
-// func restart() error {
-// 	reload.Exec()
-// 	return nil
-// }
+//
+//	func restart() error {
+//		reload.Exec()
+//		return nil
+//	}
 
 // // @RetVal string version
 // //
@@ -182,11 +183,3 @@ var buildstamp = "dev-built"
 // 			ctx.Signal(http.Return, http.RequestEnd)
 // 		})
 // }
-
-// func initknockmgr(args cmd.Data, ret *cmd.RetCtx) {
-// 	args.Require(cmd.TYPE_STRING, cmd.TYPE_STRING, cmd.TYPE_STRING, cmd.TYPE_STRING, cmd.TYPE_STRING, cmd.TYPE_STRING)
-// 	knockmgr := cmd.GLOBAL.Get(args[0].(string)).(*auth.KnockMgr)
-// 	midware := cmd.GLOBAL.Get(args[1].(string)).(*http.Midware)
-
-// //go:embed doc.md
-// var doc string

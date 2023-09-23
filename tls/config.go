@@ -18,7 +18,7 @@ func (mgr *tlsMgr) Load(cfg Config) {
 	for _, c := range cfg.Certificates {
 		logging.Println("sys", "tls", "Found certificate", c.CertFile)
 
-		mgr.LoadCertificate(c.CertFile, c.KeyFile, true)
+		mgr.LoadCertificate(c.CertFile, c.KeyFile)
 	}
 }
 

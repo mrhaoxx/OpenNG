@@ -56,7 +56,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
-		utils.Restart()
+		ctx.ErrorPage(http.StatusNotImplemented, "Not Implemented")
 	case "/cfg/apply":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)

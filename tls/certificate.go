@@ -18,7 +18,7 @@ func (m *tlsMgr) getCertificate(dnsname string) *tls.Certificate {
 	return m.certs[m.lookup.Lookup(dnsname).(string)].Certificate
 }
 
-func (m *tlsMgr) LoadCertificate(certfile, keyfile string, watch bool) error {
+func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 	c, e := tls.LoadX509KeyPair(certfile, keyfile)
 	if e != nil {
 		return e

@@ -5,10 +5,8 @@ import (
 	"io"
 	"math/rand"
 	"net"
-	"runtime"
 	"time"
 
-	"github.com/teamwork/reload"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -257,12 +255,4 @@ func TrimLeftChar(s string) string {
 		}
 	}
 	return s[:0]
-}
-
-func Restart() {
-	if runtime.GOOS == "windows" {
-		panic("not supported in windows") //TODO: Windows Reload support
-	} else {
-		reload.Exec()
-	}
 }
