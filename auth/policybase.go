@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/base64"
-	"fmt"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -385,7 +384,7 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 
 	for _, p := range pls {
 		v := p.check(user, path)
-		fmt.Println(p.name, host, path, user, v)
+		// fmt.Println(p.name, host, path, user, v)
 		if v != 0 {
 			return v
 		}
