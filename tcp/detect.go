@@ -35,7 +35,7 @@ func readClientHello(reader io.Reader) (*tls.ClientHelloInfo, error) {
 	return hello, nil
 }
 
-type Detector func(io.Reader, *Connection) string
+type Detector func(io.Reader, *Conn) string
 
 type Detect struct {
 	Dets []Detector
@@ -49,7 +49,7 @@ type Detect struct {
 // 	detecthttp,
 // }
 
-func (det *Detect) Handle(c *Connection) SerRet {
+func (det *Detect) Handle(c *Conn) SerRet {
 	raw := c.TopConn()
 	buf := &BufferedReader{
 		source:     raw,
@@ -81,7 +81,7 @@ func (det *Detect) Handle(c *Connection) SerRet {
 	return Upgrade
 }
 
-func DetectHTTP(r io.Reader, c *Connection) string {
+func DetectHTTP(r io.Reader, c *Conn) string {
 	_, err := http.ReadRequest(bufio.NewReader(r))
 	if err != nil {
 		return ""
@@ -89,7 +89,7 @@ func DetectHTTP(r io.Reader, c *Connection) string {
 	return "HTTP1"
 }
 
-func DetectTLS(r io.Reader, c *Connection) string {
+func DetectTLS(r io.Reader, c *Conn) string {
 	a, err := readClientHello(r)
 	if err != nil {
 		return ""
@@ -99,7 +99,7 @@ func DetectTLS(r io.Reader, c *Connection) string {
 	return "TLS"
 }
 
-func DetectSSH(r io.Reader, _ *Connection) string {
+func DetectSSH(r io.Reader, _ *Conn) string {
 	var buf = make([]byte, 3)
 	_, err := r.Read(buf)
 	if err != nil {
@@ -111,7 +111,7 @@ func DetectSSH(r io.Reader, _ *Connection) string {
 	return ""
 }
 
-func DetectRDP(r io.Reader, _ *Connection) string {
+func DetectRDP(r io.Reader, _ *Conn) string {
 	var buf = make([]byte, 3)
 	_, err := r.Read(buf)
 	if err != nil {
@@ -123,7 +123,7 @@ func DetectRDP(r io.Reader, _ *Connection) string {
 	return ""
 }
 
-func DetectPROXYPROTOCOL(r io.Reader, _ *Connection) string {
+func DetectPROXYPROTOCOL(r io.Reader, _ *Conn) string {
 	var buf = make([]byte, 12)
 	_, err := r.Read(buf)
 	if err != nil {

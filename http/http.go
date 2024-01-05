@@ -31,7 +31,7 @@ type HttpCtx struct {
 	Req  *http.Request
 	Resp *NgResponseWriter
 
-	conn *tcp.Connection
+	conn *tcp.Conn
 
 	closing chan struct{}
 
@@ -122,7 +122,7 @@ var encoderpool = []sync.Pool{
 	EncodingBR:      {New: func() any { return brotli.NewWriter(nil) }},
 }
 
-func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Connection) {
+func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) {
 	ngrw := &NgResponseWriter{
 		writer:         nil,
 		stdrw:          rw,

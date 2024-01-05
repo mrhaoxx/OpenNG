@@ -9,7 +9,7 @@ import (
 )
 
 func NewTCPProxyProtocolHandler() ServiceHandler {
-	return NewServiceFunction(func(conn *Connection) SerRet {
+	return NewServiceFunction(func(conn *Conn) SerRet {
 		sorce := conn.Addr().String()
 		sourceip, _, err := net.SplitHostPort(sorce)
 		if err != nil || sourceip != "127.0.0.1" {

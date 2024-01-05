@@ -13,7 +13,7 @@ type knockauthMgr struct {
 	whitelist sync.Map
 }
 
-func (mgr *knockauthMgr) Handle(c *tcp.Connection) tcp.SerRet {
+func (mgr *knockauthMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	host, _, _ := net.SplitHostPort(c.Addr().String())
 	esx, ok := mgr.whitelist.Load(host)
 	if ok && esx.(bool) {

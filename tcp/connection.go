@@ -10,7 +10,7 @@ import (
 )
 
 //ng:generate def obj Connection
-type Connection struct {
+type Conn struct {
 	//unsync \ atomic
 	Id    uint64
 	conn  []net.Conn
@@ -34,19 +34,19 @@ type Connection struct {
 	mu sync.RWMutex
 }
 
-func (c *Connection) Addr() net.Addr {
+func (c *Conn) Addr() net.Addr {
 	return c.addr
 }
 
-func (c *Connection) TopConn() net.Conn {
+func (c *Conn) TopConn() net.Conn {
 	return c.conn[c.head]
 }
-func (c *Connection) TopProtocol() string {
+func (c *Conn) TopProtocol() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.proto[c.head]
 }
-func (c *Connection) unsync_genProtocols() {
+func (c *Conn) unsync_genProtocols() {
 	c.protos = ""
 	for _, v := range c.proto {
 		if v != "" {
@@ -58,25 +58,25 @@ func (c *Connection) unsync_genProtocols() {
 	}
 }
 
-func (c *Connection) Protocols() string {
+func (c *Conn) Protocols() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.protos
 }
 
-func (c *Connection) Path() string {
+func (c *Conn) Path() string {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.path
 }
 
-func (c *Connection) AppendPath(n string) {
+func (c *Conn) AppendPath(n string) {
 	c.mu.Lock()
 	c.path += n
 	c.mu.Unlock()
 }
 
-func (c *Connection) Upgrade(nc net.Conn, protocol string) {
+func (c *Conn) Upgrade(nc net.Conn, protocol string) {
 	//async
 	c.head += 1
 	c.conn[c.head] = nc
@@ -89,7 +89,7 @@ func (c *Connection) Upgrade(nc net.Conn, protocol string) {
 	c.mu.Unlock()
 }
 
-func (c *Connection) IdentifiyProtocol(protocol string) {
+func (c *Conn) IdentifiyProtocol(protocol string) {
 	c.proto[c.head] = protocol
 
 	c.mu.Lock()
@@ -97,7 +97,7 @@ func (c *Connection) IdentifiyProtocol(protocol string) {
 	c.mu.Unlock()
 }
 
-func (c *Connection) Reuse(conn net.Conn) {
+func (c *Conn) Reuse(conn net.Conn) {
 	c.conn[c.head] = conn
 
 	c.mu.Lock()
@@ -105,15 +105,15 @@ func (c *Connection) Reuse(conn net.Conn) {
 	c.mu.Unlock()
 }
 
-func (c *Connection) Close() {
+func (c *Conn) Close() {
 	close(c.closing)
 	c.conn[c.head].Close()
 }
-func (c *Connection) IsClosing() <-chan struct{} {
+func (c *Conn) IsClosing() <-chan struct{} {
 	return c.closing
 }
 
-func (c *Connection) triggerConnectionClose() {
+func (c *Conn) triggerConnectionClose() {
 	c.conn[c.head].Close()
 }
 
@@ -121,8 +121,8 @@ var cur uint64 = 1
 
 const InitProtocolLayer = 4
 
-func head(cn net.Conn) *Connection {
-	p := &Connection{
+func head(cn net.Conn) *Conn {
+	p := &Conn{
 		Id:      atomic.AddUint64(&cur, 1) - 1,
 		conn:    make([]net.Conn, InitProtocolLayer),
 		proto:   make([]string, InitProtocolLayer),

@@ -30,7 +30,7 @@ func NewTlsMgr() *tlsMgr {
 	return &mgr
 }
 
-func (mgr *tlsMgr) Handle(c *tcp.Connection) tcp.SerRet {
+func (mgr *tlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	hellov, ok := c.Load(tcp.KeyTLS)
 	hello := hellov.(*tls.ClientHelloInfo)
 

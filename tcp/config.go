@@ -1,8 +1,9 @@
 package tcp
 
 import (
-	"github.com/haoxingxing/OpenNG/logging"
 	"errors"
+
+	"github.com/haoxingxing/OpenNG/logging"
 )
 
 type ControllerConfig struct {
@@ -49,7 +50,7 @@ type Config struct {
 // }
 
 func (ctl *Controller) InitAndLoad(cfg ControllerConfig) error {
-	ctl.activeConnections = make(map[uint64]*Connection)
+	ctl.activeConnections = make(map[uint64]*Conn)
 
 	for protocol, bindings := range cfg.Binds {
 		logging.Println("sys", "tcp", "Services Bindings", protocol, "->", bindings)

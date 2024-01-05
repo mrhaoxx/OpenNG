@@ -17,7 +17,7 @@ type tcpproxy struct {
 	mu    sync.Mutex
 }
 
-func (tpx *tcpproxy) Handle(c *Connection) SerRet {
+func (tpx *tcpproxy) Handle(c *Conn) SerRet {
 	a, ok := tpx.hosts[(c.Protocols())]
 	if ok {
 		oc, err := net.Dial("tcp", a.Backend)

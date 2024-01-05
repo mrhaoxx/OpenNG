@@ -20,7 +20,7 @@ const (
 type SerRet uint8
 
 type ServiceHandler interface {
-	Handle(*Connection) SerRet
+	Handle(*Conn) SerRet
 }
 type SericeBinding struct {
 	ServiceHandler
@@ -34,10 +34,10 @@ type Controller struct {
 	listeners []*net.Listener
 
 	muActiveConnection sync.RWMutex
-	activeConnections  map[uint64]*Connection
+	activeConnections  map[uint64]*Conn
 }
 
-func (c *Controller) Deliver(conn *Connection) {
+func (c *Controller) Deliver(conn *Conn) {
 
 	c.muActiveConnection.Lock()
 	c.activeConnections[conn.Id] = conn
@@ -120,13 +120,13 @@ func (ctl *Controller) Listen(addr string) error {
 	return nil
 }
 
-type funcInterface func(*Connection) SerRet
+type funcInterface func(*Conn) SerRet
 
-func (f funcInterface) Handle(a *Connection) SerRet {
+func (f funcInterface) Handle(a *Conn) SerRet {
 	return f(a)
 }
 
-func NewServiceFunction(f func(*Connection) SerRet) ServiceHandler {
+func NewServiceFunction(f func(*Conn) SerRet) ServiceHandler {
 	return funcInterface(f)
 }
 
@@ -173,7 +173,7 @@ func (ctl *Controller) KillConnection(connection_id uint64) error {
 	defer ctl.muActiveConnection.RUnlock()
 	conn, ok := ctl.activeConnections[connection_id]
 	if !ok {
-		return errors.New("Connection not found")
+		return errors.New("connection not found")
 	}
 	conn.AppendPath(">! ")
 	conn.triggerConnectionClose()

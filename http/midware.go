@@ -47,7 +47,7 @@ type ServiceStruct struct {
 // 	return nil
 // }
 
-func (h *Midware) Handle(c *tcp.Connection) tcp.SerRet {
+func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	top := c.TopProtocol()
 	sni, _ := c.Load(tcp.KeyTlsSni)
 	if !h.bufferedLookupForSNI.Lookup(sni.(string)).(bool) {
@@ -279,7 +279,7 @@ func (HMW *Midware) KillRequest(rid uint64) error {
 //
 //ng:generate def func NewTCPRedirectToTls
 func NewTCPRedirectToTls() tcp.ServiceHandler {
-	return tcp.NewServiceFunction(func(conn *tcp.Connection) tcp.SerRet {
+	return tcp.NewServiceFunction(func(conn *tcp.Conn) tcp.SerRet {
 		http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
 		}))
