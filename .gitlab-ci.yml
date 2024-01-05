@@ -1,5 +1,5 @@
 variables:
-  REPO_NAME: github.com/haoxingxing/OpenNG
+  REPO_NAME: github.com/mrhaoxx/OpenNG
 
 stages:
   - build

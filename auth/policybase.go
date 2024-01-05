@@ -10,10 +10,10 @@ import (
 	stdhttp "net/http"
 
 	"github.com/dlclark/regexp2"
-	http "github.com/haoxingxing/OpenNG/http"
-	logging "github.com/haoxingxing/OpenNG/logging"
-	ngtls "github.com/haoxingxing/OpenNG/tls"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	http "github.com/mrhaoxx/OpenNG/http"
+	logging "github.com/mrhaoxx/OpenNG/logging"
+	ngtls "github.com/mrhaoxx/OpenNG/tls"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 const PrefixAuthPolicy string = "/pb"

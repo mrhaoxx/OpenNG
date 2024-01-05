@@ -1,7 +1,7 @@
 package tls
 
 import (
-	logging "github.com/haoxingxing/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/logging"
 )
 
 type Config struct {

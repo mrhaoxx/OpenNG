@@ -6,11 +6,11 @@ import (
 	"strconv"
 	"strings"
 
-	auth "github.com/haoxingxing/OpenNG/auth"
-	http "github.com/haoxingxing/OpenNG/http"
-	logging "github.com/haoxingxing/OpenNG/logging"
-	tcp "github.com/haoxingxing/OpenNG/tcp"
-	tls "github.com/haoxingxing/OpenNG/tls"
+	auth "github.com/mrhaoxx/OpenNG/auth"
+	http "github.com/mrhaoxx/OpenNG/http"
+	logging "github.com/mrhaoxx/OpenNG/logging"
+	tcp "github.com/mrhaoxx/OpenNG/tcp"
+	tls "github.com/mrhaoxx/OpenNG/tls"
 
 	"gopkg.in/yaml.v3"
 )

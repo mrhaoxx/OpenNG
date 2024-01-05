@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"reflect"
 
-	utils "github.com/haoxingxing/OpenNG/utils"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 const (

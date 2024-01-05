@@ -1,8 +1,8 @@
 package auth
 
 import (
-	"github.com/haoxingxing/OpenNG/http"
-	"github.com/haoxingxing/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/http"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
 )

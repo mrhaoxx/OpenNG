@@ -6,7 +6,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	utils "github.com/haoxingxing/OpenNG/utils"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 //ng:generate def obj Connection

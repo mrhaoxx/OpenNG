@@ -3,7 +3,7 @@ package tcp
 import (
 	"net"
 
-	"github.com/haoxingxing/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/logging"
 
 	"github.com/pires/go-proxyproto"
 )

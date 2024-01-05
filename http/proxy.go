@@ -10,10 +10,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/haoxingxing/OpenNG/logging"
-	"github.com/haoxingxing/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/utils"
 
-	ngtls "github.com/haoxingxing/OpenNG/tls"
+	ngtls "github.com/mrhaoxx/OpenNG/tls"
 
 	"github.com/dlclark/regexp2"
 )

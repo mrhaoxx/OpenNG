@@ -4,9 +4,9 @@ import (
 	"net"
 	"sync"
 
-	"github.com/haoxingxing/OpenNG/http"
-	"github.com/haoxingxing/OpenNG/tcp"
-	"github.com/haoxingxing/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/http"
+	"github.com/mrhaoxx/OpenNG/tcp"
+	"github.com/mrhaoxx/OpenNG/utils"
 )
 
 type knockauthMgr struct {

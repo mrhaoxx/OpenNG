@@ -1,6 +1,6 @@
 package http
 
-import "github.com/haoxingxing/OpenNG/logging"
+import "github.com/mrhaoxx/OpenNG/logging"
 
 type Config struct {
 	Midware MidwareConfig `yaml:"Midware"`

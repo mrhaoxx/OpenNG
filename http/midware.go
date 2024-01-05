@@ -10,10 +10,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	logging "github.com/haoxingxing/OpenNG/logging"
-	tcp "github.com/haoxingxing/OpenNG/tcp"
-	tls "github.com/haoxingxing/OpenNG/tls"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	logging "github.com/mrhaoxx/OpenNG/logging"
+	tcp "github.com/mrhaoxx/OpenNG/tcp"
+	tls "github.com/mrhaoxx/OpenNG/tls"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
 
 	"github.com/dlclark/regexp2"

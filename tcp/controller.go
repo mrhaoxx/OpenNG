@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/haoxingxing/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/logging"
 )
 
 const (

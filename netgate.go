@@ -1,12 +1,13 @@
 package main
 
 import (
-	_ "github.com/haoxingxing/OpenNG/auth"
-	"github.com/haoxingxing/OpenNG/logging"
-	"github.com/haoxingxing/OpenNG/ui"
 	"fmt"
 	"os"
 	"runtime"
+
+	_ "github.com/mrhaoxx/OpenNG/auth"
+	"github.com/mrhaoxx/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/ui"
 )
 
 func main() {

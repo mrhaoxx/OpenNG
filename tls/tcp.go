@@ -3,32 +3,8 @@ package tls
 import (
 	"crypto/tls"
 
-	tcp "github.com/haoxingxing/OpenNG/tcp"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	tcp "github.com/mrhaoxx/OpenNG/tcp"
 )
-
-type tlsMgr struct {
-	certs  map[string]certificate
-	lookup *utils.BufferedLookup
-}
-
-func NewTlsMgr() *tlsMgr {
-
-	var mgr = tlsMgr{
-		certs: make(map[string]certificate),
-	}
-
-	mgr.lookup = utils.NewBufferedLookup(func(s string) interface{} {
-		for k, v := range mgr.certs {
-			if v.dnsnames.MatchString(s) {
-				return k
-			}
-		}
-		return "unmatched"
-	})
-
-	return &mgr
-}
 
 func (mgr *tlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	hellov, ok := c.Load(tcp.KeyTLS)

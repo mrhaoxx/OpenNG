@@ -3,7 +3,7 @@ package auth
 import (
 	"errors"
 
-	logging "github.com/haoxingxing/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/logging"
 )
 
 type Config struct {

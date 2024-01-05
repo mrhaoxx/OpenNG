@@ -13,9 +13,9 @@ import (
 	"strconv"
 	"strings"
 
-	auth "github.com/haoxingxing/OpenNG/auth"
-	http "github.com/haoxingxing/OpenNG/http"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	auth "github.com/mrhaoxx/OpenNG/auth"
+	http "github.com/mrhaoxx/OpenNG/http"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
 )

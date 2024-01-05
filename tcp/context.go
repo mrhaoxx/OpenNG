@@ -1,7 +1,7 @@
 package tcp
 
 import (
-	utils "github.com/haoxingxing/OpenNG/utils"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 type mainCtx struct {

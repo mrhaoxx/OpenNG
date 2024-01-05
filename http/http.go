@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tcp "github.com/haoxingxing/OpenNG/tcp"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	tcp "github.com/mrhaoxx/OpenNG/tcp"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/andybalholm/brotli"
 	"golang.org/x/net/http2"

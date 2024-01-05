@@ -5,7 +5,7 @@ import (
 	"crypto/x509"
 	"strings"
 
-	utils "github.com/haoxingxing/OpenNG/utils"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 // var GlobalCer = []tls.Certificate{}
@@ -46,4 +46,3 @@ func Dnsname2Regexp(dnsnames []string) []string {
 	}
 	return out
 }
-

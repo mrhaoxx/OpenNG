@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	utils "github.com/haoxingxing/OpenNG/utils"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
 type tcphost struct {

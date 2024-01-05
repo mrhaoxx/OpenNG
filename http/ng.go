@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	res "github.com/haoxingxing/OpenNG/res"
-	utils "github.com/haoxingxing/OpenNG/utils"
+	res "github.com/mrhaoxx/OpenNG/res"
+	utils "github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
 )

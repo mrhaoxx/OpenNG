@@ -3,7 +3,7 @@ package tcp
 import (
 	"errors"
 
-	"github.com/haoxingxing/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/logging"
 )
 
 type ControllerConfig struct {
