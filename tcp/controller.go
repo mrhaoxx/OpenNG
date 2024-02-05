@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	logging "github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/log"
 )
 
 const (
@@ -49,7 +49,7 @@ func (c *controller) Deliver(conn *Conn) {
 		delete(c.activeConnections, conn.Id)
 		c.muActiveConnection.Unlock()
 		conn.Close()
-		logging.Println(
+		log.Println(
 			"c"+strconv.FormatUint(conn.Id, 10),
 			conn.Addr().String(),
 			time.Since(conn.start).Round(10*time.Microsecond),
@@ -103,7 +103,7 @@ func (ctl *controller) Listen(addr string) error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Println(err)
+				log.Println(err)
 			}
 		}()
 		for {

@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	logging "github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/log"
 	tcp "github.com/mrhaoxx/OpenNG/tcp"
 	tls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
@@ -92,7 +92,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		delete(h.activeRequests, RequestCtx.Id)
 		h.muActiveRequest.Unlock()
 
-		logging.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
+		log.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
 			"c"+strconv.FormatUint(RequestCtx.conn.Id, 10),
 			RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
 			RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)

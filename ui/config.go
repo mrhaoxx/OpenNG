@@ -1,8 +1,13 @@
 package ui
 
-import (
-	"net"
-)
+type Cfg struct {
+	Version int
+	Auth    authConfig `yaml:"Auth,flow"`
+	TCP     tcpConfig  `yaml:"TCP,flow"`
+	TLS     tlsConfig  `yaml:"TLS,flow"`
+	HTTP    httpConfig `yaml:"HTTP,flow"`
+	Logger  logConfig  `yaml:"Logger,flow"`
+}
 
 type authConfig struct {
 	Users    []User   `yaml:"Users,flow"`
@@ -25,6 +30,7 @@ type ControllerConfig struct {
 
 	Binds map[string][]string `yaml:"Binds,flow"`
 }
+
 type tcpProxierConfig struct {
 	Routes []Route `yaml:"Routes,flow"`
 }
@@ -80,20 +86,4 @@ type Certificate struct {
 }
 type UdpLoggerConfig struct {
 	Address string `yaml:"Address"`
-}
-
-type udpLogger struct {
-	*net.UDPConn
-}
-
-func NewUdpLogger(address string) *udpLogger {
-	addr, err := net.ResolveUDPAddr("udp", address)
-	if err != nil {
-		panic(err)
-	}
-	conn, err := net.DialUDP("udp", nil, addr)
-	if err != nil {
-		panic(err)
-	}
-	return &udpLogger{UDPConn: conn}
 }

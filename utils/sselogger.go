@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	logging "github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/log"
 )
 
 type TextStreamLogger struct {
@@ -57,10 +57,10 @@ func (broker *TextStreamLogger) listen() {
 		select {
 		case s := <-broker.newClients:
 			broker.clients[s] = true
-			logging.Println(fmt.Sprintf("sys [sselogger] Client added. %d registered clients", len(broker.clients)))
+			log.Println(fmt.Sprintf("sys [sselogger] Client added. %d registered clients", len(broker.clients)))
 		case s := <-broker.closingClients:
 			delete(broker.clients, s)
-			logging.Println(fmt.Sprintf("sys [sselogger] Removed client. %d registered clients", len(broker.clients)))
+			log.Println(fmt.Sprintf("sys [sselogger] Removed client. %d registered clients", len(broker.clients)))
 		case event := <-broker.notifier:
 			for clientMessageChan := range broker.clients {
 				clientMessageChan <- event

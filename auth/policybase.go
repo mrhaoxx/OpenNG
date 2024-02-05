@@ -11,7 +11,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	http "github.com/mrhaoxx/OpenNG/http"
-	logging "github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/log"
 	ngtls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
@@ -240,14 +240,14 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 					})
 					ctx.Redirect(truepath, http.StatusFound)
 
-					logging.Println("%", "^", userl, "+"+session, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+					log.Println("%", "^", userl, "+"+session, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 					// directly move to the truepath without checking whether the user has permission,
 					// if it doesn't, the server would move it back
 				} else {
 					time.Sleep(200 * time.Millisecond) // Sleep 200ms to avoid being cracked
 					ctx.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 5)
 
-					logging.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 				}
 			} else {
 				ctx.ErrorPage(http.StatusMethodNotAllowed, err.Error())
@@ -279,7 +279,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		})
 		if session != nil {
 			mgr.rmSession(cookie.Value)
-			logging.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+			log.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
 		ctx.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 3)
 	default:
@@ -336,7 +336,7 @@ func (mgr *policyBaseAuth) Clean() {
 		session.muS.Lock()
 		if session.lastseen.Add(120 * time.Minute).Before(now) {
 			delete(mgr.sessions, key)
-			logging.Println("%", "&-", session.user.name, key)
+			log.Println("%", "&-", session.user.name, key)
 		}
 		session.muS.Unlock()
 	}

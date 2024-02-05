@@ -10,7 +10,6 @@ import (
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
-// var GlobalCer = []tls.Certificate{}
 type Cert struct {
 	*tls.Certificate
 	dnsnames utils.GroupRegexp
@@ -62,6 +61,8 @@ func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 		c.Leaf, _ = x509.ParseCertificate(c.Certificate[0])
 
 		m.muCerts.Lock()
+		m.lookup.Refresh()
+
 		m.certs[certfile] = Cert{
 			Certificate: &c,
 			dnsnames:    utils.MustCompileRegexp(Dnsname2Regexp(c.Leaf.DNSNames)),
@@ -71,6 +72,23 @@ func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 
 		return nil
 	}
+}
+
+func (m *tlsMgr) ResetCertificates() {
+	m.muCerts.Lock()
+	m.lookup.Refresh()
+	m.certs = make(map[string]Cert)
+	m.muCerts.Unlock()
+}
+
+func (mgr *tlsMgr) GetActiveCertificates() []Cert {
+	mgr.muCerts.RLock()
+	defer mgr.muCerts.RUnlock()
+	var certs []Cert
+	for _, v := range mgr.certs {
+		certs = append(certs, v)
+	}
+	return certs
 }
 
 func Dnsname2Regexp(dnsnames []string) []string {

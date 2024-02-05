@@ -2,27 +2,19 @@ package ui
 
 import (
 	"errors"
+	"net"
 	"os"
 	"strconv"
 	"strings"
 
-	auth "github.com/mrhaoxx/OpenNG/auth"
-	http "github.com/mrhaoxx/OpenNG/http"
-	logging "github.com/mrhaoxx/OpenNG/log"
-	tcp "github.com/mrhaoxx/OpenNG/tcp"
-	tls "github.com/mrhaoxx/OpenNG/tls"
+	"github.com/mrhaoxx/OpenNG/auth"
+	"github.com/mrhaoxx/OpenNG/http"
+	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/tcp"
+	"github.com/mrhaoxx/OpenNG/tls"
 
 	"gopkg.in/yaml.v3"
 )
-
-type Cfg struct {
-	Version int
-	Auth    authConfig `yaml:"Auth,flow"`
-	TCP     tcpConfig  `yaml:"TCP,flow"`
-	TLS     tlsConfig  `yaml:"TLS,flow"`
-	HTTP    httpConfig `yaml:"HTTP,flow"`
-	Logger  logConfig  `yaml:"Logger,flow"`
-}
 
 var TcpController = tcp.NewTcpController(map[string]tcp.ServiceHandler{
 	"tls":     TlsMgr,
@@ -93,108 +85,124 @@ func LoadCfg(cfgs []byte) error {
 	}
 
 	if cfg.Logger.DisableConsole {
-		logging.Println("sys", "Disabling Console Logging")
-		logging.ClearLoggers()
+		log.Println("sys", "Disabling Console Logging")
+		log.ClearLoggers()
 	}
 
 	if cfg.Logger.File != "" {
 		f, _ := os.OpenFile(cfg.Logger.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		logging.RegisterLogger(f)
-		logging.Println("sys", "File Logger Registered", cfg.Logger.File)
+		log.RegisterLogger(f)
+		log.Println("sys", "File Logger Registered", cfg.Logger.File)
 	}
 
 	if cfg.Logger.UDP.Address != "" {
-		logging.RegisterLogger(NewUdpLogger(cfg.Logger.UDP.Address))
-		logging.Println("sys", "UDP Logger Registered", cfg.Logger.UDP.Address)
+		log.RegisterLogger(NewUdpLogger(cfg.Logger.UDP.Address))
+		log.Println("sys", "UDP Logger Registered", cfg.Logger.UDP.Address)
 	}
 
 	if cfg.Logger.EnableSSE {
-		logging.RegisterLogger(Sselogger)
-		logging.Println("sys", "SSE Logger Registered")
+		log.RegisterLogger(Sselogger)
+		log.Println("sys", "SSE Logger Registered")
 	}
 
 	for _, u := range cfg.Auth.Users {
-		logging.Println("sys", "auth", "Found User", u.Username)
+		log.Println("sys", "auth", "Found User", u.Username)
 		pba.SetUser(u.Username, u.PasswordHash)
 	}
 	for _, p := range cfg.Auth.Policies {
-		logging.Println("sys", "auth", "Found Policy", p.Name)
+		log.Println("sys", "auth", "Found Policy", p.Name)
 		if err = pba.AddPolicy(p.Name, p.Allowance, p.Users, p.Hosts, p.Paths); err != nil {
 			break
 		}
 	}
 
 	if err != nil {
-		logging.Println("sys", "auth", err)
+		log.Println("sys", "auth", err)
 		os.Exit(-1)
 	}
 
 	for _, bind := range cfg.HTTP.Midware.Binds {
-		logging.Println("sys", "http", "Binding", bind.Id)
+		log.Println("sys", "http", "Binding", bind.Id)
 		HttpMidware.Bind(bind.Id, bind.Name, bind.Hosts)
 	}
 
 	if err != nil {
-		logging.Println("sys", "http", err)
+		log.Println("sys", "http", err)
 		os.Exit(-1)
 	}
 
 	for _, host := range cfg.HTTP.Proxier.Hosts {
-		logging.Println("sys", "httpproxy", host.Name, host.Hosts)
+		log.Println("sys", "httpproxy", host.Name, host.Hosts)
 		if err := HttpProxier.Add(host.Name, host.Hosts, host.Backend, 0, host.TlsSkipVerify); err != nil {
 			break
 		}
 	}
 	if err != nil {
-		logging.Println("sys", "httpproxy", err)
+		log.Println("sys", "httpproxy", err)
 		os.Exit(-1)
 	}
 
 	for _, e := range cfg.TCP.Proxier.Routes {
-		logging.Println("sys", "tcpproxy", e.Name, e.Protocol, "->", e.Backend)
+		log.Println("sys", "tcpproxy", e.Name, e.Protocol, "->", e.Backend)
 
 		if err := TcpProxier.Add(e.Name, e.Backend, e.Protocol); err != nil {
 			return nil
 		}
 	}
 	if err != nil {
-		logging.Println("sys", "tcpproxy", err)
+		log.Println("sys", "tcpproxy", err)
 		os.Exit(-1)
 	}
 
 	for _, c := range cfg.TLS.Certificates {
-		logging.Println("sys", "tls", "Found certificate", c.CertFile)
+		log.Println("sys", "tls", "Found certificate", c.CertFile)
 
 		err = TlsMgr.LoadCertificate(c.CertFile, c.KeyFile)
 	}
 
 	if err != nil {
-		logging.Println("sys", "tls", err)
+		log.Println("sys", "tls", err)
 		os.Exit(-1)
 	}
 
 	for protocol, bindings := range cfg.TCP.Controller.Binds {
-		logging.Println("sys", "tcp", "Services Bindings", protocol, "->", bindings)
+		log.Println("sys", "tcp", "Services Bindings", protocol, "->", bindings)
 		if err = TcpController.Bind(protocol, bindings); err != nil {
 			break
 		}
 	}
 
 	if err != nil {
-		logging.Println("sys", "tcp", err)
+		log.Println("sys", "tcp", err)
 		os.Exit(-1)
 	}
 
 	for _, bds := range cfg.TCP.Controller.AddressBindings {
-		logging.Println("sys", "tcp", "Listening on", bds)
+		log.Println("sys", "tcp", "Listening on", bds)
 		if err := TcpController.Listen(bds); err != nil {
 			break
 		}
 	}
 	if err != nil {
-		logging.Println("sys", "tcp", err)
+		log.Println("sys", "tcp", err)
 		os.Exit(-1)
 	}
 
 	return nil
+}
+
+func NewUdpLogger(address string) *udpLogger {
+	addr, err := net.ResolveUDPAddr("udp", address)
+	if err != nil {
+		panic(err)
+	}
+	conn, err := net.DialUDP("udp", nil, addr)
+	if err != nil {
+		panic(err)
+	}
+	return &udpLogger{UDPConn: conn}
+}
+
+type udpLogger struct {
+	*net.UDPConn
 }

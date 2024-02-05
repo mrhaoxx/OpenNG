@@ -3,7 +3,7 @@ package tcp
 import (
 	"net"
 
-	logging "github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/log"
 
 	"github.com/pires/go-proxyproto"
 )
@@ -13,7 +13,7 @@ func NewTCPProxyProtocolHandler() ServiceHandler {
 		sorce := conn.Addr().String()
 		sourceip, _, err := net.SplitHostPort(sorce)
 		if err != nil || sourceip != "127.0.0.1" {
-			logging.Println("sys", "[PROXYPROTOCOL]", "Disallowed Source IP Addr", sourceip)
+			log.Println("sys", "[PROXYPROTOCOL]", "Disallowed Source IP Addr", sourceip)
 			return Close
 		}
 		conn.Upgrade(proxyproto.NewConn(conn.TopConn()), "")
