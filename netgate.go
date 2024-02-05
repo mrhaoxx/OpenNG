@@ -6,14 +6,12 @@ import (
 	"runtime"
 
 	_ "github.com/mrhaoxx/OpenNG/auth"
-	"github.com/mrhaoxx/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/ui"
 )
 
 func main() {
-	logging.RegisterLogger(os.Stdout)
-
-	logging.Println(`NetGATE - HomeLab Inbound Gateway
+	log.Println(`NetGATE - HomeLab Inbound Gateway
  _   _      _    ____    _  _____ _____ 
 | \ | | ___| |_ / ___|  / \|_   _| ____|
 |  \| |/ _ \ __| |  _  / _ \ | | |  _|  
@@ -30,9 +28,9 @@ func main() {
 		return
 	}
 	if err := ui.LoadCfg(r); err != nil {
-		logging.Println(err)
+		log.Println(err)
 		os.Exit(-1)
 	}
-	logging.Println("sys", "Loaded")
+	log.Println("sys", "Loaded")
 	select {}
 }

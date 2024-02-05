@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	logging "github.com/mrhaoxx/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/log"
 	tcp "github.com/mrhaoxx/OpenNG/tcp"
 	tls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
@@ -100,7 +100,11 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 	defer func() {
 		if err := recover(); err != nil {
-			RequestPath += "$ "
+			if e, ok := err.(error); ok {
+				RequestPath += "$<" + e.Error() + "> "
+			} else {
+				RequestPath += "$<> "
+			}
 
 			if RequestCtx.Resp.code == 0 {
 				RequestCtx.ErrorPage(http.StatusInternalServerError, fmt.Sprintf("Panic: %v", err))

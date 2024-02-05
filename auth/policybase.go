@@ -11,7 +11,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	http "github.com/mrhaoxx/OpenNG/http"
-	logging "github.com/mrhaoxx/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/log"
 	ngtls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
@@ -391,4 +391,11 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 	}
 
 	return 0
+}
+
+func (LGM *policyBaseAuth) SetUser(username string, passwordhash string) {
+	LGM.usrs[username] = &user{
+		name:         username,
+		passwordHash: passwordhash,
+	}
 }

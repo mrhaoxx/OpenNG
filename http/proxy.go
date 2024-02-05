@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/logging"
+	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
 
 	ngtls "github.com/mrhaoxx/OpenNG/tls"
@@ -144,7 +144,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
 			// rw.(*NgResponseWriter).Header().Add("X-Ng-Proxy-Err", strconv.Quote(e.Error()))
 			http.Error(rw, "Bad Gateway\n"+strconv.Quote(e.Error()), http.StatusBadGateway)
-			logging.Println("sys", "httpproxy", r.Host, "->", id, e)
+			log.Println("sys", "httpproxy", r.Host, "->", id, e)
 		},
 		Director: func(req *http.Request) {
 			req.URL.Scheme = u.Scheme
@@ -165,7 +165,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 }
 func insert(a []*Httphost, index int, value *Httphost) []*Httphost {
 	if index < 0 {
-		panic("index out of range")
+		panic(errors.New("index out of range"))
 	}
 	if len(a) == index {
 		a = append(a, value)

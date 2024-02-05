@@ -1,4 +1,4 @@
-package logging
+package log
 
 import (
 	"fmt"
@@ -10,7 +10,7 @@ type Logger interface {
 	Write([]byte) (int, error)
 }
 
-var loggers = []Logger{}
+var loggers = []Logger{os.Stdout}
 
 func RegisterLogger(_loggers ...Logger) {
 	loggers = append(loggers, _loggers...)
@@ -56,31 +56,6 @@ func itoa(buf *[]byte, i int, wid int) {
 	*buf = append(*buf, b[bp:]...)
 }
 
-type LoggerConfig struct {
-	UDP UdpLoggerConfig `yaml:"UdpLogger"`
-	// Influx         InfluxConfig    `yaml:"Influx"`
-	EnableSSE      bool   `yaml:"EnableSSE"`
-	File           string `yaml:"File"`
-	DisableConsole bool   `yaml:"DisableConsole"`
-}
-
-func Load(cfg LoggerConfig) {
-	if cfg.DisableConsole {
-		Println("sys", "Disabling Console Logging")
-		loggers = make([]Logger, 0)
-	}
-	if cfg.File != "" {
-		f, _ := os.OpenFile(cfg.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		RegisterLogger(f)
-		Println("sys", "File Logger Registered", cfg.File)
-	}
-	if cfg.UDP.Address != "" {
-		RegisterLogger(NewUdpLogger(cfg.UDP))
-		Println("sys", "UDP Logger Registered", cfg.UDP.Address)
-	}
-	// if cfg.Influx.Url != "" {
-	// 	RegisterLogger(NewInfluxLogger(cfg.Influx))
-	// 	Println("sys", "Influx DB Registered", cfg.Influx.Url, cfg.Influx.Org, cfg.Influx.Bucket)
-	// }
-
+func ClearLoggers() {
+	loggers = []Logger{}
 }

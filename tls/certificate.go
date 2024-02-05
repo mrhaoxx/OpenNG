@@ -3,6 +3,7 @@ package tls
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"strings"
 	"sync"
 
@@ -45,7 +46,11 @@ func NewTlsMgr() *tlsMgr {
 }
 
 func (m *tlsMgr) getCertificate(dnsname string) *tls.Certificate {
-	return m.lookup.Lookup(dnsname).(*tls.Certificate)
+	if cert := m.lookup.Lookup(dnsname); cert != nil {
+		return cert.(*tls.Certificate)
+	} else {
+		panic(errors.New("no certificate for " + dnsname))
+	}
 }
 
 func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {

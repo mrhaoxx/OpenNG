@@ -8,7 +8,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/log"
 )
 
 const (
@@ -27,7 +27,7 @@ type SericeBinding struct {
 	name string
 }
 
-type Controller struct {
+type controller struct {
 	Services map[string]ServiceHandler
 	Binds    map[string][]SericeBinding
 
@@ -37,7 +37,7 @@ type Controller struct {
 	activeConnections  map[uint64]*Conn
 }
 
-func (c *Controller) Deliver(conn *Conn) {
+func (c *controller) Deliver(conn *Conn) {
 
 	c.muActiveConnection.Lock()
 	c.activeConnections[conn.Id] = conn
@@ -65,8 +65,11 @@ _restart:
 
 	defer func() {
 		if err := recover(); err != nil {
-			conn.AppendPath("$ ")
-
+			if e, ok := err.(error); ok {
+				conn.AppendPath("$<" + e.Error() + "> ")
+			} else {
+				conn.AppendPath("$<> ")
+			}
 			ret = Close
 		}
 	}()
@@ -91,7 +94,7 @@ _restart:
 
 }
 
-func (ctl *Controller) Listen(addr string) error {
+func (ctl *controller) Listen(addr string) error {
 	lc, err := net.Listen("tcp", addr)
 	if err != nil {
 		return err
@@ -130,7 +133,7 @@ func NewServiceFunction(f func(*Conn) SerRet) ServiceHandler {
 	return funcInterface(f)
 }
 
-func (ctl *Controller) Bind(protocol string, services []string) error {
+func (ctl *controller) Bind(protocol string, services []string) error {
 
 	var bindings []SericeBinding
 	for _, g := range services {
@@ -147,11 +150,11 @@ func (ctl *Controller) Bind(protocol string, services []string) error {
 	return nil
 }
 
-func (ctl *Controller) AddService(name string, handler ServiceHandler) {
+func (ctl *controller) AddService(name string, handler ServiceHandler) {
 	ctl.Services[name] = handler
 }
 
-func (ctl *Controller) ReportActiveConnections() map[uint64]interface{} {
+func (ctl *controller) ReportActiveConnections() map[uint64]interface{} {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	ret := make(map[uint64]interface{})
@@ -168,7 +171,7 @@ func (ctl *Controller) ReportActiveConnections() map[uint64]interface{} {
 	return ret
 }
 
-func (ctl *Controller) KillConnection(connection_id uint64) error {
+func (ctl *controller) KillConnection(connection_id uint64) error {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	conn, ok := ctl.activeConnections[connection_id]
@@ -178,4 +181,13 @@ func (ctl *Controller) KillConnection(connection_id uint64) error {
 	conn.AppendPath(">! ")
 	conn.triggerConnectionClose()
 	return nil
+}
+
+func NewTcpController(services map[string]ServiceHandler) *controller {
+	return &controller{
+		Services:           services,
+		Binds:              map[string][]SericeBinding{},
+		muActiveConnection: sync.RWMutex{},
+		activeConnections:  map[uint64]*Conn{},
+	}
 }

@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/mrhaoxx/OpenNG/logging"
+	logging "github.com/mrhaoxx/OpenNG/log"
 )
 
 type TextStreamLogger struct {
