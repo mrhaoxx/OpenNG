@@ -6,6 +6,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/mrhaoxx/OpenNG/auth"
 	"github.com/mrhaoxx/OpenNG/http"
@@ -13,6 +14,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
 
+	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
 )
 
@@ -154,10 +156,58 @@ func LoadCfg(cfgs []byte) error {
 		os.Exit(-1)
 	}
 
+	watcher, err := fsnotify.NewWatcher()
+
+	if err != nil {
+		log.Println("sys", "tls", "watch", err)
+	} else {
+		go func() {
+			var lastReload = time.Now()
+			for {
+				select {
+				case event, ok := <-watcher.Events:
+					if !ok {
+						return
+					}
+					if event.Has(fsnotify.Write) {
+						if lastReload.Add(5 * time.Second).After(time.Now()) {
+							continue
+						}
+						lastReload = time.Now()
+						log.Println("sys", "tls", "watch", "modified", event.Name)
+						time.Sleep(2 * time.Second)
+						TlsMgr.ResetCertificates()
+
+						for _, c := range cfg.TLS.Certificates {
+							log.Println("sys", "tls", "Reload certificate", c.CertFile)
+							TlsMgr.LoadCertificate(c.CertFile, c.KeyFile)
+						}
+					}
+				case err, ok := <-watcher.Errors:
+					if !ok {
+						return
+					}
+					log.Println("sys", "tls", "watch", err)
+				}
+			}
+		}()
+	}
+
 	for _, c := range cfg.TLS.Certificates {
 		log.Println("sys", "tls", "Found certificate", c.CertFile)
 
 		err = TlsMgr.LoadCertificate(c.CertFile, c.KeyFile)
+		if err != nil {
+			break
+		}
+		if watcher != nil {
+			err = watcher.Add(c.CertFile)
+			if err != nil {
+				log.Println("sys", "tls", "watch", "failed to watch:", c.CertFile, err)
+			} else {
+				log.Println("sys", "tls", "watch", c.CertFile)
+			}
+		}
 	}
 
 	if err != nil {
