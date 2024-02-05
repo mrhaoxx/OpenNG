@@ -6,7 +6,7 @@ stages:
   - deploy
 
 compile:
-  image: golang:1.20
+  image: golang:1.21
   stage: build
   before_script:
     - mkdir -p $GOPATH/src/$(dirname $REPO_NAME)
