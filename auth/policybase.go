@@ -275,7 +275,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 					// if it doesn't, the server would move it back
 				} else {
 					time.Sleep(200 * time.Millisecond) // Sleep 200ms to avoid being cracked
-					ctx.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 5)
+					ctx.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 1)
 
 					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 				}
@@ -311,7 +311,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 			mgr.rmSession(cookie.Value)
 			log.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
-		ctx.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 3)
+		ctx.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
 	default:
 		ctx.ErrorPage(http.StatusNotFound, "Not Found")
 	}
