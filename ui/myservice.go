@@ -51,7 +51,7 @@ func init() {
 	HttpMidware.AddService("Auth", Auth)
 	HttpMidware.AddService("Knock", Knock)
 	HttpMidware.AddService("NgUI", &UI{})
-
+	// HttpMidware.AddService("dump", http.NewServiceHolder([]*regexp2.Regexp{regexp2.MustCompile(".*", regexp2.None)}, http.EchoVerbose, nil, nil))
 	HttpMidware.AddServiceInternal(pba)
 	HttpMidware.AddServiceInternal(HttpProxier)
 }
@@ -125,7 +125,10 @@ func LoadCfg(cfgs []byte) error {
 
 	for _, bind := range cfg.HTTP.Midware.Binds {
 		log.Println("sys", "http", "Binding", bind.Id)
-		HttpMidware.Bind(bind.Id, bind.Name, bind.Hosts)
+		err = HttpMidware.Bind(bind.Id, bind.Name, bind.Hosts)
+		if err != nil {
+			break
+		}
 	}
 
 	if err != nil {

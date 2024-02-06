@@ -3,6 +3,7 @@ package auth
 import (
 	"encoding/base64"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -113,12 +114,31 @@ func GenHash(data string) string {
 
 func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	// First Lets get user info
-	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
+	var token string
+	var exists bool
+	cookieHeader := ctx.Req.Header["Cookie"]
+	for i, cookie := range cookieHeader {
+		cookies := strings.Split(cookie, ";")
+		for j, item := range cookies {
+			if strings.Contains(item, verfiyCookieKey+"=") {
+				token = strings.TrimPrefix(item, verfiyCookieKey+"=")
+				cookies = append(cookies[:j], cookies[j+1:]...)
+				exists = true
+				break
+			}
+		}
+		cookieHeader[i] = strings.Join(cookies, ";")
+	}
+
+	if exists {
+		ctx.Req.Header["Cookie"] = cookieHeader
+	}
+
 	var session *session
 	var user string
-	if cookie != nil {
+	if token != "" {
 		mgr.muSession.RLock()
-		session = mgr.sessions[cookie.Value]
+		session = mgr.sessions[token]
 		mgr.muSession.RUnlock()
 
 		if session != nil {
@@ -136,6 +156,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 				atomic.AddUint64(&session.active, ^uint64(0))
 			})
 		}
+
 		return AC
 	case 0:
 		return CT // no hit

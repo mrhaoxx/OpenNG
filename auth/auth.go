@@ -12,9 +12,9 @@ type AuthRet uint8
 const PrefixAuth = "/auth"
 const InternalAuthPath = 119
 const (
-	AC AuthRet = 0
-	DE AuthRet = 1
-	CT AuthRet = 2
+	AC AuthRet = 0 //accept
+	DE AuthRet = 1 //deny
+	CT AuthRet = 2 // next auth method
 )
 
 type AuthHandle interface {

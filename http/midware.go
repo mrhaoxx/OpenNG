@@ -227,12 +227,15 @@ func (HMW *Midware) AddServiceInternal(svc ServiceInternal) {
 // @OptionalParam []string=[]string{"(.*)"} hosts the specificed hosts
 //
 //ng:generate def func Midware::Bind
-func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) {
+func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) error {
 	if id == "" {
 		id = serviceid
 	}
 	var hosts []*regexp2.Regexp
-	service := HMW.services[serviceid]
+	service, ok := HMW.services[serviceid]
+	if !ok {
+		return errors.New("service " + serviceid + " not found")
+	}
 	if len(_hosts) == 0 {
 		hosts = service.Hosts()
 	} else {
@@ -245,6 +248,7 @@ func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) {
 	})
 
 	HMW.bufferedLookupForHost.Refresh()
+	return nil
 }
 
 func (ctl *Midware) ReportActiveRequests() map[uint64]interface{} {
