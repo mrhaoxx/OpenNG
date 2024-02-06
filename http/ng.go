@@ -18,16 +18,14 @@ func ngInternalServiceHandler(RequestCtx *HttpCtx) Ret {
 
 	path := strings.TrimPrefix(RequestCtx.Req.URL.Path, PrefixNg)
 
-	RequestCtx.Store(InternalPath, path)
-
 	s := muxBufPath.Lookup(path).([]*shInternal)
 
 	if len(s) == 0 {
-		RequestCtx.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+" was not found on this server.")
+		RequestCtx.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+"("+path+")"+" was not found on this server.")
 	}
 
 	for _, t := range s {
-		switch t.ServiceHandler(RequestCtx) {
+		switch t.ServiceInternalHandler(RequestCtx, path) {
 		case RequestEnd:
 			goto _break
 		case Continue:
@@ -41,7 +39,7 @@ _break:
 
 var mux = []*shInternal{
 	{
-		ServiceHandler: func(ctx *HttpCtx) Ret {
+		ServiceInternalHandler: func(ctx *HttpCtx, path string) Ret {
 			ctx.Resp.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			ctx.Resp.Header().Set("Cache-Control", "no-cache")
 			ctx.WriteString("reqid: " + strconv.Itoa(int(ctx.Id)) + "\n" +
@@ -55,7 +53,7 @@ var mux = []*shInternal{
 		paths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
 	},
 	{
-		ServiceHandler: func(ctx *HttpCtx) Ret {
+		ServiceInternalHandler: func(ctx *HttpCtx, path string) Ret {
 			res.WriteLogo(ctx.Resp)
 			return RequestEnd
 		},
@@ -75,13 +73,15 @@ var muxBufPath = utils.NewBufferedLookup(func(s string) interface{} {
 })
 
 type shInternal struct {
-	ServiceHandler
+	ServiceInternalHandler
 	paths []*regexp2.Regexp
 }
 
-func addInternal(s ServiceHandler, paths []*regexp2.Regexp) {
+func addInternal(s ServiceInternalHandler, paths []*regexp2.Regexp) {
 	mux = append(mux, &shInternal{
-		ServiceHandler: s,
-		paths:          paths,
+		ServiceInternalHandler: s,
+		paths:                  paths,
 	})
 }
+
+type ServiceInternalHandler func(*HttpCtx, string) Ret

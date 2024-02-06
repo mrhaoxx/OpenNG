@@ -143,7 +143,7 @@ type Service interface {
 }
 type ServiceInternal interface {
 	PathsInternal() utils.GroupRegexp
-	HandleHTTPInternal(*HttpCtx) Ret
+	HandleHTTPInternal(*HttpCtx, string) Ret
 }
 
 func NewHttpMidware(sni []string) *Midware {
@@ -279,18 +279,19 @@ func (HMW *Midware) KillRequest(rid uint64) error {
 	if !ok {
 		return errors.New("request not found")
 	}
-	ctx.Signal(Killsig, struct{}{})
+
+	ctx.kill()
+
 	return nil
 }
 
-// @RetVal tcp.ServiceHandler RedirectToTls
-//
-//ng:generate def func NewTCPRedirectToTls
-func NewTCPRedirectToTls() tcp.ServiceHandler {
-	return tcp.NewServiceFunction(func(conn *tcp.Conn) tcp.SerRet {
-		http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
-		}))
-		return tcp.Close
-	})
+type redirectTLS struct{}
+
+func (redirectTLS) Handle(conn *tcp.Conn) tcp.SerRet {
+	http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
+	}))
+	return tcp.Close
 }
+
+var Redirect2TLS = redirectTLS{}

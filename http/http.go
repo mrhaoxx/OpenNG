@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	tcp "github.com/mrhaoxx/OpenNG/tcp"
-	utils "github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/tcp"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/andybalholm/brotli"
 	"golang.org/x/net/http2"
@@ -34,9 +34,6 @@ type HttpCtx struct {
 	conn *tcp.Conn
 
 	closing chan struct{}
-
-	utils.StoreContext
-	utils.SignalContext
 
 	kill func()
 
@@ -68,7 +65,6 @@ func (c *HttpCtx) Close() {
 	}
 
 	c.Resp.Close()
-	c.SignalContext.Close()
 	close(c.closing)
 }
 func (c *HttpCtx) IsClosing() <-chan struct{} {
@@ -86,8 +82,6 @@ type ServiceHandler func(*HttpCtx) Ret
 const (
 	RequestEnd Ret = false
 	Continue   Ret = true
-
-	Killsig uint8 = 1
 )
 
 var curreq uint64
@@ -142,16 +136,7 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 		closing:   make(chan struct{}),
 		conn:      conn,
 	}
-	n := strings.Split(r.Host, ".")
-	if len(n) >= 2 {
-		rawh := strings.Join(n[len(n)-2:], ".")
-		ctx.Store(Mainhost, rawh)
-		n = strings.Split(rawh, ":")
-		ctx.Store(Maindomain, n[0])
-	} else {
-		ctx.Store(Mainhost, r.Host)
-		ctx.Store(Maindomain, r.Host)
-	}
+
 	h.Process(ctx)
 }
 

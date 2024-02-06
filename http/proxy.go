@@ -31,7 +31,7 @@ type httpproxy struct {
 	buf   *utils.BufferedLookup
 }
 
-func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx) Ret {
+func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx, path string) Ret {
 	_host := h.buf.Lookup(ctx.Req.Host)
 	var id string
 	if _host != nil {

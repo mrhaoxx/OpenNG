@@ -169,7 +169,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 
 }
 
-func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
+func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) http.Ret {
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
 	var user string
@@ -182,8 +182,17 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 			user = session.user.name
 		}
 	}
+	var Maindomain string
+	n := strings.Split(ctx.Req.Host, ".")
+	if len(n) >= 2 {
+		rawh := strings.Join(n[len(n)-2:], ".")
+		n = strings.Split(rawh, ":")
+		Maindomain = n[0]
+	} else {
+		Maindomain = ctx.Req.Host
+	}
 
-	path := ctx.NilLoad(http.InternalPath).(string)[len(PrefixAuth+PrefixAuthPolicy):]
+	path = path[len(PrefixAuth+PrefixAuthPolicy):]
 
 	r := ctx.Req.URL.Query().Get("r")
 	p, err := base64.URLEncoding.DecodeString(r)
@@ -253,7 +262,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 					ctx.SetCookie(&stdhttp.Cookie{
 						Name:     verfiyCookieKey,
 						Value:    session,
-						Domain:   ctx.NilLoad(http.Maindomain).(string),
+						Domain:   Maindomain,
 						Secure:   true,
 						Path:     "/",
 						Expires:  time.Now().Add(3 * 24 * time.Hour),
@@ -292,7 +301,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
 		ctx.SetCookie(&stdhttp.Cookie{
 			Name:     verfiyCookieKey,
 			Value:    "",
-			Domain:   ctx.NilLoad(http.Maindomain).(string),
+			Domain:   Maindomain,
 			Secure:   true,
 			Path:     "/",
 			Expires:  time.Now().Add(-1 * time.Hour),

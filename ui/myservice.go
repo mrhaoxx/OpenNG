@@ -23,7 +23,7 @@ var TcpController = tcp.NewTcpController(map[string]tcp.ServiceHandler{
 	"knock":   Knock,
 	"proxier": TcpProxier,
 	"pph":     tcp.NewTCPProxyProtocolHandler(),
-	"rdtls":   http.NewTCPRedirectToTls(),
+	"rdtls":   http.Redirect2TLS,
 	"http":    HttpMidware,
 	"det": &tcp.Detect{Dets: []tcp.Detector{
 		tcp.DetectTLS,
