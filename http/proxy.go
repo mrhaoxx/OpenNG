@@ -153,8 +153,8 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 				req.Header.Set("User-Agent", "")
 			}
 			ip, _, _ := net.SplitHostPort(req.RemoteAddr)
-			req.Header.Add("X-Real-IP", ip)
-			req.Header.Add("X-Forwarded-For", ip)
+			req.Header.Set("X-Real-IP", ip)
+			req.Header.Set("X-Forwarded-For", ip)
 
 		},
 		Transport:     tpa,

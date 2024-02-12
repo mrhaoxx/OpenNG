@@ -23,6 +23,9 @@ import (
 //go:embed html/ace.js
 var acejs string
 
+//go:embed html/yaml.js
+var yamljs string
+
 //go:embed html/index.html
 var html_index string
 
@@ -31,6 +34,12 @@ var html_connection string
 
 //go:embed html/requests.html
 var html_requests string
+
+//go:embed html/config.html
+var html_config string
+
+//go:embed html/cards.js
+var js_cards string
 
 type UI struct {
 }
@@ -44,9 +53,22 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
 		ctx.Resp.Header().Add("Cache-Control", "public")
 		ctx.WriteString(acejs)
+	case "/yaml.js":
+		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
+		ctx.Resp.Header().Add("Cache-Control", "public")
+		ctx.WriteString(yamljs)
+	case "/cards.js":
+		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
+		// ctx.Resp.Header().Add("Cache-Control", "public")
+		bytes, _ := os.ReadFile("ui/html/cards.js")
+		ctx.Resp.Write(bytes)
 	case "/":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		ctx.WriteString(html_index)
+	case "/config":
+		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
+		bytes, _ := os.ReadFile("ui/html/config.html")
+		ctx.Resp.Write(bytes)
 	case "/connections":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		ctx.WriteString(html_connection)

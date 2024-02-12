@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>YAML Editor with Ace and Visualizer</title>
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+        }
+
+        .container {
+            display: flex;
+            height: 100%;
+        }
+
+        .yaml-editor,
+        .visual-editor {
+            flex: 1;
+            overflow: auto;
+        }
+
+        .card {
+            box-shadow: 0 4px 8px 0 rgba(0, 0, 0, 0.2);
+            transition: 0.3s;
+            width: 100%;
+            margin: 10px;
+            display: inline-block;
+            background-color: #f9f9f9;
+        }
+    </style>
+    <script src="/ace.js"></script>
+    <script src="/cards.js"></script>
+
+</head>
+
+<body>
+    <div class="container">
+        <div id="yamlEditor" class="yaml-editor"></div>
+        <div class="visual-editor">
+            <div id="visualOutput"></div>
+        </div>
+    </div>
+    <script type="module">
+        import YAML from 'https://cdn.jsdelivr.net/npm/yaml@2.3.4/browser/index.min.js'
+
+        var cardtypes = {
+            "version": version_card,
+            "Logger": logger_card
+        }
+
+        function refresh_from_yaml() {
+            if (setting) {
+                return;
+            }
+            const visualOutput = document.getElementById('visualOutput');
+            visualOutput.innerHTML = '';
+
+            try {
+                const input = editor.getValue();
+                doc = YAML.parseDocument(input,{ toStringDefaults: {indent : 4}});
+                const result = doc.toJSON();
+                const keys = Object.keys(result)
+
+                keys.forEach(item => {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+
+                    cardtypes[item](card)
+
+                    visualOutput.appendChild(card);
+                });
+            } catch (e) {
+                visualOutput.textContent = 'Error parsing YAML: ' + e.message;
+            }
+        }
+
+        editor = ace.edit("yamlEditor");
+        editor.session.setMode("ace/mode/yaml");
+        editor.setValue(`version: 4
+Logger:
+    UdpLogger:
+        Address: localhost:2313
+    EnableSSE: true
+`);
+
+        editor.session.on('change', refresh_from_yaml);
+
+        refresh_from_yaml();
+        editor.moveCursorTo(0, 0)
+    </script>
+</body>
+
+
+</html>

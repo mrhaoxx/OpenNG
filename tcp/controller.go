@@ -76,9 +76,9 @@ _restart:
 
 	for _, v := range s {
 
-		ret = v.Handle(conn)
-
 		conn.AppendPath(v.name + " ")
+
+		ret = v.Handle(conn)
 
 		switch ret {
 		case Close:
