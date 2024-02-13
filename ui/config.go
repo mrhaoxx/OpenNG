@@ -7,6 +7,7 @@ type Cfg struct {
 	TLS     tlsConfig  `yaml:"TLS,flow"`
 	HTTP    httpConfig `yaml:"HTTP,flow"`
 	Logger  logConfig  `yaml:"Logger,flow"`
+	DNS     DnsConfig  `yaml:"DNS,flow"`
 }
 
 type authConfig struct {
@@ -86,4 +87,22 @@ type Certificate struct {
 }
 type UdpLoggerConfig struct {
 	Address string `yaml:"Address"`
+}
+
+type DnsConfig struct {
+	Bind     string          `yaml:"Bind"`
+	Upstream string          `yaml:"Upstream"`
+	Records  []DnsRecord     `yaml:"Records,flow"`
+	Filters  []DnsFilterRule `yaml:"Filters,flow"`
+}
+
+type DnsRecord struct {
+	Domain string `yaml:"Domain"`
+	Type   string `yaml:"Type"`
+	Value  string `yaml:"Value"`
+}
+
+type DnsFilterRule struct {
+	Name      string `yaml:"Name"`
+	Allowance bool   `yaml:"Allowance"`
 }

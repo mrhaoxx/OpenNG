@@ -4,9 +4,9 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
-	"strings"
 	"sync"
 
+	"github.com/mrhaoxx/OpenNG/dns"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
@@ -65,7 +65,7 @@ func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 
 		m.certs[certfile] = Cert{
 			Certificate: &c,
-			dnsnames:    utils.MustCompileRegexp(Dnsname2Regexp(c.Leaf.DNSNames)),
+			dnsnames:    utils.MustCompileRegexp(dns.Dnsnames2Regexps(c.Leaf.DNSNames)),
 			certfile:    certfile,
 		}
 		m.muCerts.Unlock()
@@ -89,14 +89,4 @@ func (mgr *tlsMgr) GetActiveCertificates() []Cert {
 		certs = append(certs, v)
 	}
 	return certs
-}
-
-func Dnsname2Regexp(dnsnames []string) []string {
-	var out []string
-	for _, v := range dnsnames {
-		v = strings.ReplaceAll(v, ".", "\\.")
-		v = strings.ReplaceAll(v, "*", ".*")
-		out = append(out, "^"+v+"$")
-	}
-	return out
 }

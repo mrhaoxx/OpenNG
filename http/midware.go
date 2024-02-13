@@ -10,9 +10,9 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
 	tcp "github.com/mrhaoxx/OpenNG/tcp"
-	tls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
 
@@ -165,7 +165,7 @@ func NewHttpMidware(sni []string) *Midware {
 	hmw.bufferedLookupForSNI = *utils.NewBufferedLookup(func(s string) interface{} {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
-	hmw.sni = utils.MustCompileRegexp(tls.Dnsname2Regexp(sni))
+	hmw.sni = utils.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
 	return hmw
 }
 
@@ -239,7 +239,7 @@ func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) error {
 	if len(_hosts) == 0 {
 		hosts = service.Hosts()
 	} else {
-		hosts = utils.MustCompileRegexp(tls.Dnsname2Regexp(_hosts))
+		hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(_hosts))
 	}
 	HMW.current = append(HMW.current, &ServiceStruct{
 		Id:             id,

@@ -8,7 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/auth"
+	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
@@ -239,6 +241,26 @@ func LoadCfg(cfgs []byte) error {
 	if err != nil {
 		log.Println("sys", "tcp", err)
 		os.Exit(-1)
+	}
+	var Dns = dns.NewServer(cfg.DNS.Upstream)
+	for _, f := range cfg.DNS.Filters {
+		log.Println("sys", "dns", "Filter", f.Name, f.Allowance)
+		r, err := regexp2.Compile(dns.Dnsname2Regexp(f.Name), 0)
+		if err != nil {
+			log.Println("sys", "dns", err)
+			os.Exit(-1)
+		}
+		Dns.AddFilter(r, f.Allowance)
+	}
+
+	if cfg.DNS.Bind != "" {
+		go func() {
+			log.Println("sys", "dns", "starting server at", cfg.DNS.Bind)
+			err := Dns.Listen(cfg.DNS.Bind)
+			if err != nil {
+				log.Println("sys", "dns", err)
+			}
+		}()
 	}
 
 	return nil

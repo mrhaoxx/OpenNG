@@ -11,9 +11,9 @@ import (
 	stdhttp "net/http"
 
 	"github.com/dlclark/regexp2"
+	"github.com/mrhaoxx/OpenNG/dns"
 	http "github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
-	ngtls "github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
@@ -392,7 +392,7 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 	if len(hosts) == 0 {
 		p.hosts = append(p.hosts, regexpforall)
 	} else {
-		p.hosts = utils.MustCompileRegexp(ngtls.Dnsname2Regexp(hosts))
+		p.hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 	}
 
 	if len(paths) == 0 {

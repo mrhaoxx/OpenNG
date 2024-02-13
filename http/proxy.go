@@ -10,10 +10,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
-
-	ngtls "github.com/mrhaoxx/OpenNG/tls"
 
 	"github.com/dlclark/regexp2"
 )
@@ -120,7 +119,7 @@ func (hpx *httpproxy) Delete(id string) error {
 func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend string, MaxConnsPerHost int, InsecureSkipVerify bool) error {
 	buf := Httphost{
 		Id:         id,
-		ServerName: utils.MustCompileRegexp(ngtls.Dnsname2Regexp(hosts)),
+		ServerName: utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
 		Backend:    backend,
 	}
 
