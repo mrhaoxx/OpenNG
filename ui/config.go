@@ -90,10 +90,11 @@ type UdpLoggerConfig struct {
 }
 
 type DnsConfig struct {
-	Bind     string          `yaml:"Bind"`
-	Upstream string          `yaml:"Upstream"`
-	Records  []DnsRecord     `yaml:"Records,flow"`
-	Filters  []DnsFilterRule `yaml:"Filters,flow"`
+	Bind    string          `yaml:"Bind"`
+	Domain  string          `yaml:"Domain"`
+	Records []DnsRecord     `yaml:"Records,flow"`
+	Filters []DnsFilterRule `yaml:"Filters,flow"`
+	Binds   []DnsBind       `yaml:"Binds,flow"`
 }
 
 type DnsRecord struct {
@@ -105,4 +106,8 @@ type DnsRecord struct {
 type DnsFilterRule struct {
 	Name      string `yaml:"Name"`
 	Allowance bool   `yaml:"Allowance"`
+}
+type DnsBind struct {
+	Name string `yaml:"Name"`
+	Addr string `yaml:"Addr"`
 }

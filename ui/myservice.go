@@ -242,7 +242,8 @@ func LoadCfg(cfgs []byte) error {
 		log.Println("sys", "tcp", err)
 		os.Exit(-1)
 	}
-	var Dns = dns.NewServer(cfg.DNS.Upstream)
+	var Dns = dns.NewServer(cfg.DNS.Domain)
+	log.Println("sys", "dns", "domain is", cfg.DNS.Domain)
 	for _, f := range cfg.DNS.Filters {
 		log.Println("sys", "dns", "Filter", f.Name, f.Allowance)
 		r, err := regexp2.Compile(dns.Dnsname2Regexp(f.Name), 0)
@@ -251,6 +252,18 @@ func LoadCfg(cfgs []byte) error {
 			os.Exit(-1)
 		}
 		Dns.AddFilter(r, f.Allowance)
+	}
+	for _, r := range cfg.DNS.Records {
+		log.Println("sys", "dns", "Record", r.Domain, r.Type, r.Value)
+		Dns.AddRecord(regexp2.MustCompile(dns.Dnsname2Regexp(r.Domain), 0), dns.DnsStringTypeToInt(r.Type), r.Value)
+	}
+	for _, b := range cfg.DNS.Binds {
+		log.Println("sys", "dns", b.Name, "->", b.Addr)
+		err := Dns.AddRecordWithIP(b.Name, b.Addr)
+		if err != nil {
+			log.Println("sys", "dns", err)
+			os.Exit(-1)
+		}
 	}
 
 	if cfg.DNS.Bind != "" {
