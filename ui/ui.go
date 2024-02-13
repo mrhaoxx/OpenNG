@@ -12,9 +12,11 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"time"
 
 	auth "github.com/mrhaoxx/OpenNG/auth"
 	http "github.com/mrhaoxx/OpenNG/http"
+	"github.com/mrhaoxx/OpenNG/log"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
@@ -108,7 +110,13 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			"cpus: ", runtime.NumCPU(), "\n",
 			"ccalls: ", runtime.NumCgoCall(), "\n",
 		))
-
+	case "/shutdown":
+		ctx.Resp.WriteHeader(http.StatusAccepted)
+		go func() {
+			log.Println("sys", "the server is going down in 1 second")
+			time.Sleep(1 * time.Second)
+			os.Exit(0)
+		}()
 	case "/204":
 		ctx.Resp.WriteHeader(204)
 	case "/api/v1/tcp/connections": //GET json output

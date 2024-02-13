@@ -254,8 +254,8 @@ func LoadCfg(cfgs []byte) error {
 		Dns.AddFilter(r, f.Allowance)
 	}
 	for _, r := range cfg.DNS.Records {
-		log.Println("sys", "dns", "Record", r.Domain, r.Type, r.Value)
-		Dns.AddRecord(regexp2.MustCompile(dns.Dnsname2Regexp(r.Domain), 0), dns.DnsStringTypeToInt(r.Type), r.Value)
+		log.Println("sys", "dns", "Record", r.Name, r.Type, r.Value)
+		Dns.AddRecord(regexp2.MustCompile(dns.Dnsname2Regexp(r.Name), 0), dns.DnsStringTypeToInt(r.Type), r.Value, uint32(r.Ttl))
 	}
 	for _, b := range cfg.DNS.Binds {
 		log.Println("sys", "dns", b.Name, "->", b.Addr)

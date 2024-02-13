@@ -18,7 +18,7 @@
     <br><br>
     <button id="update" onclick="update()">Get</button>
     <button id="save" onclick="save()">Save</button>
-    <button onclick="restart()">Restart</button>
+    <button onclick="shutdown()">Shutdown</button>
     <br />
     <input id="hasky" placeholder="Text to Hash"></input><button id="Hash" onclick="hash()">Hash</button><br>
 
@@ -53,9 +53,9 @@
             client.send(editor.getValue());
         }
 
-        function restart(a) {
+        function shutdown(a) {
             var client = new XMLHttpRequest();
-            client.open('GET', '/restart');
+            client.open('GET', '/shutdown');
             client.onload = function (E) {
                 alert(this.status)
             }

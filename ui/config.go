@@ -98,9 +98,10 @@ type DnsConfig struct {
 }
 
 type DnsRecord struct {
-	Domain string `yaml:"Domain"`
-	Type   string `yaml:"Type"`
-	Value  string `yaml:"Value"`
+	Name  string `yaml:"Name"`
+	Type  string `yaml:"Type"`
+	Value string `yaml:"Value"`
+	Ttl   int    `yaml:"TTL"`
 }
 
 type DnsFilterRule struct {

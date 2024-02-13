@@ -16,6 +16,7 @@ import (
 type record struct {
 	rtype  uint16
 	rvalue string
+	ttl    uint32
 	name   *regexp2.Regexp
 }
 type filter struct {
@@ -49,6 +50,7 @@ func joinTypes(questions []dns.Question) string {
 
 func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	m := new(dns.Msg).SetReply(req)
+	m.RecursionAvailable = false
 
 	id := atomic.AddUint64(&s.count, 1)
 	startTime := time.Now()
@@ -58,9 +60,9 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 
 	for _, q := range req.Question {
 		for _, r := range s.filters {
-			if ok, _ := r.name.MatchString(q.Name); ok {
+			if ok, _ := r.name.MatchString(strings.ToLower(q.Name)); ok {
 				if r.allowance {
-					break
+					goto allowed
 				} else {
 					m.Rcode = dns.RcodeRefused
 					goto _end
@@ -68,21 +70,39 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 			}
 		}
 	}
-
+	m.Rcode = dns.RcodeRefused
+	goto _end
+allowed:
 	for _, q := range req.Question {
 		for _, r := range s.records {
 			if q.Qtype == r.rtype {
-				if ok, _ := r.name.MatchString(q.Name); ok {
+				if ok, _ := r.name.MatchString(strings.ToLower(q.Name)); ok {
 					var ret dns.RR
 					switch r.rtype {
 					case dns.TypeA:
 						ret = &dns.A{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: 60},
+							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: r.ttl},
 							A:   net.ParseIP(r.rvalue)}
 					case dns.TypePTR:
 						ret = &dns.PTR{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: 60},
+							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: r.ttl},
 							Ptr: r.rvalue}
+					case dns.TypeNS:
+						ret = &dns.NS{
+							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: r.ttl},
+							Ns:  r.rvalue}
+					case dns.TypeCNAME:
+						ret = &dns.CNAME{
+							Hdr:    dns.RR_Header{Name: q.Name, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: r.ttl},
+							Target: r.rvalue}
+					case dns.TypeAAAA:
+						ret = &dns.AAAA{
+							Hdr:  dns.RR_Header{Name: q.Name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: r.ttl},
+							AAAA: net.ParseIP(r.rvalue)}
+					case dns.TypeTXT:
+						ret = &dns.TXT{
+							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: r.ttl},
+							Txt: []string{r.rvalue}}
 					default:
 						m.Rcode = dns.RcodeNotImplemented
 						goto _end
@@ -109,17 +129,16 @@ func (s *server) AddFilter(name *regexp2.Regexp, allowance bool) error {
 	s.filters = append(s.filters, &filter{name: name, allowance: allowance})
 	return nil
 }
-func (s *server) AddRecord(name *regexp2.Regexp, rtype uint16, rvalue string) error {
-	s.records = append(s.records, &record{name: name, rtype: rtype, rvalue: rvalue})
-	return nil
+func (s *server) AddRecord(name *regexp2.Regexp, rtype uint16, rvalue string, ttl uint32) {
+	s.records = append(s.records, &record{name: name, rtype: rtype, rvalue: rvalue, ttl: ttl})
 }
 
 func (s *server) AddRecordWithIP(name string, ip string) error {
 	real_subdomain := name + "." + s.domain + "."
 	real_ptr := reverseIP(ip) + ".in-addr.arpa." + s.domain + "."
 
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_subdomain), 0), dns.TypeA, ip)
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain)
+	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_subdomain), 0), dns.TypeA, ip, 60)
+	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain, 60)
 
 	return nil
 }
