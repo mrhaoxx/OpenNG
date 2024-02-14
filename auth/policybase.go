@@ -121,7 +121,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 		cookies := strings.Split(cookie, ";")
 		for j, item := range cookies {
 			if strings.Contains(item, verfiyCookieKey+"=") {
-				token = strings.TrimPrefix(item, verfiyCookieKey+"=")
+				token = strings.TrimPrefix(strings.TrimSpace(item), verfiyCookieKey+"=")
 				cookies = append(cookies[:j], cookies[j+1:]...)
 				exists = true
 				break
