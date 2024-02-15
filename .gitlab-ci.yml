@@ -22,7 +22,7 @@ compile:
     
   artifacts:
     paths:
-      - NetGate
+      - NetGATE
     expire_in: 1 day
 
 
