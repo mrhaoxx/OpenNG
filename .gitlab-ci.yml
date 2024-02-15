@@ -18,7 +18,7 @@ compile:
     # - sed -i 's/deb\.debian\.org/mirrors\.ustc\.edu\.cn/g' /etc/apt/sources.list && sed -i 's/security\.debian\.org/mirrors\.ustc\.edu\.cn/g' /etc/apt/sources.list
     # - apt update && apt install build-essential bc autoconf libtool sudo -y
 
-    - ./build.sh -o NetGate
+    - ./build.sh -o NetGATE
     
   artifacts:
     paths:
@@ -39,8 +39,8 @@ deploy_production:
     - ssh-add <(echo "$NWS_SSH_KEY")
     - mkdir -p ~/.ssh
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
-    - ssh ubuntu@10.1.1.16 "sudo systemctl stop netgate.service && cp ~/NetGate/NetGate ~/NetGate/NetGate.old"
-    - scp $CI_PROJECT_DIR/NetGate ubuntu@10.1.1.16:~/NetGate/
-    - ssh ubuntu@10.1.1.16 "sudo systemctl start netgate.service && sleep 1 && sudo systemctl status netgate.service"
+    - ssh star@10.1.1.16 "sudo systemctl stop netgate.service && cp ~/NetGATE/NetGATE ~/NetGATE/NetGATE.old"
+    - scp $CI_PROJECT_DIR/NetGATE ubuntu@10.1.1.16:~/NetGATE/
+    - ssh star@10.1.1.16 "sudo systemctl start netgate.service && sleep 1 && sudo systemctl status netgate.service"
   only:
     - tags
