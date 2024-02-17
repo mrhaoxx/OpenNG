@@ -47,6 +47,7 @@ var pba = auth.NewPBAuth()
 var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba})
 
 var Knock = auth.NewKnockMgr()
+var ForwardProxiersMap = map[string]http.ServiceHandler{"Auth": pba.HandleProxy, "StdProxier": http.StdForwardProxy}
 
 func init() {
 	HttpMidware.AddService("Proxier", HttpProxier)
@@ -56,6 +57,7 @@ func init() {
 	// HttpMidware.AddService("dump", http.NewServiceHolder([]*regexp2.Regexp{regexp2.MustCompile(".*", regexp2.None)}, http.EchoVerbose, nil, nil))
 	HttpMidware.AddServiceInternal(pba)
 	HttpMidware.AddServiceInternal(HttpProxier)
+
 }
 func LoadCfg(cfgs []byte) error {
 	var cfg Cfg
@@ -111,7 +113,7 @@ func LoadCfg(cfgs []byte) error {
 
 	for _, u := range cfg.Auth.Users {
 		log.Println("sys", "auth", "Found User", u.Username)
-		pba.SetUser(u.Username, u.PasswordHash)
+		pba.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy)
 	}
 	for _, p := range cfg.Auth.Policies {
 		log.Println("sys", "auth", "Found Policy", p.Name)
@@ -132,6 +134,16 @@ func LoadCfg(cfgs []byte) error {
 			break
 		}
 	}
+	for _, f := range cfg.HTTP.Forward {
+		log.Println("sys", "http", "Forward", f)
+		v, ok := ForwardProxiersMap[f]
+		if !ok {
+			log.Println("sys", "http", "Forward", f, "not found")
+			os.Exit(-1)
+		} else {
+			HttpMidware.AddForwardProxiers(v)
+		}
+	}
 
 	if err != nil {
 		log.Println("sys", "http", err)
@@ -144,6 +156,7 @@ func LoadCfg(cfgs []byte) error {
 			break
 		}
 	}
+
 	if err != nil {
 		log.Println("sys", "httpproxy", err)
 		os.Exit(-1)

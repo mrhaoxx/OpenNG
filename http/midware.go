@@ -25,6 +25,8 @@ type Midware struct {
 	bufferedLookupForHost utils.BufferedLookup
 	bufferedLookupForSNI  utils.BufferedLookup
 
+	proxychan []ServiceHandler
+
 	services map[string]Service
 
 	sni utils.GroupRegexp
@@ -92,6 +94,14 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		delete(h.activeRequests, RequestCtx.Id)
 		h.muActiveRequest.Unlock()
 
+		if RequestCtx.Req.Host == "" {
+			RequestCtx.Req.Host = "~"
+		}
+
+		if RequestCtx.Req.URL.Path == "" {
+			RequestCtx.Req.URL.Path = "~"
+		}
+
 		log.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
 			"c"+strconv.FormatUint(RequestCtx.conn.Id, 10),
 			RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
@@ -112,6 +122,16 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		}
 	}()
 
+	// forward proxy handle
+	{
+		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
+		if RequestCtx.Req.Method == "CONNECT" || ok {
+			RequestPath += "> "
+			h.ngForwardProxy(RequestCtx)
+			RequestPath += "-"
+			return
+		}
+	}
 	// internal content handle
 	if strings.HasPrefix(RequestCtx.Req.URL.Path, PrefixNg) {
 		if ngInternalServiceHandler(RequestCtx) != Continue {

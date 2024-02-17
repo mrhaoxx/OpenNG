@@ -36,11 +36,11 @@ deploy_production:
     - sed -i 's/archive.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list && sed -i 's/security.ubuntu.com/mirrors.ustc.edu.cn/g' /etc/apt/sources.list && apt-get update
     - 'which ssh-agent || ( apt-get install -qq openssh-client )'
     - eval $(ssh-agent -s)
-    - ssh-add <(echo "$NWS_SSH_KEY")
+    - echo "${NWS_SSH_KEY}" |  tr -d ' ' | base64 --decode | ssh-add -
     - mkdir -p ~/.ssh
     - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
     - ssh star@10.1.1.16 "sudo systemctl stop netgate.service && cp ~/NetGATE/NetGATE ~/NetGATE/NetGATE.old"
-    - scp $CI_PROJECT_DIR/NetGATE ubuntu@10.1.1.16:~/NetGATE/
+    - scp $CI_PROJECT_DIR/NetGATE star@10.1.1.16:~/NetGATE/
     - ssh star@10.1.1.16 "sudo systemctl start netgate.service && sleep 1 && sudo systemctl status netgate.service"
   only:
     - tags

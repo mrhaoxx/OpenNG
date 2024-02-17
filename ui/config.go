@@ -15,8 +15,9 @@ type authConfig struct {
 	Policies []Policy `yaml:"Policies,flow"`
 }
 type User struct {
-	Username     string `yaml:"Username"`
-	PasswordHash string `yaml:"PasswordHash"`
+	Username          string `yaml:"Username"`
+	PasswordHash      string `yaml:"PasswordHash"`
+	AllowForwardProxy bool   `yaml:"AllowForwardProxy"`
 }
 type Policy struct {
 	Name      string   `yaml:"Name"`
@@ -49,6 +50,7 @@ type tcpConfig struct {
 type httpConfig struct {
 	Midware MidwareConfig `yaml:"Midware"`
 	Proxier ProxierConfig `yaml:"Proxier"`
+	Forward []string      `yaml:"Forward,flow"`
 }
 type MidwareConfig struct {
 	Binds []ServiceBind `yaml:"Binds,flow"`

@@ -21,8 +21,11 @@ const PrefixAuthPolicy string = "/pb"
 const verfiyCookieKey string = "_ng_s"
 
 type user struct {
-	name         string
-	passwordHash string
+	name                string
+	passwordHash        string
+	allow_forward_proxy bool
+
+	passwordmap sync.Map
 }
 
 type policy struct {
@@ -96,13 +99,19 @@ func NewPBAuth() *policyBaseAuth {
 }
 func (usr *user) checkpwd(passwd string) bool {
 	if usr == nil {
-		return false
+		goto _false
 	}
 
-	if utils.CheckPasswordHash(passwd, usr.passwordHash) {
+	if _, ok := usr.passwordmap.Load(passwd); ok {
 		return true
 	}
 
+	if utils.CheckPasswordHash(passwd, usr.passwordHash) {
+		usr.passwordmap.Store(passwd, struct{}{})
+		return true
+	}
+
+_false:
 	time.Sleep(time.Millisecond * 600)
 
 	return false
@@ -166,6 +175,45 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	}
 
 	return DE
+
+}
+
+func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
+	hdr := ctx.Req.Header.Get("Proxy-Authorization")
+	if hdr == "" {
+		ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\"NetGATE\"")
+		ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
+		return http.RequestEnd
+	}
+	hdr_parts := strings.SplitN(hdr, " ", 2)
+	if len(hdr_parts) != 2 || strings.ToLower(hdr_parts[0]) != "basic" {
+		return http.RequestEnd
+	}
+
+	token := hdr_parts[1]
+	data, err := base64.StdEncoding.DecodeString(token)
+	if err != nil {
+		return http.RequestEnd
+	}
+
+	pair := strings.SplitN(string(data), ":", 2)
+	if len(pair) != 2 {
+		return http.RequestEnd
+	}
+
+	login := pair[0]
+	password := pair[1]
+
+	user := l.usrs[login]
+	if user == nil {
+		return http.RequestEnd
+	}
+
+	if user.allow_forward_proxy && user.checkpwd(password) {
+		return http.Continue
+	}
+
+	return http.RequestEnd
 
 }
 
@@ -241,7 +289,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 				"lastseen: " + last + "\n",
 		)
 		return http.RequestEnd
-	case "/uplogin":
+	case "/pwd":
 		if session != nil {
 			ctx.ErrorPage(http.StatusConflict, "You've already logged in as "+session.user.name)
 		} else {
@@ -423,9 +471,10 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 	return 0
 }
 
-func (LGM *policyBaseAuth) SetUser(username string, passwordhash string) {
+func (LGM *policyBaseAuth) SetUser(username string, passwordhash string, allow_forward_proxy bool) {
 	LGM.usrs[username] = &user{
-		name:         username,
-		passwordHash: passwordhash,
+		name:                username,
+		passwordHash:        passwordhash,
+		allow_forward_proxy: allow_forward_proxy,
 	}
 }

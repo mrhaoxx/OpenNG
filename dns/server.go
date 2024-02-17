@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
@@ -25,9 +26,12 @@ type filter struct {
 }
 
 type server struct {
-	records []*record
-	filters []*filter
-	domain  string
+	records                  []*record
+	filters                  []*filter
+	bufferedLookupForFilters *utils.BufferedLookup
+	// bufferedLookupForRecords *utils.BufferedLookup
+
+	domain string
 
 	count uint64
 }
@@ -59,15 +63,11 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}()
 
 	for _, q := range req.Question {
-		for _, r := range s.filters {
-			if ok, _ := r.name.MatchString(strings.ToLower(q.Name)); ok {
-				if r.allowance {
-					goto allowed
-				} else {
-					m.Rcode = dns.RcodeRefused
-					goto _end
-				}
-			}
+		if s.bufferedLookupForFilters.Lookup(strings.ToLower(q.Name)).(bool) {
+			goto allowed
+		} else {
+			m.Rcode = dns.RcodeRefused
+			goto _end
 		}
 	}
 	m.Rcode = dns.RcodeRefused
@@ -143,12 +143,27 @@ func (s *server) AddRecordWithIP(name string, ip string) error {
 	return nil
 }
 
-func NewServer(domain string) *server {
-	return &server{
+func NewServer(domain string) (ret *server) {
+	ret = &server{
 		records: []*record{},
 		filters: []*filter{},
 		domain:  domain,
+		count:   0,
 	}
+	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) interface{} {
+		for _, r := range ret.filters {
+			if ok, _ := r.name.MatchString(s); ok {
+				if r.allowance {
+					return true
+				} else {
+					return false
+				}
+			}
+		}
+		return false
+	})
+
+	return
 }
 
 func reverseIP(ipAddr string) string {
