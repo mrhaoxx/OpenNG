@@ -152,17 +152,16 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
 		if ok || RequestCtx.Req.Method == "CONNECT" {
 			RequestPath += "> "
-			h.ngForwardProxy(RequestCtx)
-			RequestPath += "-"
+			h.ngForwardProxy(RequestCtx, &RequestPath)
 			return
 		}
 	}
 	// cgi content handle
 	if strings.HasPrefix(RequestCtx.Req.URL.Path, PrefixNg) {
-		if h.ngCgi(RequestCtx) != Continue {
-			RequestPath += "@"
-			return
-		}
+		RequestPath += "@ "
+		h.ngCgi(RequestCtx, &RequestPath)
+		return
+
 	}
 
 	{

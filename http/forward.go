@@ -9,19 +9,20 @@ import (
 	"sync"
 )
 
-func (h *Midware) ngForwardProxy(ctx *HttpCtx) Ret {
+func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
 	if h.currentProxy != nil {
 		for _, v := range h.currentProxy {
 			switch v(ctx) {
 			case RequestEnd:
-				return RequestEnd
+				goto _break
 			case Continue:
 				continue
 			}
 		}
 	}
+_break:
+	*RequestPath += "-"
 
-	return RequestEnd
 }
 
 func (h *Midware) AddForwardProxiers(p ...ServiceHandler) {
