@@ -178,26 +178,33 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 
 }
 
+func needAuth(ctx *http.HttpCtx) {
+	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\"NetGATE\"")
+	ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
+}
+
 func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 	hdr := ctx.Req.Header.Get("Proxy-Authorization")
 	if hdr == "" {
-		ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\"NetGATE\"")
-		ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
+		needAuth(ctx)
 		return http.RequestEnd
 	}
 	hdr_parts := strings.SplitN(hdr, " ", 2)
 	if len(hdr_parts) != 2 || strings.ToLower(hdr_parts[0]) != "basic" {
+		needAuth(ctx)
 		return http.RequestEnd
 	}
 
 	token := hdr_parts[1]
 	data, err := base64.StdEncoding.DecodeString(token)
 	if err != nil {
+		needAuth(ctx)
 		return http.RequestEnd
 	}
 
 	pair := strings.SplitN(string(data), ":", 2)
 	if len(pair) != 2 {
+		needAuth(ctx)
 		return http.RequestEnd
 	}
 
@@ -206,6 +213,7 @@ func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 
 	user := l.usrs[login]
 	if user == nil {
+		needAuth(ctx)
 		return http.RequestEnd
 	}
 
@@ -213,6 +221,7 @@ func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 		return http.Continue
 	}
 
+	needAuth(ctx)
 	return http.RequestEnd
 
 }
