@@ -150,7 +150,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 	// forward proxy handle
 	{
 		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
-		if ok || RequestCtx.Req.Method == "CONNECT" {
+		if ok || RequestCtx.Req.Method == http.MethodConnect {
 			RequestPath += "> "
 			h.ngForwardProxy(RequestCtx, &RequestPath)
 			return
