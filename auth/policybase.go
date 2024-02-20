@@ -240,7 +240,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		Maindomain = ctx.Req.Host
 	}
 
-	path = path[len(PrefixAuth+PrefixAuthPolicy):]
+	path = strings.TrimPrefix(path, PrefixAuth+PrefixAuthPolicy)
 
 	r := ctx.Req.URL.Query().Get("r")
 	p, err := base64.URLEncoding.DecodeString(r)

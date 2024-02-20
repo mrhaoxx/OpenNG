@@ -22,14 +22,13 @@ type SerRet uint8
 type ServiceHandler interface {
 	Handle(*Conn) SerRet
 }
-type SericeBinding struct {
+type ServiceBinding struct {
 	ServiceHandler
-	name string
+	Name string
 }
 
 type controller struct {
-	Services map[string]ServiceHandler
-	Binds    map[string][]SericeBinding
+	binds map[string][]ServiceBinding
 
 	listeners []*net.Listener
 
@@ -60,7 +59,7 @@ func (c *controller) Deliver(conn *Conn) {
 	}()
 
 _restart:
-	s := c.Binds[conn.protos]
+	s := c.binds[conn.protos]
 	var ret SerRet
 
 	defer func() {
@@ -76,7 +75,7 @@ _restart:
 
 	for _, v := range s {
 
-		conn.AppendPath(v.name + " ")
+		conn.AppendPath(v.Name + " ")
 
 		ret = v.Handle(conn)
 
@@ -133,25 +132,8 @@ func NewServiceFunction(f func(*Conn) SerRet) ServiceHandler {
 	return funcInterface(f)
 }
 
-func (ctl *controller) Bind(protocol string, services []string) error {
-
-	var bindings []SericeBinding
-	for _, g := range services {
-		s, ok := ctl.Services[g]
-		if !ok {
-			return errors.New("service " + g + " not found")
-		}
-		bindings = append(bindings, SericeBinding{
-			name:           g,
-			ServiceHandler: s,
-		})
-	}
-	ctl.Binds[protocol] = bindings
-	return nil
-}
-
-func (ctl *controller) AddService(name string, handler ServiceHandler) {
-	ctl.Services[name] = handler
+func (ctl *controller) Bind(protocol string, svcs ...ServiceBinding) {
+	ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
 }
 
 func (ctl *controller) ReportActiveConnections() map[uint64]interface{} {
@@ -183,10 +165,9 @@ func (ctl *controller) KillConnection(connection_id uint64) error {
 	return nil
 }
 
-func NewTcpController(services map[string]ServiceHandler) *controller {
+func NewTcpController() *controller {
 	return &controller{
-		Services:           services,
-		Binds:              map[string][]SericeBinding{},
+		binds:              map[string][]ServiceBinding{},
 		muActiveConnection: sync.RWMutex{},
 		activeConnections:  map[uint64]*Conn{},
 	}

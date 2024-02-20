@@ -21,21 +21,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var TcpController = tcp.NewTcpController(map[string]tcp.ServiceHandler{
-	"tls":     TlsMgr,
-	"knock":   Knock,
-	"proxier": TcpProxier,
-	"pph":     tcp.NewTCPProxyProtocolHandler(),
-	"rdtls":   http.Redirect2TLS,
-	"http":    HttpMidware,
-	"det": &tcp.Detect{Dets: []tcp.Detector{
-		tcp.DetectTLS,
-		tcp.DetectPROXYPROTOCOL,
-		tcp.DetectSSH,
-		tcp.DetectRDP,
-		tcp.DetectHTTP,
-	}},
-})
+var TcpController = tcp.NewTcpController()
 var HttpMidware = http.NewHttpMidware([]string{"*"})
 
 var HttpProxier = http.NewHTTPProxier()
@@ -51,13 +37,32 @@ var Dns = dns.NewServer()
 
 var Knock = auth.NewKnockMgr()
 
-var ForwardProxiersMap = map[string]http.ServiceHandler{"Auth": pba.HandleProxy, "StdProxier": http.StdForwardProxy}
+var builtinForwardProxiers = map[string]http.ServiceHandler{
+	"Auth":       pba.HandleProxy,
+	"StdProxier": http.StdForwardProxy,
+}
 
 var builtinHttpServices = map[string]http.Service{
 	"Proxier": HttpProxier,
 	"Auth":    Auth,
 	"Knock":   Knock,
 	"NgUI":    &UI{},
+}
+
+var builtinTcpServices = map[string]tcp.ServiceHandler{
+	"tls":     TlsMgr,
+	"knock":   Knock,
+	"proxier": TcpProxier,
+	"pph":     tcp.NewTCPProxyProtocolHandler(),
+	"rdtls":   http.Redirect2TLS,
+	"http":    HttpMidware,
+	"det": &tcp.Detect{Dets: []tcp.Detector{
+		tcp.DetectTLS,
+		tcp.DetectPROXYPROTOCOL,
+		tcp.DetectSSH,
+		tcp.DetectRDP,
+		tcp.DetectHTTP,
+	}},
 }
 
 func LoadCfg(cfgs []byte) error {
@@ -162,7 +167,7 @@ func LoadCfg(cfgs []byte) error {
 	}
 	for _, f := range cfg.HTTP.Forward {
 		log.Println("sys", "http", "Forward", f)
-		v, ok := ForwardProxiersMap[f]
+		v, ok := builtinForwardProxiers[f]
 		if !ok {
 			log.Println("sys", "http", "Forward", f, "not found")
 			os.Exit(-1)
@@ -261,9 +266,23 @@ func LoadCfg(cfgs []byte) error {
 
 	for protocol, bindings := range cfg.TCP.Controller.Binds {
 		log.Println("sys", "tcp", "Services Bindings", protocol, "->", bindings)
-		if err = TcpController.Bind(protocol, bindings); err != nil {
-			break
+		// if err = TcpController.Bind(protocol, bindings); err != nil {
+		// 	break
+		// }
+
+		var _bindings []tcp.ServiceBinding
+		for _, g := range bindings {
+			s, ok := builtinTcpServices[g]
+			if !ok {
+				log.Println("service " + g + " not found")
+				os.Exit(-1)
+			}
+			_bindings = append(_bindings, tcp.ServiceBinding{
+				Name:           g,
+				ServiceHandler: s,
+			})
 		}
+		TcpController.Bind(protocol, _bindings...)
 	}
 
 	if err != nil {
