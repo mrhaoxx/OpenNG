@@ -10,8 +10,8 @@ import (
 )
 
 func (h *Midware) ngForwardProxy(ctx *HttpCtx) Ret {
-	if h.proxychan != nil {
-		for _, v := range h.proxychan {
+	if h.currentProxy != nil {
+		for _, v := range h.currentProxy {
 			switch v(ctx) {
 			case RequestEnd:
 				return RequestEnd
@@ -25,7 +25,7 @@ func (h *Midware) ngForwardProxy(ctx *HttpCtx) Ret {
 }
 
 func (h *Midware) AddForwardProxiers(p ...ServiceHandler) {
-	h.proxychan = append(h.proxychan, p...)
+	h.currentProxy = append(h.currentProxy, p...)
 }
 
 func StdForwardProxy(ctx *HttpCtx) Ret {
@@ -152,10 +152,10 @@ func proxyh2(ctx context.Context, leftreader io.ReadCloser, leftwriter io.Writer
 	<-groupdone
 }
 
-const COPY_BUF = 128 * 1024
+const copy_buf = 128 * 1024
 
 func copyBody(wr io.Writer, body io.Reader) {
-	buf := make([]byte, COPY_BUF)
+	buf := make([]byte, copy_buf)
 	for {
 		bread, read_err := body.Read(buf)
 		var write_err error

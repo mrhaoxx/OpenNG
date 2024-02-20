@@ -30,7 +30,7 @@ type httpproxy struct {
 	buf   *utils.BufferedLookup
 }
 
-func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx, path string) Ret {
+func (h *httpproxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	_host := h.buf.Lookup(ctx.Req.Host)
 	var id string
 	if _host != nil {
@@ -42,7 +42,7 @@ func (h *httpproxy) HandleHTTPInternal(ctx *HttpCtx, path string) Ret {
 	ctx.WriteString("id: " + id + "\n")
 	return RequestEnd
 }
-func (*httpproxy) PathsInternal() utils.GroupRegexp {
+func (*httpproxy) Paths() utils.GroupRegexp {
 	return []*regexp2.Regexp{regexpforproxy}
 }
 

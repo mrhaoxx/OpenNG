@@ -141,13 +141,17 @@ func (s *server) AddRecordWithIP(name string, ip string) error {
 	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain, 60)
 
 	return nil
+
+}
+func (s *server) SetDomain(domain string) *server {
+	s.domain = domain
+	return s
 }
 
-func NewServer(domain string) (ret *server) {
+func NewServer() (ret *server) {
 	ret = &server{
 		records: []*record{},
 		filters: []*filter{},
-		domain:  domain,
 		count:   0,
 	}
 	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) interface{} {

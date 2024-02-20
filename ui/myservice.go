@@ -15,6 +15,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
@@ -46,19 +47,19 @@ var TlsMgr = tls.NewTlsMgr()
 var pba = auth.NewPBAuth()
 var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba})
 
+var Dns = dns.NewServer()
+
 var Knock = auth.NewKnockMgr()
+
 var ForwardProxiersMap = map[string]http.ServiceHandler{"Auth": pba.HandleProxy, "StdProxier": http.StdForwardProxy}
 
-func init() {
-	HttpMidware.AddService("Proxier", HttpProxier)
-	HttpMidware.AddService("Auth", Auth)
-	HttpMidware.AddService("Knock", Knock)
-	HttpMidware.AddService("NgUI", &UI{})
-	// HttpMidware.AddService("dump", http.NewServiceHolder([]*regexp2.Regexp{regexp2.MustCompile(".*", regexp2.None)}, http.EchoVerbose, nil, nil))
-	HttpMidware.AddServiceInternal(pba)
-	HttpMidware.AddServiceInternal(HttpProxier)
-
+var builtinHttpServices = map[string]http.Service{
+	"Proxier": HttpProxier,
+	"Auth":    Auth,
+	"Knock":   Knock,
+	"NgUI":    &UI{},
 }
+
 func LoadCfg(cfgs []byte) error {
 	var cfg Cfg
 
@@ -128,10 +129,35 @@ func LoadCfg(cfgs []byte) error {
 	}
 
 	for _, bind := range cfg.HTTP.Midware.Binds {
-		log.Println("sys", "http", "Binding", bind.Id)
-		err = HttpMidware.Bind(bind.Id, bind.Name, bind.Hosts)
+		if bind.Name == "" {
+			bind.Name = bind.Id
+		}
+		log.Println("sys", "http", "Binding", bind.Id, "with name", bind.Name)
+		var hosts []*regexp2.Regexp
+		service, ok := builtinHttpServices[bind.Id]
+		if !ok {
+			return errors.New("service " + bind.Id + " not found")
+		}
+		if len(bind.Hosts) == 0 {
+			hosts = service.Hosts()
+		} else {
+			hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(bind.Hosts))
+		}
+
 		if err != nil {
 			break
+		}
+		HttpMidware.AddServices(&http.ServiceStruct{
+			Id:             bind.Name,
+			Hosts:          hosts,
+			ServiceHandler: service.HandleHTTP,
+		})
+
+		switch bind.Id {
+		case "Proxier":
+			HttpMidware.AddCgis(HttpProxier)
+		case "Auth":
+			HttpMidware.AddCgis(pba)
 		}
 	}
 	for _, f := range cfg.HTTP.Forward {
@@ -255,8 +281,8 @@ func LoadCfg(cfgs []byte) error {
 		log.Println("sys", "tcp", err)
 		os.Exit(-1)
 	}
-	var Dns = dns.NewServer(cfg.DNS.Domain)
-	log.Println("sys", "dns", "domain is", cfg.DNS.Domain)
+	log.Println("sys", "dns", "domain is", strconv.Quote(cfg.DNS.Domain))
+	Dns.SetDomain(cfg.DNS.Domain)
 	for _, f := range cfg.DNS.Filters {
 		log.Println("sys", "dns", "Filter", f.Name, f.Allowance)
 		r, err := regexp2.Compile(dns.Dnsname2Regexp(f.Name), 0)

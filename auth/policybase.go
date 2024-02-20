@@ -217,7 +217,7 @@ func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 
 }
 
-func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) http.Ret {
+func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Ret {
 	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
 	var session *session
 	var user string
@@ -368,7 +368,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 
 var regexpforit = regexp2.MustCompile("^"+PrefixAuth+PrefixAuthPolicy+"/.*$", 0)
 
-func (l *policyBaseAuth) PathsInternal() utils.GroupRegexp {
+func (l *policyBaseAuth) Paths() utils.GroupRegexp {
 	return []*regexp2.Regexp{regexpforit}
 }
 

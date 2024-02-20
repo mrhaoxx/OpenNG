@@ -10,7 +10,7 @@ import (
 type AuthRet uint8
 
 const PrefixAuth = "/auth"
-const InternalAuthPath = 119
+
 const (
 	AC AuthRet = 0 //accept
 	DE AuthRet = 1 //deny

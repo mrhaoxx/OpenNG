@@ -77,7 +77,6 @@ func (c *HttpCtx) RegCloseHandle(f func(*HttpCtx)) {
 var h2s = &http2.Server{}
 
 type Ret bool
-type ServiceHandler func(*HttpCtx) Ret
 
 const (
 	RequestEnd Ret = false
@@ -139,11 +138,6 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 
 	h.Process(ctx)
 }
-
-const (
-	Mainhost = iota + 100
-	Maindomain
-)
 
 type NgResponseWriter struct {
 	writer io.Writer

@@ -10,44 +10,69 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/res"
 	tcp "github.com/mrhaoxx/OpenNG/tcp"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
-
-	"github.com/dlclark/regexp2"
 )
 
 //ng:generate def obj Midware
 type Midware struct {
+	sni                  utils.GroupRegexp
+	bufferedLookupForSNI *utils.BufferedLookup
+
 	current               []*ServiceStruct
-	bufferedLookupForHost utils.BufferedLookup
-	bufferedLookupForSNI  utils.BufferedLookup
+	bufferedLookupForHost *utils.BufferedLookup
 
-	proxychan []ServiceHandler
+	currentCgi           []*CgiStruct
+	bufferedLookupForCgi *utils.BufferedLookup
 
-	services map[string]Service
-
-	sni utils.GroupRegexp
+	currentProxy []ServiceHandler
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[uint64]*HttpCtx
 }
+
+type ServiceHandler func(*HttpCtx) Ret
+
 type ServiceStruct struct {
 	ServiceHandler
 	Id    string
 	Hosts utils.GroupRegexp
 }
 
-// //dng:generate def func Midware::AddService
-// //@Desc Add service to midware
-// //@Param string name the service's registered name
-// //@Param _nocheck:Service s the service
-// func (h *Midware) AddService(name string, s Service) error {
-// 	h.services[name] = s
-// 	return nil
-// }
+type CgiHandler func(*HttpCtx, string) Ret
+
+type CgiStruct struct {
+	CgiHandler
+	Paths utils.GroupRegexp
+}
+type Service interface {
+	Hosts() utils.GroupRegexp
+	HandleHTTP(*HttpCtx) Ret
+}
+type Cgi interface {
+	Paths() utils.GroupRegexp
+	HandleHTTPCgi(*HttpCtx, string) Ret
+}
+
+func (mid *Midware) AddServices(svc ...*ServiceStruct) {
+	mid.current = append(mid.current, svc...)
+	mid.bufferedLookupForHost.Refresh()
+}
+
+func (mid *Midware) AddCgis(svcs ...Cgi) {
+	for _, svc := range svcs {
+		mid.currentCgi = append(mid.currentCgi, &CgiStruct{
+			CgiHandler: svc.HandleHTTPCgi,
+			Paths:      svc.Paths(),
+		})
+	}
+	mid.bufferedLookupForCgi.Refresh()
+}
 
 func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	top := c.TopProtocol()
@@ -125,16 +150,16 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 	// forward proxy handle
 	{
 		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
-		if RequestCtx.Req.Method == "CONNECT" || ok {
+		if ok || RequestCtx.Req.Method == "CONNECT" {
 			RequestPath += "> "
 			h.ngForwardProxy(RequestCtx)
 			RequestPath += "-"
 			return
 		}
 	}
-	// internal content handle
+	// cgi content handle
 	if strings.HasPrefix(RequestCtx.Req.URL.Path, PrefixNg) {
-		if ngInternalServiceHandler(RequestCtx) != Continue {
+		if h.ngCgi(RequestCtx) != Continue {
 			RequestPath += "@"
 			return
 		}
@@ -157,23 +182,36 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 }
 
-type Service interface {
-	Hosts() utils.GroupRegexp
-	HandleHTTP(*HttpCtx) Ret
-}
-type ServiceInternal interface {
-	PathsInternal() utils.GroupRegexp
-	HandleHTTPInternal(*HttpCtx, string) Ret
-}
-
 func NewHttpMidware(sni []string) *Midware {
 	hmw := &Midware{
-		services:       map[string]Service{},
 		sni:            nil,
 		activeRequests: map[uint64]*HttpCtx{},
 	}
 	hmw.current = make([]*ServiceStruct, 0)
-	hmw.bufferedLookupForHost = *utils.NewBufferedLookup(func(s string) interface{} {
+
+	hmw.currentCgi = []*CgiStruct{{
+		CgiHandler: func(ctx *HttpCtx, path string) Ret {
+			ctx.Resp.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			ctx.Resp.Header().Set("Cache-Control", "no-cache")
+			ctx.WriteString("reqid: " + strconv.Itoa(int(ctx.Id)) + "\n" +
+				"timestamp: " + strconv.FormatInt(time.Now().UnixMilli(), 10) + "\n" +
+				"hostname: " + ctx.Req.Host + "\n" +
+				"connection: " + strconv.Itoa(int(ctx.conn.Id)) + "\n" +
+				"protocols: " + ctx.conn.Protocols() + "\n" +
+				"remoteip: " + ctx.Req.RemoteAddr + "\n")
+			return RequestEnd
+		},
+		Paths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
+	},
+		{
+			CgiHandler: func(ctx *HttpCtx, path string) Ret {
+				res.WriteLogo(ctx.Resp)
+				return RequestEnd
+			},
+			Paths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
+		}}
+
+	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) interface{} {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.current {
 			if r.Hosts.MatchString(s) {
@@ -182,93 +220,23 @@ func NewHttpMidware(sni []string) *Midware {
 		}
 		return ret
 	})
-	hmw.bufferedLookupForSNI = *utils.NewBufferedLookup(func(s string) interface{} {
+	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) interface{} {
+		var m []*CgiStruct = nil
+		for _, t := range hmw.currentCgi {
+			for _, r := range t.Paths {
+				if ok, _ := r.MatchString(s); ok {
+					m = append(m, t)
+				}
+			}
+		}
+		return m
+	})
+
+	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) interface{} {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 	hmw.sni = utils.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
 	return hmw
-}
-
-type serviceholder struct {
-	sl    ServiceHandler
-	il    ServiceHandler
-	hosts []*regexp2.Regexp
-	paths []*regexp2.Regexp
-}
-
-func (h *serviceholder) PathsInternal() utils.GroupRegexp {
-	return h.paths
-}
-
-func (h *serviceholder) HandleHTTPInternal(ctx *HttpCtx) Ret {
-	return h.il(ctx)
-}
-
-func (h *serviceholder) Hosts() utils.GroupRegexp {
-	return h.hosts
-}
-func (h *serviceholder) HandleHTTP(ctx *HttpCtx) Ret {
-	return h.sl(ctx)
-}
-
-func NewServiceHolder(hosts utils.GroupRegexp, sl ServiceHandler, paths utils.GroupRegexp, il ServiceHandler) Service {
-	return &serviceholder{
-		sl:    sl,
-		il:    il,
-		hosts: hosts,
-		paths: paths,
-	}
-}
-
-// @Desc Get the binded services of the http midware
-// @RetVal []*ServiceStruct the binded services
-//
-//ng:generate def func Midware::GetBind
-func (HMW *Midware) GetBind() []*ServiceStruct {
-	return HMW.current
-}
-
-func (HMW *Midware) AddService(id string, svc Service) {
-	HMW.services[id] = svc
-	// if p := svc.PathsInternal(); p != nil {
-	// 	addInternal(svc.HandleHTTPInternal, p)
-	// }
-}
-func (HMW *Midware) AddServiceInternal(svc ServiceInternal) {
-	// HMW.services[id] = svc
-	// if p := svc.PathsInternal(); p != nil {
-	addInternal(svc.HandleHTTPInternal, svc.PathsInternal())
-	// }
-}
-
-// @Desc Bind a service to the http midware
-// @Param string id the id of the service
-// @Param string id identificator of the service
-// @OptionalParam []string=[]string{"(.*)"} hosts the specificed hosts
-//
-//ng:generate def func Midware::Bind
-func (HMW *Midware) Bind(serviceid string, id string, _hosts []string) error {
-	if id == "" {
-		id = serviceid
-	}
-	var hosts []*regexp2.Regexp
-	service, ok := HMW.services[serviceid]
-	if !ok {
-		return errors.New("service " + serviceid + " not found")
-	}
-	if len(_hosts) == 0 {
-		hosts = service.Hosts()
-	} else {
-		hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(_hosts))
-	}
-	HMW.current = append(HMW.current, &ServiceStruct{
-		Id:             id,
-		Hosts:          hosts,
-		ServiceHandler: service.HandleHTTP,
-	})
-
-	HMW.bufferedLookupForHost.Refresh()
-	return nil
 }
 
 func (ctl *Midware) ReportActiveRequests() map[uint64]interface{} {
