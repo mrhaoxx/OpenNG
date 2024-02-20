@@ -80,7 +80,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
-		ctx.ErrorPage(http.StatusNotImplemented, "Not Implemented")
+		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
 	case "/cfg/apply":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
@@ -132,7 +132,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 				ctx.Resp.Write(byt)
 			}
 		} else {
-			ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	case "/api/v1/tcp/connection/kill": //POST FORM: cid uint64 (ConnectionID)
 		if ctx.Req.Method == "POST" {
@@ -153,7 +153,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 				}
 			}
 		} else {
-			ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	case "/api/v1/http/requests": //GET json output
 		if ctx.Req.Method == "GET" {
@@ -168,7 +168,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 				ctx.Resp.Write(byt)
 			}
 		} else {
-			ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	case "/api/v1/http/request/kill":
 		if ctx.Req.Method == "POST" {
@@ -189,7 +189,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 				}
 			}
 		} else {
-			ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
 	// case "/api/v1/auth/sessions":
 	// 	if ctx.Req.Method == "GET" {
@@ -241,7 +241,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			stdhttp.DefaultServeMux.ServeHTTP(ctx.Resp, ctx.Req)
 
 		} else {
-			ctx.ErrorPage(http.StatusNotFound, "Not Found")
+			ctx.Resp.ErrorPage(http.StatusNotFound, "Not Found")
 		}
 	}
 	return http.RequestEnd

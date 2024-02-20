@@ -21,7 +21,7 @@ func ngInternalServiceHandler(RequestCtx *HttpCtx) Ret {
 	s := muxBufPath.Lookup(path).([]*shInternal)
 
 	if len(s) == 0 {
-		RequestCtx.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+"("+path+")"+" was not found on this server.")
+		RequestCtx.Resp.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+"("+path+")"+" was not found on this server.")
 	}
 
 	for _, t := range s {

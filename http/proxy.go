@@ -142,7 +142,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 	buf.Proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
 			// rw.(*NgResponseWriter).Header().Add("X-Ng-Proxy-Err", strconv.Quote(e.Error()))
-			http.Error(rw, "Bad Gateway\n"+strconv.Quote(e.Error()), http.StatusBadGateway)
+			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(e.Error()))
 			log.Println("sys", "httpproxy", r.Host, "->", id, e)
 		},
 		Director: func(req *http.Request) {

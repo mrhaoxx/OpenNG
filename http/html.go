@@ -23,33 +23,33 @@ var info_rawhtml string
 //go:embed html/confirm.html
 var confirm_rawhtml string
 
-func (ctx *HttpCtx) ErrorPage(code int, err string) {
-	ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-	ctx.Resp.WriteHeader(code)
-	errorpage_template.Execute(ctx.Resp, err)
+func (rw *NgResponseWriter) ErrorPage(code int, err string) {
+	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(code)
+	errorpage_template.Execute(rw, err)
 }
 
-func (ctx *HttpCtx) InfoPage(code int, info string) {
-	ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-	ctx.Resp.WriteHeader(code)
-	info_template.Execute(ctx.Resp, info)
+func (rw *NgResponseWriter) InfoPage(code int, info string) {
+	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(code)
+	info_template.Execute(rw, info)
 }
 
 // using http header: Refresh
-func (ctx *HttpCtx) RefreshRedirectPage(code int, url string, msg string, time int) {
-	ctx.Resp.Header().Set("Refresh", strconv.Itoa(time)+";url="+url)
-	ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-	ctx.Resp.WriteHeader(code)
-	redirecting_template.Execute(ctx.Resp, struct {
+func (rw *NgResponseWriter) RefreshRedirectPage(code int, url string, msg string, time int) {
+	rw.Header().Set("Refresh", strconv.Itoa(time)+";url="+url)
+	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(code)
+	redirecting_template.Execute(rw, struct {
 		URL string
 		MSG string
 	}{URL: url, MSG: msg})
 }
 
-func (ctx *HttpCtx) ConfrimPage(code int, url string, msg string) {
-	ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-	ctx.Resp.WriteHeader(code)
-	confirm_template.Execute(ctx.Resp, struct {
+func (rw *NgResponseWriter) ConfrimPage(code int, url string, msg string) {
+	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
+	rw.WriteHeader(code)
+	confirm_template.Execute(rw, struct {
 		URL string
 		MSG string
 	}{URL: url, MSG: msg})

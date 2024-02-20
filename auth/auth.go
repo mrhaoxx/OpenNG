@@ -41,7 +41,7 @@ func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		}
 	}
 
-	ctx.ErrorPage(http.StatusForbidden, "auth no hit")
+	ctx.Resp.ErrorPage(http.StatusForbidden, "auth no hit")
 	return http.RequestEnd
 }
 func (l *authMgr) Hosts() utils.GroupRegexp {

@@ -34,7 +34,7 @@ func StdForwardProxy(ctx *HttpCtx) Ret {
 	if ctx.Req.Method == "CONNECT" {
 		server, err := net.Dial("tcp", ctx.Req.RequestURI)
 		if err != nil {
-			ctx.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Dial: %v", err))
+			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Dial: %v", err))
 			return RequestEnd
 		}
 		defer server.Close()
@@ -42,7 +42,7 @@ func StdForwardProxy(ctx *HttpCtx) Ret {
 		if ctx.Req.ProtoMajor == 0 || ctx.Req.ProtoMajor == 1 {
 			localconn, _, err := ctx.Resp.Hijack()
 			if err != nil {
-				ctx.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Hijack: %v", err))
+				ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Hijack: %v", err))
 				return RequestEnd
 			}
 
@@ -66,7 +66,7 @@ func StdForwardProxy(ctx *HttpCtx) Ret {
 		resp, err := http.DefaultTransport.RoundTrip(ctx.Req)
 
 		if err != nil {
-			ctx.ErrorPage(http.StatusBadRequest, fmt.Sprintf("%v", err))
+			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("%v", err))
 			return RequestEnd
 		}
 		defer resp.Body.Close()

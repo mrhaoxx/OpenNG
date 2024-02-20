@@ -245,7 +245,7 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 	r := ctx.Req.URL.Query().Get("r")
 	p, err := base64.URLEncoding.DecodeString(r)
 	if err != nil {
-		ctx.ErrorPage(http.StatusBadRequest, "Can't decode your requested url: "+err.Error())
+		ctx.Resp.ErrorPage(http.StatusBadRequest, "Can't decode your requested url: "+err.Error())
 		return http.RequestEnd
 	}
 
@@ -291,14 +291,14 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 		return http.RequestEnd
 	case "/pwd":
 		if session != nil {
-			ctx.ErrorPage(http.StatusConflict, "You've already logged in as "+session.user.name)
+			ctx.Resp.ErrorPage(http.StatusConflict, "You've already logged in as "+session.user.name)
 		} else {
 			if ctx.Req.Method == "POST" {
 				//get username & password
 				ctx.Req.ParseForm()
 				var userl, passl = ctx.Req.PostForm.Get("username"), ctx.Req.PostForm.Get("password")
 				if userl == "" || passl == "" {
-					ctx.ErrorPage(http.StatusBadRequest, "Username or password missing")
+					ctx.Resp.ErrorPage(http.StatusBadRequest, "Username or password missing")
 					return http.RequestEnd
 				}
 
@@ -323,12 +323,12 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 					// if it doesn't, the server would move it back
 				} else {
 					time.Sleep(200 * time.Millisecond) // Sleep 200ms to avoid being cracked
-					ctx.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 1)
+					ctx.Resp.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 1)
 
 					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 				}
 			} else {
-				ctx.ErrorPage(http.StatusMethodNotAllowed, err.Error())
+				ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, err.Error())
 			}
 		}
 	case "/login":
@@ -359,9 +359,9 @@ func (mgr *policyBaseAuth) HandleHTTPInternal(ctx *http.HttpCtx, path string) ht
 			mgr.rmSession(cookie.Value)
 			log.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
-		ctx.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
+		ctx.Resp.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
 	default:
-		ctx.ErrorPage(http.StatusNotFound, "Not Found")
+		ctx.Resp.ErrorPage(http.StatusNotFound, "Not Found")
 	}
 	return http.RequestEnd
 }

@@ -84,7 +84,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 	defer func() { //cleanup
 		if RequestCtx.Resp.code == 0 {
-			RequestCtx.ErrorPage(http.StatusTeapot, "It seems the server is not responding.")
+			RequestCtx.Resp.ErrorPage(http.StatusTeapot, "It seems the server is not responding.")
 			RequestPath += "#"
 		}
 
@@ -117,7 +117,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 			}
 
 			if RequestCtx.Resp.code == 0 {
-				RequestCtx.ErrorPage(http.StatusInternalServerError, fmt.Sprintf("Panic: %v", err))
+				RequestCtx.Resp.ErrorPage(http.StatusInternalServerError, fmt.Sprintf("Panic: %v", err))
 			}
 		}
 	}()
