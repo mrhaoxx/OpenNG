@@ -64,7 +64,6 @@ func (c *HttpCtx) Close() {
 		f(c)
 	}
 
-	c.Resp.Close()
 	close(c.closing)
 }
 func (c *HttpCtx) IsClosing() <-chan struct{} {
