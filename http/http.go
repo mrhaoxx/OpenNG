@@ -148,7 +148,7 @@ type NgResponseWriter struct {
 	code     int
 	encoding ContentEncoding
 
-	writtenBytes uint64
+	writtenBytes uint64 // before compression
 
 	init sync.Once
 }
@@ -187,6 +187,7 @@ func (w *NgResponseWriter) initForWrite() {
 			IsDownloading := strings.HasPrefix(w.Header().Get("Content-Disposition"), "attachment") // check if this request is a download action
 			switch {
 			case IsDownloading: // don't encode if is downloading
+			// case ContentLength <= 1024: // don't encode if size too small
 			case ContentLength >= 1024*1024*100: // don't encode if size too big
 			case strings.HasPrefix(ContentType, "image") ||
 				strings.HasPrefix(ContentType, "audio") ||
@@ -223,8 +224,6 @@ func (w *NgResponseWriter) Close() error {
 
 	switch w.encoding {
 	case EncodingRAW: // do nothing
-	case EncodingBR:
-		w.writer.(*brotli.Writer).Close()
 	default:
 		w.writer.(io.Closer).Close()
 		encoderpool[w.encoding].Put(w.writer)
