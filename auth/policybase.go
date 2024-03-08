@@ -337,7 +337,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 				}
 			} else {
-				ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, err.Error())
+				ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "method not allowed")
 			}
 		}
 	case "/login":
