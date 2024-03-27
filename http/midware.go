@@ -76,8 +76,8 @@ func (mid *Midware) AddCgis(svcs ...Cgi) {
 
 func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	top := c.TopProtocol()
-	sni, _ := c.Load(tcp.KeyTlsSni)
-	if !h.bufferedLookupForSNI.Lookup(sni.(string)).(bool) {
+	sni, ok := c.Load(tcp.KeyTlsSni)
+	if ok && !h.bufferedLookupForSNI.Lookup(sni.(string)).(bool) {
 		return tcp.Continue
 	}
 	switch top {

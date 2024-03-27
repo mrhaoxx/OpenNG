@@ -12,3 +12,4 @@ libs/build
 
 OpenNG.exe
 *.dll
+.DS_Store
