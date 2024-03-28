@@ -131,7 +131,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Backend:    backend,
 	}
 
-	var tlsc = tls.Config{NextProtos: []string{"http/1.1"}}
+	var tlsc = tls.Config{}
 	var tpa = &http.Transport{
 		TLSClientConfig: &tlsc,
 		DialContext: (&net.Dialer{
@@ -181,8 +181,10 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		}
 		return u_ws
 	}}
+	var tlsc_ws = tls.Config{}
+	tlsc_ws.InsecureSkipVerify = InsecureSkipVerify
 
-	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc, NetDial: func(network, addr string) (net.Conn, error) {
+	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc_ws, NetDial: func(network, addr string) (net.Conn, error) {
 		netDialer := &net.Dialer{}
 		return netDialer.Dial(network, hostport)
 	}}
