@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gorilla/websocket"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
@@ -132,13 +133,12 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 
 	var tlsc = tls.Config{NextProtos: []string{"http/1.1"}}
 	var tpa = &http.Transport{
-		TLSClientConfig:   &tlsc,
-		DisableKeepAlives: true,
+		TLSClientConfig: &tlsc,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		// ForceAttemptHTTP2:     true,
+		ForceAttemptHTTP2:     true,
 		MaxIdleConns:          0,
 		IdleConnTimeout:       0,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -163,6 +163,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 	}
 	u_ws, _ := url.Parse(strings.Replace(backend, "http", "ws", 1))
 	buf.WSProxy = NewWSProxy(u_ws)
+	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc}
 	hpx.hosts = insert(hpx.hosts, index, &buf)
 	return nil
 }
