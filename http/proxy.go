@@ -8,6 +8,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/dns"
@@ -21,6 +22,7 @@ type Httphost struct {
 	Id         string
 	ServerName utils.GroupRegexp
 	Proxy      *httputil.ReverseProxy
+	WSProxy    *WebsocketProxy
 	Backend    string
 }
 
@@ -76,7 +78,12 @@ func (h *httpproxy) HandleHTTP(ctx *HttpCtx) Ret {
 	defer func() {
 		recover()
 	}()
-	host.Proxy.ServeHTTP(ctx.Resp, ctx.Req)
+
+	if ctx.Req.Header.Get("Upgrade") == "websocket" {
+		host.WSProxy.ServeHTTP(ctx.Resp, ctx.Req)
+	} else {
+		host.Proxy.ServeHTTP(ctx.Resp, ctx.Req)
+	}
 	return RequestEnd
 }
 
@@ -123,14 +130,15 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Backend:    backend,
 	}
 
-	var tlsc = tls.Config{}
+	var tlsc = tls.Config{NextProtos: []string{"http/1.1"}}
 	var tpa = &http.Transport{
-		TLSClientConfig: &tlsc,
+		TLSClientConfig:   &tlsc,
+		DisableKeepAlives: true,
 		DialContext: (&net.Dialer{
 			Timeout:   30 * time.Second,
 			KeepAlive: 30 * time.Second,
 		}).DialContext,
-		ForceAttemptHTTP2:     true,
+		// ForceAttemptHTTP2:     true,
 		MaxIdleConns:          0,
 		IdleConnTimeout:       0,
 		TLSHandshakeTimeout:   10 * time.Second,
@@ -148,17 +156,13 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Director: func(req *http.Request) {
 			req.URL.Scheme = u.Scheme
 			req.URL.Host = u.Host
-			if _, ok := req.Header["User-Agent"]; !ok {
-				req.Header.Set("User-Agent", "")
-			}
-			ip, _, _ := net.SplitHostPort(req.RemoteAddr)
-			req.Header.Set("X-Real-IP", ip)
-			req.Header.Set("X-Forwarded-For", ip)
-
+			req.Host = u.Host
 		},
 		Transport:     tpa,
 		FlushInterval: 0,
 	}
+	u_ws, _ := url.Parse(strings.Replace(backend, "http", "ws", 1))
+	buf.WSProxy = NewWSProxy(u_ws)
 	hpx.hosts = insert(hpx.hosts, index, &buf)
 	return nil
 }
