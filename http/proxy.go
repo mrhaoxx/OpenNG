@@ -147,6 +147,8 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 	tpa.MaxConnsPerHost = MaxConnsPerHost
 	tlsc.InsecureSkipVerify = InsecureSkipVerify
 	u, _ := url.Parse(backend)
+	hostport, _ := hostPortNoPort(u)
+
 	buf.Proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
 			// rw.(*NgResponseWriter).Header().Add("X-Ng-Proxy-Err", strconv.Quote(e.Error()))
@@ -156,14 +158,34 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Director: func(req *http.Request) {
 			req.URL.Scheme = u.Scheme
 			req.URL.Host = u.Host
-			req.Host = u.Host
 		},
 		Transport:     tpa,
 		FlushInterval: 0,
 	}
-	u_ws, _ := url.Parse(strings.Replace(backend, "http", "ws", 1))
-	buf.WSProxy = NewWSProxy(u_ws)
-	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc}
+
+	buf.WSProxy = &WebsocketProxy{Backend: func(r *http.Request) *url.URL {
+		var u_ws *url.URL
+
+		if strings.HasPrefix(backend, "https") {
+			u_ws = &url.URL{
+				Scheme: "wss",
+				Host:   r.Host,
+				Path:   r.URL.Path,
+			}
+		} else {
+			u_ws = &url.URL{
+				Scheme: "ws",
+				Host:   r.Host,
+				Path:   r.URL.Path,
+			}
+		}
+		return u_ws
+	}}
+
+	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc, NetDial: func(network, addr string) (net.Conn, error) {
+		netDialer := &net.Dialer{}
+		return netDialer.Dial(network, hostport)
+	}}
 	hpx.hosts = insert(hpx.hosts, index, &buf)
 	return nil
 }
