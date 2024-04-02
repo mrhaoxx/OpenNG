@@ -300,7 +300,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		return http.RequestEnd
 	case "/pwd":
 		if session != nil {
-			ctx.Resp.ErrorPage(http.StatusConflict, "You've already logged in as "+session.user.name)
+			ctx.Resp.RefreshRedirectPage(http.StatusConflict, truepath, "You've already logged in as "+session.user.name, 2)
 		} else {
 			if ctx.Req.Method == "POST" {
 				//get username & password

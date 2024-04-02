@@ -133,6 +133,12 @@ func LoadCfg(cfgs []byte) error {
 		os.Exit(-1)
 	}
 
+	log.Println("sys", "ipfilter", "Found", len(cfg.IPFilter.AllowedCIDR), "CIDR")
+	builtinTcpServices["ipfilter"] = tcp.NewIPFilter(cfg.IPFilter.AllowedCIDR)
+	for _, c := range cfg.IPFilter.AllowedCIDR {
+		log.Println("sys", "ipfilter", "Allowed", c)
+	}
+
 	for _, bind := range cfg.HTTP.Midware.Binds {
 		if bind.Name == "" {
 			bind.Name = bind.Id

@@ -8,6 +8,8 @@ type Cfg struct {
 	HTTP    httpConfig `yaml:"HTTP,flow"`
 	Logger  logConfig  `yaml:"Logger,flow"`
 	DNS     DnsConfig  `yaml:"DNS,flow"`
+
+	IPFilter IpfilterConfig `yaml:"IPFilter,flow"`
 }
 
 type authConfig struct {
@@ -113,4 +115,8 @@ type DnsFilterRule struct {
 type DnsBind struct {
 	Name string `yaml:"Name"`
 	Addr string `yaml:"Addr"`
+}
+
+type IpfilterConfig struct {
+	AllowedCIDR []string `yaml:"AllowedCIDR"`
 }
