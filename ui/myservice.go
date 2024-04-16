@@ -13,9 +13,11 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
 	"github.com/mrhaoxx/OpenNG/utils"
+	gossh "golang.org/x/crypto/ssh"
 
 	"github.com/fsnotify/fsnotify"
 	"gopkg.in/yaml.v3"
@@ -119,7 +121,25 @@ func LoadCfg(cfgs []byte) error {
 
 	for _, u := range cfg.Auth.Users {
 		log.Println("sys", "auth", "Found User", u.Username)
-		pba.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy)
+		var pks []gossh.PublicKey = nil
+		if u.SSHAuthorizedKeys != "" {
+			for _, k := range strings.Split(u.SSHAuthorizedKeys, "\n") {
+				if k == "" {
+					continue
+				}
+				pk, _, _, _, err := gossh.ParseAuthorizedKey([]byte(k))
+				if err != nil {
+					log.Println("sys", "auth", "Failed to parse authorized key for user", u.Username, err)
+					os.Exit(-1)
+				} else {
+					ak := gossh.MarshalAuthorizedKey(pk)
+					log.Println("sys", "auth", "Found authorized key for user", u.Username, string(ak[:len(ak)-1]))
+				}
+				pks = append(pks, pk)
+			}
+		}
+
+		pba.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy, pks, u.SSHAllowPassword)
 	}
 	for _, p := range cfg.Auth.Policies {
 		log.Println("sys", "auth", "Found Policy", p.Name)
@@ -210,6 +230,22 @@ func LoadCfg(cfgs []byte) error {
 		log.Println("sys", "tcpproxy", err)
 		os.Exit(-1)
 	}
+
+	var prik []gossh.Signer
+	for _, key := range cfg.SSH.PrivateKeys {
+		s, err := gossh.ParsePrivateKey([]byte(key))
+		if err != nil {
+			log.Println("sys", "ssh", err)
+			os.Exit(-1)
+		}
+		ak := gossh.MarshalAuthorizedKey(s.PublicKey())
+		log.Println("sys", "ssh", "Found private key with authorized key", string(ak[:len(ak)-1]), "fingerprint", gossh.FingerprintSHA256(s.PublicKey()))
+		prik = append(prik, s)
+
+	}
+	var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, pba.SSHAuthPwd, pba.SSHAuthPubKey)
+
+	builtinTcpServices["ssh"] = sshs
 
 	watcher, err := fsnotify.NewWatcher()
 

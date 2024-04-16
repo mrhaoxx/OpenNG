@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -14,7 +15,10 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	http "github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/ssh"
 	utils "github.com/mrhaoxx/OpenNG/utils"
+
+	gossh "golang.org/x/crypto/ssh"
 )
 
 const PrefixAuthPolicy string = "/pb"
@@ -24,6 +28,8 @@ type user struct {
 	name                string
 	passwordHash        string
 	allow_forward_proxy bool
+	sshkeys             []gossh.PublicKey
+	allowsshpwd         bool
 
 	passwordmap sync.Map
 }
@@ -119,6 +125,32 @@ _false:
 func GenHash(data string) string {
 	hashed, _ := utils.HashPassword(data)
 	return hashed
+}
+func (mgr *policyBaseAuth) SSHAuthPubKey(ctx *ssh.Ctx, pubkey gossh.PublicKey) bool {
+	usr, ok := mgr.usrs[ctx.User]
+	if !ok {
+		return false
+	}
+	for _, key := range usr.sshkeys {
+		if pubkey.Type() == key.Type() && reflect.DeepEqual(pubkey.Marshal(), key.Marshal()) {
+			return true
+		}
+	}
+	return false
+}
+
+func (mgr *policyBaseAuth) SSHAuthPwd(ctx *ssh.Ctx, password []byte) bool {
+	usr, ok := mgr.usrs[ctx.User]
+	if !ok {
+		return false
+	}
+	if !usr.allowsshpwd {
+		return false
+	}
+	if usr.checkpwd(string(password)) {
+		return true
+	}
+	return false
 }
 
 func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
@@ -480,10 +512,12 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 	return 0
 }
 
-func (LGM *policyBaseAuth) SetUser(username string, passwordhash string, allow_forward_proxy bool) {
+func (LGM *policyBaseAuth) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool) {
 	LGM.usrs[username] = &user{
 		name:                username,
 		passwordHash:        passwordhash,
 		allow_forward_proxy: allow_forward_proxy,
+		sshkeys:             sshkeys,
+		allowsshpwd:         allowsshpwd,
 	}
 }

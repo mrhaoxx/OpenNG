@@ -10,6 +10,7 @@ type Cfg struct {
 	DNS     DnsConfig  `yaml:"DNS,flow"`
 
 	IPFilter IpfilterConfig `yaml:"IPFilter,flow"`
+	SSH      SSHConfig      `yaml:"SSH,flow"`
 }
 
 type authConfig struct {
@@ -20,6 +21,8 @@ type User struct {
 	Username          string `yaml:"Username"`
 	PasswordHash      string `yaml:"PasswordHash"`
 	AllowForwardProxy bool   `yaml:"AllowForwardProxy"`
+	SSHAuthorizedKeys string `yaml:"SSHAuthorizedKeys"`
+	SSHAllowPassword  bool   `yaml:"AllowSSHPassword"`
 }
 type Policy struct {
 	Name      string   `yaml:"Name"`
@@ -119,4 +122,9 @@ type DnsBind struct {
 
 type IpfilterConfig struct {
 	AllowedCIDR []string `yaml:"AllowedCIDR"`
+}
+
+type SSHConfig struct {
+	PrivateKeys []string `yaml:"PrivateKeys,flow"`
+	Banner      string   `yaml:"Banner"`
 }
