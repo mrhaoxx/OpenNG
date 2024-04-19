@@ -168,15 +168,23 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 
 		if strings.HasPrefix(backend, "https") {
 			u_ws = &url.URL{
-				Scheme: "wss",
-				Host:   r.Host,
-				Path:   r.URL.Path,
+				Scheme:   "wss",
+				Host:     r.Host,
+				Path:     r.URL.Path,
+				Opaque:   r.URL.Opaque,
+				User:     r.URL.User,
+				RawQuery: r.URL.RawQuery,
+				Fragment: r.URL.Fragment,
 			}
 		} else {
 			u_ws = &url.URL{
-				Scheme: "ws",
-				Host:   r.Host,
-				Path:   r.URL.Path,
+				Scheme:   "ws",
+				Host:     r.Host,
+				Path:     r.URL.Path,
+				Opaque:   r.URL.Opaque,
+				User:     r.URL.User,
+				RawQuery: r.URL.RawQuery,
+				Fragment: r.URL.Fragment,
 			}
 		}
 		return u_ws
