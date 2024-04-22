@@ -163,7 +163,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	f := ctl.bufferedLookup.Lookup(ctx.Alt)
 
 	if f == nil {
-		path += "!"
+		path += "#"
 		return tcp.Close
 	}
 
@@ -174,8 +174,11 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	return tcp.Close
 }
 
+func (c *Midware) AddHandler(h ConnHandler, alt utils.GroupRegexp) {
+	c.current = append(c.current, srv{hdr: h, matchalt: alt})
+}
+
 func NewSSHController(private_keys []ssh.Signer, banner string, pwdcb PasswordCbFn, pubcb PublicKeyCbFn) *Midware {
-	testing.privkey = private_keys[0]
 	Midware := Midware{
 		private_keys:      private_keys,
 		banner:            banner,
@@ -189,10 +192,7 @@ func NewSSHController(private_keys []ssh.Signer, banner string, pwdcb PasswordCb
 				return t.hdr
 			}
 		}
-		return &testing
+		return nil
 	})
 	return &Midware
 }
-
-var testing = proxier{
-	hosts: map[string]host{}}

@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"io"
 	"strconv"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -18,25 +19,23 @@ const (
 	AuthKeyboardInteractive
 )
 
-type host struct {
-	name string
+type Host struct {
+	Name string
 
-	addr string
+	Addr string
 
-	auth uint8
-
-	pubkey ssh.PublicKey
+	Pubkey ssh.PublicKey
 }
 
-type proxier struct {
-	hosts map[string]host
+type Proxier struct {
+	Hosts map[string]Host
 
-	privkey ssh.Signer
+	Privkey []ssh.Signer
 }
 
-func (p *proxier) HandleConn(ctx *Ctx) {
+func (p *Proxier) HandleConn(ctx *Ctx) {
 
-	h, ok := p.hosts[ctx.Alt]
+	h, ok := p.Hosts[strings.ToLower(ctx.Alt)]
 	if !ok {
 
 		ctx.Error("unknown host\r\n")
@@ -45,20 +44,28 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 	}
 
 	cfg := ssh.ClientConfig{
-		User:            ctx.User,
-		ClientVersion:   string("SSH-2.0-OpenNG"),
-		Auth:            []ssh.AuthMethod{ssh.PublicKeys(p.privkey)},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		User:          ctx.User,
+		ClientVersion: string("SSH-2.0-OpenNG"),
+		Auth:          []ssh.AuthMethod{ssh.PublicKeys(p.Privkey...)},
+	}
+	if h.Pubkey != nil {
+		cfg.HostKeyCallback = ssh.FixedHostKey(h.Pubkey)
+	} else {
+		cfg.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
-	remote, err := ssh.Dial("tcp", h.addr, &cfg)
+	remote, err := ssh.Dial("tcp", h.Addr, &cfg)
 	if err != nil {
-		k := ssh.MarshalAuthorizedKey(p.privkey.PublicKey())
+		var k string
+		for _, key := range p.Privkey {
+			key_ := string(ssh.MarshalAuthorizedKey(key.PublicKey()))
+			k += "    " + key_[:len(key_)-1] + " OpenNG Server Access\r\n"
+		}
 
 		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n" +
-			"* Please Add \r\n	" +
-			string(k[:len(k)-1]) + " OpenNG Server Access\r\n " +
-			"to user " + ctx.User + " in the remote host's authorized_keys file.\r\n")
+			"* If this is an authentication issue, please add one of these public keys\r\n" +
+			k +
+			"* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
 		return
 	}
 
@@ -85,7 +92,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 	}
 
 }
-func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote *ssh.Client, chn uint64) {
+func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote *ssh.Client, chn uint64) {
 
 	_c, _r, err := remote.OpenChannel(nc.ChannelType(), nc.ExtraData())
 	if err != nil {

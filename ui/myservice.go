@@ -290,7 +290,31 @@ func LoadCfg(cfgs []byte) error {
 
 		}
 		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, pba.SSHAuthPwd, pba.SSHAuthPubKey)
+		hm := map[string]ssh.Host{}
+		for i, u := range cfg.SSH.Hosts {
+			u.Host = strings.ToLower(u.Host)
+			log.Println("sys", "ssh", "Host", u.Host, u.Hostname, u.Pubkey)
+			var pubkey gossh.PublicKey = nil
+			if u.Pubkey != "" {
+				pk, _, _, _, err := gossh.ParseAuthorizedKey([]byte(u.Pubkey))
+				if err != nil {
+					log.Println("sys", "ssh", "Failed to parse authorized key for host", u.Host, err)
+					os.Exit(-1)
+				}
+				pubkey = pk
+			}
+			hm[u.Host] = ssh.Host{
+				Name:   u.Host,
+				Addr:   u.Hostname,
+				Pubkey: pubkey,
+			}
+			if i == 0 {
+				log.Println("sys", "ssh", "Default Host", u.Host)
+				hm[""] = hm[u.Host]
+			}
+		}
 
+		sshs.AddHandler(&ssh.Proxier{Hosts: hm, Privkey: prik}, utils.MustCompileRegexp([]string{"^.*$"}))
 		builtinTcpServices["ssh"] = sshs
 	}
 

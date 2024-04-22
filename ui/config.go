@@ -126,8 +126,14 @@ type IpfilterConfig struct {
 }
 
 type SSHConfig struct {
-	PrivateKeys []string `yaml:"PrivateKeys,flow"`
-	Banner      string   `yaml:"Banner"`
+	PrivateKeys []string  `yaml:"PrivateKeys,flow"`
+	Banner      string    `yaml:"Banner"`
+	Hosts       []SSHHost `yaml:"Hosts,flow"`
+}
+type SSHHost struct {
+	Host     string `yaml:"Host"`
+	Hostname string `yaml:"Hostname"`
+	Pubkey   string `yaml:"Pubkey"`
 }
 
 type ACMEConfig struct {
