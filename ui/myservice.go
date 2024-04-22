@@ -88,6 +88,28 @@ allowed:
 
 }
 
+type SniAndipFilter struct {
+	AllowedSNI []string
+	ipf        tcp.ServiceHandler
+}
+
+func (s *SniAndipFilter) Handle(conn *tcp.Conn) tcp.SerRet {
+	_req, ok := conn.Load(tcp.KeyTlsSni)
+	if !ok {
+		return tcp.Close
+	}
+	sni, ok := _req.(string)
+	if !ok {
+		return tcp.Close
+	}
+	for _, h := range s.AllowedSNI {
+		if sni == h {
+			return tcp.Continue
+		}
+	}
+	return s.ipf.Handle(conn)
+}
+
 var builtinTcpServices = map[string]tcp.ServiceHandler{
 	"tls":     TlsMgr,
 	"knock":   Knock,
@@ -194,6 +216,11 @@ func LoadCfg(cfgs []byte) error {
 	builtinTcpServices["ipfilter"] = tcp.NewIPFilter(cfg.IPFilter.AllowedCIDR)
 	for _, c := range cfg.IPFilter.AllowedCIDR {
 		log.Println("sys", "ipfilter", "Allowed", c)
+	}
+
+	builtinTcpServices["sif"] = &SniAndipFilter{
+		AllowedSNI: cfg.IPFilter.AllowedSNI,
+		ipf:        builtinTcpServices["ipfilter"],
 	}
 
 	for _, bind := range cfg.HTTP.Midware.Binds {

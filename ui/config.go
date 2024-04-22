@@ -123,6 +123,7 @@ type DnsBind struct {
 
 type IpfilterConfig struct {
 	AllowedCIDR []string `yaml:"AllowedCIDR"`
+	AllowedSNI  []string `yaml:"AllowedSNI"`
 }
 
 type SSHConfig struct {
