@@ -385,7 +385,13 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 			permission_denied.Execute(ctx.Resp, map[string]string{"r": r, "user": session.user.name})
 		} else {
 			ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-			userlogin.Execute(ctx.Resp, r)
+			userlogin.Execute(ctx.Resp, struct {
+				R   string
+				UTC string
+				DO  string
+				TAR string
+			}{R: r, TAR: ctx.Req.Host + truepath, DO: Maindomain, UTC: time.Now().UTC().Format("2006-01-02 15:04:05 UTC")})
+
 		}
 	case "/logout":
 		ctx.SetCookie(&stdhttp.Cookie{

@@ -425,7 +425,7 @@
 	<div class="limiter">
 		<div class="container-login100">
 			<div class="wrap-login100">
-				<form class="login100-form" method="POST" action="pwd?r={{.}}">
+				<form class="login100-form" method="POST" action="pwd?r={{.R}}">
 					<span class="login100-form-title p-b-48">
 						<img src="/ng-cgi/logo" alt="logo" width="55%" height="55%">
 					</span>
@@ -454,7 +454,9 @@
 		</div>
 	</div>
 
-
+	<div style="position: fixed; bottom: 0; width: 100%;color: #929292;font-family: monospace; font-weight: lighter;text-align: center">
+		{{.TAR}} · {{.DO}} · {{.UTC}}
+	</div>
 </body>
 
 </html>
