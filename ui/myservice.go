@@ -232,20 +232,22 @@ func LoadCfg(cfgs []byte) error {
 	}
 
 	var prik []gossh.Signer
-	for _, key := range cfg.SSH.PrivateKeys {
-		s, err := gossh.ParsePrivateKey([]byte(key))
-		if err != nil {
-			log.Println("sys", "ssh", err)
-			os.Exit(-1)
+	if len(cfg.SSH.PrivateKeys) > 0 {
+		for _, key := range cfg.SSH.PrivateKeys {
+			s, err := gossh.ParsePrivateKey([]byte(key))
+			if err != nil {
+				log.Println("sys", "ssh", err)
+				os.Exit(-1)
+			}
+			ak := gossh.MarshalAuthorizedKey(s.PublicKey())
+			log.Println("sys", "ssh", "Found private key with authorized key", string(ak[:len(ak)-1]), "fingerprint", gossh.FingerprintSHA256(s.PublicKey()))
+			prik = append(prik, s)
+
 		}
-		ak := gossh.MarshalAuthorizedKey(s.PublicKey())
-		log.Println("sys", "ssh", "Found private key with authorized key", string(ak[:len(ak)-1]), "fingerprint", gossh.FingerprintSHA256(s.PublicKey()))
-		prik = append(prik, s)
+		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, pba.SSHAuthPwd, pba.SSHAuthPubKey)
 
+		builtinTcpServices["ssh"] = sshs
 	}
-	var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, pba.SSHAuthPwd, pba.SSHAuthPubKey)
-
-	builtinTcpServices["ssh"] = sshs
 
 	watcher, err := fsnotify.NewWatcher()
 

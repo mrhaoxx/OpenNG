@@ -13,7 +13,7 @@ func (mid *Midware) ngCgi(RequestCtx *HttpCtx, RequestPath *string) {
 	s := mid.bufferedLookupForCgi.Lookup(path).([]*CgiStruct)
 
 	if len(s) == 0 {
-		RequestCtx.Resp.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+"("+path+")"+" was not found on this server.")
+		RequestCtx.Resp.ErrorPage(StatusNotFound, "The requested URL "+RequestCtx.Req.RequestURI+" was not found on this server.")
 	}
 
 	for _, t := range s {

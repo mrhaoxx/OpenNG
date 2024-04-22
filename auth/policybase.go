@@ -332,14 +332,15 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		return http.RequestEnd
 	case "/pwd":
 		if session != nil {
-			ctx.Resp.RefreshRedirectPage(http.StatusConflict, truepath, "You've already logged in as "+session.user.name, 2)
+			// ctx.Resp.RefreshRedirectPage(http.StatusConflict, truepath, "You've already logged in as "+session.user.name, 1)
+			ctx.Redirect(truepath, http.StatusFound)
 		} else {
 			if ctx.Req.Method == "POST" {
 				//get username & password
 				ctx.Req.ParseForm()
 				var userl, passl = ctx.Req.PostForm.Get("username"), ctx.Req.PostForm.Get("password")
 				if userl == "" || passl == "" {
-					ctx.Resp.ErrorPage(http.StatusBadRequest, "Username or password missing")
+					ctx.Resp.RefreshRedirectPage(http.StatusBadRequest, "login?r="+r, "Username or password missing", 3)
 					return http.RequestEnd
 				}
 
@@ -364,7 +365,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 					// if it doesn't, the server would move it back
 				} else {
 					time.Sleep(200 * time.Millisecond) // Sleep 200ms to avoid being cracked
-					ctx.Resp.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 1)
+					ctx.Resp.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 3)
 
 					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 				}

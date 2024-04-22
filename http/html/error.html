@@ -1,14 +1,18 @@
 <head>
 	<meta charset="UTF-8">
-	<title>Error - NetGATE</title>
+	<title>{{.CODE}} - NetGATE</title>
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 </head>
 
 <body style="text-align: center">
 	<img src="/ng-cgi/logo" alt="logo" style="padding-top: 3%;margin: 0 auto;" width="20%" height="20%"><br>
 	<br>
-	<p>ERROR</p>
-	<div><p><strong>{{.}}</a></strong></p></div>
+	<p>ERROR {{.CODE}}</p>
+	<div><p><strong>{{.MSG}}</a></strong></p></div>
+
+	<div style="position: fixed; bottom: 0; width: 100%;color: #929292;font-family: monospace; font-weight: lighter;">
+        RequestID: {{.RID}} · {{.RIP}} · {{.UTC}}
+    </div>
 </body>
 
 </html>

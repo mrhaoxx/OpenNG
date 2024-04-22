@@ -28,6 +28,8 @@ type HttpCtx struct {
 	Id        uint64
 	starttime time.Time
 
+	RemoteIP string
+
 	Req  *http.Request
 	Resp *NgResponseWriter
 
@@ -125,6 +127,8 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 
 	c, kill := context.WithCancel(r.Context())
 
+	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+
 	ctx := &HttpCtx{
 		Req:       r.WithContext(c),
 		Resp:      ngrw,
@@ -133,7 +137,10 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 		kill:      kill,
 		closing:   make(chan struct{}),
 		conn:      conn,
+		RemoteIP:  ip,
 	}
+
+	ngrw.ctx = ctx
 
 	h.Process(ctx)
 }
@@ -150,6 +157,8 @@ type NgResponseWriter struct {
 	writtenBytes uint64 // before compression
 
 	init sync.Once
+
+	ctx *HttpCtx
 }
 
 func (w *NgResponseWriter) Write(b []byte) (byt int, e error) {

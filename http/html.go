@@ -26,7 +26,23 @@ var confirm_rawhtml string
 func (rw *NgResponseWriter) ErrorPage(code int, err string) {
 	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(code)
-	errorpage_template.Execute(rw, err)
+	errorpage_template.Execute(rw, struct {
+		MSG string
+		RID string
+		RIP string
+		// CID  string
+		CODE string
+		UTC  string
+		// ELA  string
+	}{
+		MSG:  err,
+		CODE: strconv.Itoa(code),
+		RID:  strconv.FormatUint(rw.ctx.Id, 10),
+		RIP:  rw.ctx.RemoteIP,
+		// CID:  strconv.FormatUint(rw.ctx.conn.Id, 10),
+		UTC: rw.ctx.starttime.UTC().Format("2006-01-02 15:04:05 UTC"),
+		// ELA: time.Since(rw.ctx.starttime).String(),
+	})
 }
 
 func (rw *NgResponseWriter) InfoPage(code int, info string) {
@@ -41,9 +57,10 @@ func (rw *NgResponseWriter) RefreshRedirectPage(code int, url string, msg string
 	rw.Header().Add("Content-Type", "text/html; charset=utf-8")
 	rw.WriteHeader(code)
 	redirecting_template.Execute(rw, struct {
-		URL string
-		MSG string
-	}{URL: url, MSG: msg})
+		URL  string
+		MSG  string
+		TIME int
+	}{URL: url, MSG: msg, TIME: time})
 }
 
 func (rw *NgResponseWriter) ConfrimPage(code int, url string, msg string) {
