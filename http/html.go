@@ -34,6 +34,7 @@ func (rw *NgResponseWriter) ErrorPage(code int, err string) {
 		CODE string
 		UTC  string
 		// ELA  string
+		TAR string
 	}{
 		MSG:  err,
 		CODE: strconv.Itoa(code),
@@ -42,6 +43,7 @@ func (rw *NgResponseWriter) ErrorPage(code int, err string) {
 		// CID:  strconv.FormatUint(rw.ctx.conn.Id, 10),
 		UTC: rw.ctx.starttime.UTC().Format("2006-01-02 15:04:05 UTC"),
 		// ELA: time.Since(rw.ctx.starttime).String(),
+		TAR: rw.ctx.Req.Host + rw.ctx.Req.RequestURI,
 	})
 }
 

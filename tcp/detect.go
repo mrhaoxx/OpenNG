@@ -15,6 +15,7 @@ const (
 	KeyTLS         = "tls"
 	KeyTlsSni      = "sni"
 	KeyUnkownBytes = "unkownheadbytes"
+	KeyHTTPRequest = "http"
 )
 
 func readClientHello(reader io.Reader) (*tls.ClientHelloInfo, error) {
@@ -82,10 +83,11 @@ func (det *Detect) Handle(c *Conn) SerRet {
 }
 
 func DetectHTTP(r io.Reader, c *Conn) string {
-	_, err := http.ReadRequest(bufio.NewReader(r))
+	rr, err := http.ReadRequest(bufio.NewReader(r))
 	if err != nil {
 		return ""
 	}
+	c.Store(KeyHTTPRequest, rr)
 	return "HTTP1"
 }
 

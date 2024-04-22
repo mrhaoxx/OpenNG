@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"net"
+	stdhttp "net/http"
 	"os"
 	"strconv"
 	"strings"
@@ -49,6 +50,42 @@ var builtinHttpServices = map[string]http.Service{
 	"Auth":    Auth,
 	"Knock":   Knock,
 	"NgUI":    &UI{},
+}
+
+type AcmeWebRoot struct {
+	AllowedHosts []string
+	WWWRoot      string
+}
+
+func (a *AcmeWebRoot) Handle(conn *tcp.Conn) tcp.SerRet {
+	_req, ok := conn.Load(tcp.KeyHTTPRequest)
+	if !ok {
+		return tcp.Continue
+	}
+
+	req, ok := _req.(*stdhttp.Request)
+
+	if !ok {
+		return tcp.Continue
+	}
+
+	if !strings.HasPrefix(req.URL.Path, "/.well-known/acme-challenge/") {
+		return tcp.Continue
+	}
+	for _, h := range a.AllowedHosts {
+		if req.Host == h {
+			goto allowed
+		}
+	}
+	return tcp.Continue
+
+allowed:
+	s := stdhttp.FileServer(stdhttp.Dir(a.WWWRoot))
+	stdhttp.Serve(utils.ConnGetSocket(conn.TopConn()), stdhttp.HandlerFunc(func(w stdhttp.ResponseWriter, r *stdhttp.Request) {
+		s.ServeHTTP(w, r)
+	}))
+	return tcp.Close
+
 }
 
 var builtinTcpServices = map[string]tcp.ServiceHandler{
@@ -229,6 +266,14 @@ func LoadCfg(cfgs []byte) error {
 	if err != nil {
 		log.Println("sys", "tcpproxy", err)
 		os.Exit(-1)
+	}
+
+	if len(cfg.ACME.Hosts) > 0 {
+		acmec := AcmeWebRoot{
+			AllowedHosts: cfg.ACME.Hosts,
+			WWWRoot:      cfg.ACME.WWWRoot,
+		}
+		builtinTcpServices["acme"] = &acmec
 	}
 
 	var prik []gossh.Signer

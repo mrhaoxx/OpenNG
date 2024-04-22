@@ -11,6 +11,7 @@ type Cfg struct {
 
 	IPFilter IpfilterConfig `yaml:"IPFilter,flow"`
 	SSH      SSHConfig      `yaml:"SSH,flow"`
+	ACME     ACMEConfig     `yaml:"ACME,flow"`
 }
 
 type authConfig struct {
@@ -127,4 +128,9 @@ type IpfilterConfig struct {
 type SSHConfig struct {
 	PrivateKeys []string `yaml:"PrivateKeys,flow"`
 	Banner      string   `yaml:"Banner"`
+}
+
+type ACMEConfig struct {
+	Hosts   []string `yaml:"Hosts,flow"`
+	WWWRoot string   `yaml:"WWWRoot"`
 }
