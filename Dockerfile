@@ -1,12 +1,14 @@
-FROM golang:alpine AS build
+FROM golang:1-bookworm AS build
 
-RUN apk add build-base bash git coreutils
+RUN apt-get update && apt-get install -y build-essential git
 
 COPY . /go/src/github.com/mrhaoxx/OpenNG
 
 RUN cd /go/src/github.com/mrhaoxx/OpenNG && ./build.sh -o /NetGATE
 
-FROM alpine:latest AS runtime
+FROM debian:bookworm AS runtime
+
+# RUN apk add tzdata ca-certificates libc6-compat libgcc libstdc++
 
 COPY --from=build /NetGATE /NetGATE
 

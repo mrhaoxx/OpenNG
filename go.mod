@@ -7,7 +7,7 @@ require (
 	github.com/dlclark/regexp2 v1.11.0
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/gorilla/websocket v1.5.1
-	github.com/miekg/dns v1.1.58
+	github.com/miekg/dns v1.1.59
 	github.com/pires/go-proxyproto v0.7.0
 	golang.org/x/crypto v0.22.0
 	golang.org/x/net v0.24.0
