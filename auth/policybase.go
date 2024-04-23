@@ -274,9 +274,13 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	var Maindomain string
 	n := strings.Split(ctx.Req.Host, ".")
 	if len(n) >= 2 {
-		rawh := strings.Join(n[len(n)-2:], ".")
-		n = strings.Split(rawh, ":")
-		Maindomain = n[0]
+		last2 := strings.Join(n[len(n)-2:], ".")
+		if last2 == "edu.cn" {
+			Maindomain = strings.Join(n[len(n)-3:], ".")
+		} else {
+			Maindomain = strings.Join(n[len(n)-2:], ".")
+		}
+		Maindomain = strings.Split(Maindomain, ":")[0]
 	} else {
 		Maindomain = ctx.Req.Host
 	}
