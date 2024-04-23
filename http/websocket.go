@@ -154,6 +154,8 @@ func (w *WebsocketProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		upgrader = DefaultUpgrader
 	}
 
+	upgrader.CheckOrigin = func(r *http.Request) bool { return true }
+
 	// Only pass those headers to the upgrader.
 	upgradeHeader := http.Header{}
 	if hdr := resp.Header.Get("Sec-Websocket-Protocol"); hdr != "" {
