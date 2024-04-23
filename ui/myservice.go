@@ -110,6 +110,31 @@ func (s *SniAndipFilter) Handle(conn *tcp.Conn) tcp.SerRet {
 	return s.ipf.Handle(conn)
 }
 
+type HostAndipFilter struct {
+	AllowedHosts []string
+	ipf          tcp.ServiceHandler
+}
+
+func (s *HostAndipFilter) Handle(conn *tcp.Conn) tcp.SerRet {
+	_req, ok := conn.Load(tcp.KeyHTTPRequest)
+	if !ok {
+		return tcp.Close
+	}
+
+	req, ok := _req.(*stdhttp.Request)
+
+	if !ok {
+		return tcp.Close
+	}
+
+	for _, h := range s.AllowedHosts {
+		if req.Host == h {
+			return tcp.Continue
+		}
+	}
+	return s.ipf.Handle(conn)
+}
+
 var builtinTcpServices = map[string]tcp.ServiceHandler{
 	"tls":     TlsMgr,
 	"knock":   Knock,
@@ -221,6 +246,11 @@ func LoadCfg(cfgs []byte) error {
 	builtinTcpServices["sif"] = &SniAndipFilter{
 		AllowedSNI: cfg.IPFilter.AllowedSNI,
 		ipf:        builtinTcpServices["ipfilter"],
+	}
+
+	builtinTcpServices["hif"] = &HostAndipFilter{
+		AllowedHosts: cfg.IPFilter.AllowedSNI,
+		ipf:          builtinTcpServices["ipfilter"],
 	}
 
 	for _, bind := range cfg.HTTP.Midware.Binds {
