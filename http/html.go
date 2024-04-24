@@ -41,7 +41,7 @@ func (rw *NgResponseWriter) ErrorPage(code int, err string) {
 		RID:  strconv.FormatUint(rw.ctx.Id, 10),
 		RIP:  rw.ctx.RemoteIP,
 		// CID:  strconv.FormatUint(rw.ctx.conn.Id, 10),
-		UTC: rw.ctx.starttime.UTC().Format("2006-01-02 15:04:05 UTC"),
+		UTC: rw.ctx.starttime.UTC().Format("2006\u201101\u201102\u00A015:04:05\u00A0UTC"),
 		// ELA: time.Since(rw.ctx.starttime).String(),
 		TAR: rw.ctx.Req.Host + rw.ctx.Req.RequestURI,
 	})

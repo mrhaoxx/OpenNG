@@ -23,7 +23,7 @@ func (mgr *knockauthMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	}
 }
 func (mgr *knockauthMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
-	host, _, _ := net.SplitHostPort(ctx.Req.RemoteAddr)
+	host := ctx.RemoteIP
 	if ctx.Req.URL.Path != "/" {
 		host = ctx.Req.URL.Path[1:]
 	}

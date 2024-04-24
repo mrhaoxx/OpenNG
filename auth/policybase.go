@@ -394,7 +394,8 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 				UTC string
 				DO  string
 				TAR string
-			}{R: r, TAR: ctx.Req.Host + truepath, DO: Maindomain, UTC: time.Now().UTC().Format("2006-01-02 15:04:05 UTC")})
+				RIP string
+			}{R: r, TAR: ctx.Req.Host + truepath, DO: Maindomain, UTC: time.Now().UTC().Format("2006\u201101\u201102\u00A015:04:05\u00A0UTC"), RIP: ctx.RemoteIP})
 
 		}
 	case "/logout":
