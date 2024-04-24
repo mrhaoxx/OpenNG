@@ -68,6 +68,7 @@ func (p *Proxier) HandleConn(ctx *Ctx) {
 			"* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
 		return
 	}
+	defer remote.Close()
 
 	go func() {
 		for req := range ctx.r {
