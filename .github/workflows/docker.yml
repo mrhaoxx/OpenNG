@@ -1,0 +1,20 @@
+name: Docker Image CI
+
+on:
+  push:
+    branches: [ "main" ]
+    
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3.1.0
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.3.0
+    - name: Build the Docker image
+      run: docker buildx build --platform linux/amd64,linux/arm64 -t mrhaoxx/ng:main -f Dockerfile . --push
