@@ -69,6 +69,50 @@ func (p *Proxier) HandleConn(ctx *Ctx) {
 		return
 	}
 	defer remote.Close()
+	go func() {
+		remote.Wait()
+
+		ctx.sshconn.Close()
+	}()
+
+	go func() {
+		for nc := range remote.HandleChannelOpen("forwarded-tcpip") {
+			chn := atomic.AddUint64(&ctx.chn, 1) - 1
+			go func() {
+				defer func() {
+					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
+				}()
+				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
+			}()
+		}
+	}()
+
+	go func() {
+		for nc := range remote.HandleChannelOpen("direct-tcpip") {
+			chn := atomic.AddUint64(&ctx.chn, 1) - 1
+			go func() {
+				defer func() {
+					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
+				}()
+				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
+			}()
+		}
+	}()
+
+	go func() {
+		for nc := range remote.HandleChannelOpen("x11") {
+			chn := atomic.AddUint64(&ctx.chn, 1) - 1
+			go func() {
+				defer func() {
+					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
+				}()
+				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
+			}()
+		}
+	}()
 
 	go func() {
 		for req := range ctx.r {
@@ -93,9 +137,10 @@ func (p *Proxier) HandleConn(ctx *Ctx) {
 	}
 
 }
-func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote *ssh.Client, chn uint64) {
+func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
 	_c, _r, err := remote.OpenChannel(nc.ChannelType(), nc.ExtraData())
+
 	if err != nil {
 		e := err.(*ssh.OpenChannelError)
 		nc.Reject(e.Reason, e.Message)
@@ -113,43 +158,28 @@ func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote *ssh.Client,
 		_c.CloseWrite()
 	}()
 
+	go io.Copy(c.Stderr(), _c.Stderr())
+	go io.Copy(_c.Stderr(), c.Stderr())
+
 	go func() {
 		io.Copy(c, _c)
 		c.CloseWrite()
 	}()
 
-	for {
-		select {
-		case a, ok := <-r:
-			if !ok {
-				goto _fin
-			}
-
+	go func() {
+		for a := range r {
 			_1, _ := _c.SendRequest(a.Type, a.WantReply, a.Payload)
-
 			a.Reply(_1, nil)
-
-			if a.Type == "exit-status" {
+			if a.Type == "exit-status" || a.Type == "exit-signal" {
 				_c.Close()
 			}
-
-			// log.Println("ssh", "proxy", "requestA", err, a.Type, a.WantReply, string(a.Payload))
-		case a, ok := <-_r:
-			if !ok {
-				goto _fin
-			}
-
-			_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
-			a.Reply(_1, nil)
-
-			if a.Type == "exit-status" {
-				c.Close()
-			}
-			// log.Println("ssh", "proxy", "requestB", err, a.Type, a.WantReply, string(a.Payload))
-
 		}
-		// log.Println("ssh", "proxy", "loop", err)
-
+	}()
+	for a := range _r {
+		_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
+		a.Reply(_1, nil)
+		if a.Type == "exit-status" || a.Type == "exit-signal" {
+			c.Close()
+		}
 	}
-_fin:
 }
