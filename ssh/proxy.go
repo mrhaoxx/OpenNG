@@ -1,8 +1,9 @@
 package ssh
 
 import (
-	"encoding/base64"
+	"encoding/hex"
 	"io"
+	"net"
 	"strconv"
 	"strings"
 	"sync/atomic"
@@ -27,18 +28,35 @@ type Host struct {
 	Pubkey ssh.PublicKey
 }
 
-type Proxier struct {
+type proxier struct {
 	Hosts map[string]Host
 
 	Privkey []ssh.Signer
+
+	keyBanner string
 }
 
-func (p *Proxier) HandleConn(ctx *Ctx) {
+func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
+
+	var k string
+	for _, key := range keys {
+		key_ := string(ssh.MarshalAuthorizedKey(key.PublicKey()))
+		k += "    " + key_[:len(key_)-1] + " OpenNG Server Access\r\n"
+	}
+	p := &proxier{
+		Hosts:     hosts,
+		Privkey:   keys,
+		keyBanner: k,
+	}
+	return p
+}
+
+func (p *proxier) HandleConn(ctx *Ctx) {
 
 	h, ok := p.Hosts[strings.ToLower(ctx.Alt)]
 	if !ok {
 
-		ctx.Error("unknown host\r\n")
+		ctx.Error("* Unknown host " + strconv.Quote(ctx.Alt) + "\r\n")
 
 		return
 	}
@@ -47,6 +65,7 @@ func (p *Proxier) HandleConn(ctx *Ctx) {
 		User:          ctx.User,
 		ClientVersion: string("SSH-2.0-OpenNG"),
 		Auth:          []ssh.AuthMethod{ssh.PublicKeys(p.Privkey...)},
+		Timeout:       time.Second * 3,
 	}
 	if h.Pubkey != nil {
 		cfg.HostKeyCallback = ssh.FixedHostKey(h.Pubkey)
@@ -54,94 +73,83 @@ func (p *Proxier) HandleConn(ctx *Ctx) {
 		cfg.HostKeyCallback = ssh.InsecureIgnoreHostKey()
 	}
 
-	remote, err := ssh.Dial("tcp", h.Addr, &cfg)
-	if err != nil {
-		var k string
-		for _, key := range p.Privkey {
-			key_ := string(ssh.MarshalAuthorizedKey(key.PublicKey()))
-			k += "    " + key_[:len(key_)-1] + " OpenNG Server Access\r\n"
-		}
+	remote_conn, err := net.DialTimeout("tcp", h.Addr, cfg.Timeout)
 
+	if err != nil {
+		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n")
+		return
+	}
+
+	remote, chans, reqs, err := ssh.NewClientConn(remote_conn, h.Addr, &cfg)
+
+	if err != nil {
 		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n" +
 			"* If this is an authentication issue, please add one of these public keys\r\n" +
-			k +
+			p.keyBanner +
 			"* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
 		return
 	}
-	defer remote.Close()
-	go func() {
-		remote.Wait()
-
-		ctx.sshconn.Close()
-	}()
 
 	go func() {
-		for nc := range remote.HandleChannelOpen("forwarded-tcpip") {
+		for nc := range chans {
 			chn := atomic.AddUint64(&ctx.chn, 1) - 1
 			go func() {
 				defer func() {
 					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
+						"s"+strconv.FormatUint(ctx.Id, 10), "<", nc.ChannelType(), hex.EncodeToString(nc.ExtraData()))
 				}()
 				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
+			}()
+		}
+
+	}()
+
+	go func() {
+		for ch := range ctx.nc {
+			chn := atomic.AddUint64(&ctx.chn, 1) - 1
+			go func() {
+				defer func() {
+					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+						"s"+strconv.FormatUint(ctx.Id, 10), ">", ch.ChannelType(), hex.EncodeToString(ch.ExtraData()))
+				}()
+				p.HandleChannel(ctx, ch, remote, chn)
 			}()
 		}
 	}()
 
 	go func() {
-		for nc := range remote.HandleChannelOpen("direct-tcpip") {
-			chn := atomic.AddUint64(&ctx.chn, 1) - 1
-			go func() {
-				defer func() {
-					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
-				}()
-				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
-			}()
-		}
-	}()
+		defer ctx.sshconn.Close()
 
-	go func() {
-		for nc := range remote.HandleChannelOpen("x11") {
-			chn := atomic.AddUint64(&ctx.chn, 1) - 1
-			go func() {
-				defer func() {
-					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-						"s"+strconv.FormatUint(ctx.Id, 10), nc.ChannelType(), base64.StdEncoding.EncodeToString(nc.ExtraData()))
-				}()
-				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
-			}()
-		}
-	}()
-
-	go func() {
-		for req := range ctx.r {
-			_1, _2, _ := remote.SendRequest(req.Type, req.WantReply, req.Payload)
-			if req.WantReply {
-				req.Reply(_1, _2)
+		for req := range reqs {
+			switch req.Type {
+			case "hostkeys-00@openssh.com": // Unsupported OpenSSH extension
+				continue
 			}
+			_1, _2, _ := ctx.sshconn.SendRequest(req.Type, req.WantReply, req.Payload)
+			req.Reply(_1, _2)
+
 			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), req.Type, base64.StdEncoding.EncodeToString(req.Payload))
+				"c"+strconv.FormatUint(ctx.conn.Id, 10), "<", req.Type, hex.EncodeToString(req.Payload))
 		}
 	}()
 
-	for ch := range ctx.nc {
-		chn := atomic.AddUint64(&ctx.chn, 1) - 1
-		go func() {
-			defer func() {
-				log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-					"s"+strconv.FormatUint(ctx.Id, 10), ch.ChannelType(), base64.StdEncoding.EncodeToString(ch.ExtraData()))
-			}()
-			p.HandleChannel(ctx, ch, remote, chn)
-		}()
+	defer remote.Close()
+
+	for req := range ctx.r {
+		_1, _2, _ := remote.SendRequest(req.Type, req.WantReply, req.Payload)
+		req.Reply(_1, _2)
+
+		log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			"c"+strconv.FormatUint(ctx.conn.Id, 10), ">", req.Type, hex.EncodeToString(req.Payload))
 	}
 
 }
-func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
+func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
 	_c, _r, err := remote.OpenChannel(nc.ChannelType(), nc.ExtraData())
 
 	if err != nil {
+		// log.Println(err)
 		e := err.(*ssh.OpenChannelError)
 		nc.Reject(e.Reason, e.Message)
 		return

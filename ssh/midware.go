@@ -57,7 +57,7 @@ func (ctx *Ctx) initUserAlt() {
 func (ctx *Ctx) Error(err_msg string) {
 	for ch := range ctx.nc {
 		n, _, _ := ch.Accept()
-		n.Write([]byte(err_msg))
+		n.Stderr().Write([]byte(err_msg))
 		break
 	}
 	ctx.sshconn.Close()

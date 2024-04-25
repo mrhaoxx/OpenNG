@@ -371,7 +371,7 @@ func LoadCfg(cfgs []byte) error {
 			}
 		}
 
-		sshs.AddHandler(&ssh.Proxier{Hosts: hm, Privkey: prik}, utils.MustCompileRegexp([]string{"^.*$"}))
+		sshs.AddHandler(ssh.NewSSHProxier(hm, prik), utils.MustCompileRegexp([]string{"^.*$"}))
 		builtinTcpServices["ssh"] = sshs
 	}
 
