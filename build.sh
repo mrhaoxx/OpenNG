@@ -1,27 +1,10 @@
 #!/bin/bash
-# echo Build C Libs
-# git submodule update --init
-# cd libs
-# echo "Working Directory:" `pwd`
 
-# # echo Build LuaJIT 
-# # cd LuaJIT
-# # make && sudo make install
-# # sudo ln -sf luajit-2.1.0-beta3 /usr/local/bin/luajit
-# # cd ..
+BUILD_TIME=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 
-# # echo Build Brotli
-# # cd brotli
-# # ./bootstrap && ./configure -static
-# # make && sudo make install
-# # cd ..
+GIT_VERSION=$(git describe --tags --abbrev=7 --dirty 2>/dev/null || echo "unknown")
 
-# cd ..
-# git submodule deinit --all -f
-# echo Complete!
-# pwd
-
-# echo Notice: You need to make sure that you have installed luajit in the running environment.
-
-# go generate
-go build -a -ldflags "-X 'main.buildstamp=`date -u --rfc-3339=seconds`' -X 'main.gitver=`git describe --long --dirty --tags`'" $@
+go build -a -ldflags="-w -s \
+  -X 'main.buildstamp=$BUILD_TIME' \
+  -X 'main.gitver=$GIT_VERSION'" \
+  "$@"
