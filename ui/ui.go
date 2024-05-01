@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	auth "github.com/mrhaoxx/OpenNG/auth"
 	http "github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
 	utils "github.com/mrhaoxx/OpenNG/utils"
@@ -97,7 +96,7 @@ func (*UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Write(curcfg)
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)
-		hashed := auth.GenHash(string(b))
+		hashed, _ := utils.HashPassword(string(b))
 		ctx.Resp.Write([]byte(hashed))
 	case "/sys":
 		var m runtime.MemStats

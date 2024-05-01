@@ -203,6 +203,9 @@ func LoadCfg(cfgs []byte) error {
 		log.Println("sys", "SSE Logger Registered")
 	}
 
+	var fileBackend = auth.NewFileBackend()
+	pba.AddBackends([]auth.PolicyBackend{fileBackend})
+	log.Println("sys", "auth", "use file backend as [0]")
 	for _, u := range cfg.Auth.Users {
 		log.Println("sys", "auth", "Found User", u.Username)
 		var pks []gossh.PublicKey = nil
@@ -223,7 +226,7 @@ func LoadCfg(cfgs []byte) error {
 			}
 		}
 
-		pba.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy, pks, u.SSHAllowPassword)
+		fileBackend.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy, pks, u.SSHAllowPassword)
 	}
 	for _, p := range cfg.Auth.Policies {
 		log.Println("sys", "auth", "Found Policy", p.Name)
@@ -346,7 +349,7 @@ func LoadCfg(cfgs []byte) error {
 			prik = append(prik, s)
 
 		}
-		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, pba.SSHAuthPwd, pba.SSHAuthPubKey)
+		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, nil, pba.CheckSSHKey)
 		hm := map[string]ssh.Host{}
 		for i, u := range cfg.SSH.Hosts {
 			u.Host = strings.ToLower(u.Host)

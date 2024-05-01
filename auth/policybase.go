@@ -2,7 +2,6 @@ package auth
 
 import (
 	"encoding/base64"
-	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -24,64 +23,73 @@ import (
 const PrefixAuthPolicy string = "/pb"
 const verfiyCookieKey string = "_ng_s"
 
-type user struct {
-	name                string
-	passwordHash        string
-	allow_forward_proxy bool
-	sshkeys             []gossh.PublicKey
-	allowsshpwd         bool
+type session struct {
+	lastseen time.Time
+	active   uint64
 
-	passwordmap sync.Map
+	muS      sync.Mutex
+	username string
+	src      int
 }
 
-type policy struct {
-	name string
-
-	allowance bool
-
-	users map[string]bool
-
-	hosts utils.GroupRegexp
-	hup   *utils.BufferedLookup
-
-	paths utils.GroupRegexp
+func (u *session) id() string {
+	return "[" + strconv.Itoa(u.src) + "]" + u.username
 }
 
-// 0 -> next;1 -> refuse;2 -> accept
-func (p *policy) check(username string, path string) uint8 {
-	if p.users[""] || p.users[username] {
-		if p.paths.MatchString(path) {
-			if p.allowance {
-				return 2
-			} else {
-				return 1
-			}
-		}
-	}
-	return 0
+func (u *session) updateSession() {
+	u.muS.Lock()
+	u.lastseen = time.Now()
+	u.muS.Unlock()
 }
 
 type policyBaseAuth struct {
 	policies        []*policy
 	policyLookupBuf *utils.BufferedLookup
 
-	usrs map[string]*user
+	backends backendGroup
 
 	sessions  map[string]*session
 	muSession sync.RWMutex
 }
 
-type session struct {
-	lastseen time.Time
-	active   uint64
+type PolicyBackend interface {
+	CheckPassword(username string, password string) bool
+	CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) bool
+	AllowForwardProxy(username string) bool
+}
 
-	muS  sync.Mutex
-	user *user
+type backendGroup []PolicyBackend
+
+func (b backendGroup) CheckPassword(username string, password string) (bool, int) {
+	for i, backend := range b {
+		if backend.CheckPassword(username, password) {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
+func (b backendGroup) CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) (bool, int) {
+	for i, backend := range b {
+		if backend.CheckSSHKey(ctx, key) {
+			return true, i
+		}
+	}
+	return false, -1
+}
+
+func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
+	for i, backend := range b {
+		if backend.AllowForwardProxy(username) {
+			return true, i
+		}
+	}
+	return false, -1
 }
 
 func NewPBAuth() *policyBaseAuth {
 	po := &policyBaseAuth{
-		usrs:     map[string]*user{},
+		// usrs:     map[string]*user{},
 		sessions: map[string]*session{},
 	}
 
@@ -102,55 +110,6 @@ func NewPBAuth() *policyBaseAuth {
 	}()
 	return po
 
-}
-func (usr *user) checkpwd(passwd string) bool {
-	if usr == nil {
-		goto _false
-	}
-
-	if _, ok := usr.passwordmap.Load(passwd); ok {
-		return true
-	}
-
-	if utils.CheckPasswordHash(passwd, usr.passwordHash) {
-		usr.passwordmap.Store(passwd, struct{}{})
-		return true
-	}
-
-_false:
-	time.Sleep(time.Millisecond * 600)
-
-	return false
-}
-func GenHash(data string) string {
-	hashed, _ := utils.HashPassword(data)
-	return hashed
-}
-func (mgr *policyBaseAuth) SSHAuthPubKey(ctx *ssh.Ctx, pubkey gossh.PublicKey) bool {
-	usr, ok := mgr.usrs[ctx.User]
-	if !ok {
-		return false
-	}
-	for _, key := range usr.sshkeys {
-		if pubkey.Type() == key.Type() && reflect.DeepEqual(pubkey.Marshal(), key.Marshal()) {
-			return true
-		}
-	}
-	return false
-}
-
-func (mgr *policyBaseAuth) SSHAuthPwd(ctx *ssh.Ctx, password []byte) bool {
-	usr, ok := mgr.usrs[ctx.User]
-	if !ok {
-		return false
-	}
-	if !usr.allowsshpwd {
-		return false
-	}
-	if usr.checkpwd(string(password)) {
-		return true
-	}
-	return false
 }
 
 func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
@@ -183,7 +142,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 		mgr.muSession.RUnlock()
 
 		if session != nil {
-			user = session.user.name
+			user = session.username
 			session.updateSession()
 		}
 	}
@@ -243,13 +202,9 @@ func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 	login := pair[0]
 	password := pair[1]
 
-	user := l.usrs[login]
-	if user == nil {
-		needAuth(ctx)
-		return http.RequestEnd
-	}
+	allowed, i := l.backends.AllowForwardProxy(login)
 
-	if user.allow_forward_proxy && user.checkpwd(password) {
+	if allowed && l.backends[i].CheckPassword(login, password) {
 		return http.Continue
 	}
 
@@ -268,7 +223,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		mgr.muSession.RUnlock()
 
 		if session != nil {
-			user = session.user.name
+			user = session.username
 		}
 	}
 	var Maindomain string
@@ -316,9 +271,11 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		}
 		var reqalive uint64
 		var last string
+		var src string
 		if session != nil {
 			reqalive = atomic.LoadUint64(&session.active)
-			user = session.user.name
+			user = session.username
+			src = strconv.Itoa(session.src)
 
 			session.muS.Lock()
 			last = session.lastseen.Local().String()
@@ -327,6 +284,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 
 		ctx.WriteString(
 			"user: " + user + "\n" +
+				"vsrc: " + src + "\n" +
 				"alive: " + strconv.FormatUint(reqalive, 10) + "\n" +
 				"host: " + ctx.Req.Host + "\n" +
 				"path: " + truepath + "\n" +
@@ -348,11 +306,9 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 					return http.RequestEnd
 				}
 
-				user := mgr.usrs[userl]
-
 				//check it
-				if user.checkpwd(passl) {
-					session := mgr.generateSession(user)
+				if ok, v_src := mgr.backends.CheckPassword(userl, passl); ok {
+					session := mgr.generateSession(userl, v_src)
 					ctx.SetCookie(&stdhttp.Cookie{
 						Name:     verfiyCookieKey,
 						Value:    session,
@@ -386,7 +342,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 			ctx.Resp.Header().Set("Refresh", "5")
 			ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 			ctx.Resp.WriteHeader(http.StatusForbidden)
-			permission_denied.Execute(ctx.Resp, map[string]string{"r": r, "user": session.user.name})
+			permission_denied.Execute(ctx.Resp, map[string]string{"r": r, "user": session.id()})
 		} else {
 			ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 			userlogin.Execute(ctx.Resp, struct {
@@ -410,7 +366,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		})
 		if session != nil {
 			mgr.rmSession(cookie.Value)
-			log.Println("%", "-", session.user.name, "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+			log.Println("%", "-", session.id(), "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
 		ctx.Resp.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
 	default:
@@ -425,10 +381,7 @@ func (l *policyBaseAuth) Paths() utils.GroupRegexp {
 	return []*regexp2.Regexp{regexpforit}
 }
 
-func (mgr *policyBaseAuth) generateSession(usr *user) string {
-	if usr == nil {
-		return ""
-	}
+func (mgr *policyBaseAuth) generateSession(username string, src int) string {
 
 	var rand = utils.RandString(16)
 	mgr.muSession.Lock()
@@ -436,7 +389,8 @@ func (mgr *policyBaseAuth) generateSession(usr *user) string {
 		lastseen: time.Now(),
 		active:   0,
 		muS:      sync.Mutex{},
-		user:     usr,
+		username: username,
+		src:      src,
 	}
 	mgr.muSession.Unlock()
 	return rand
@@ -451,12 +405,6 @@ func (mgr *policyBaseAuth) rmSession(session string) {
 	mgr.muSession.Unlock()
 }
 
-func (u *session) updateSession() {
-	u.muS.Lock()
-	u.lastseen = time.Now()
-	u.muS.Unlock()
-}
-
 func (mgr *policyBaseAuth) Clean() {
 	now := time.Now()
 	mgr.muSession.Lock()
@@ -467,7 +415,7 @@ func (mgr *policyBaseAuth) Clean() {
 		session.muS.Lock()
 		if session.lastseen.Add(120 * time.Minute).Before(now) {
 			delete(mgr.sessions, key)
-			log.Println("%", "&-", session.user.name, key)
+			log.Println("%", "&-", session.id(), key)
 		}
 		session.muS.Unlock()
 	}
@@ -524,12 +472,15 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 	return 0
 }
 
-func (LGM *policyBaseAuth) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool) {
-	LGM.usrs[username] = &user{
-		name:                username,
-		passwordHash:        passwordhash,
-		allow_forward_proxy: allow_forward_proxy,
-		sshkeys:             sshkeys,
-		allowsshpwd:         allowsshpwd,
+func (mgr *policyBaseAuth) AddBackends(_src []PolicyBackend) {
+	mgr.backends = append(mgr.backends, _src...)
+}
+
+func (mgr *policyBaseAuth) CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) bool {
+	for _, backend := range mgr.backends {
+		if backend.CheckSSHKey(ctx, key) {
+			return true
+		}
 	}
+	return false
 }
