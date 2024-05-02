@@ -2,7 +2,6 @@ package auth
 
 import (
 	"crypto/tls"
-	"fmt"
 	"reflect"
 	"strings"
 	"sync"
@@ -73,38 +72,79 @@ func (backend *ldapBackend) CheckSSHKey(ctx *ssh.Ctx, pubkey gossh.PublicKey) bo
 		return false
 	}
 
+	keys, err := backend.searchUserSSHPubkey(ctx.User)
+
+	if err != nil {
+		return false
+	}
+
+	for _, key := range keys {
+		out, _, _, _, err := gossh.ParseAuthorizedKey([]byte(key))
+		if err != nil {
+			continue
+		}
+		if out.Type() == pubkey.Type() && reflect.DeepEqual(out.Marshal(), pubkey.Marshal()) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func (backend *ldapBackend) searchUserSSHPubkey(username string) (ret []string, err error) {
+
 	conn := backend.tryGetQueryConn()
 	defer backend.ldapQueryConnPool.Put(conn)
 
-	searchRequest := ldap.NewSearchRequest(
+	sr, err := conn.Search(ldap.NewSearchRequest(
 		backend.searchBase,
 		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
-		"(&(objectClass=posixAccount)(uid="+ctx.User+"))",
-		[]string{"sshPublicKey"},
+		"(&(objectClass=posixAccount)(uid="+username+"))",
+		[]string{"sshPublicKey", "memberUid"},
 		nil,
-	)
-	if result, err := conn.Search(searchRequest); err == nil {
-		if len(result.Entries) != 1 {
-			return false
-		}
+	))
 
-		for _, attr := range result.Entries[0].Attributes {
-			if attr.Name != "sshPublicKey" {
-				continue
-			}
+	if err != nil {
+		return
+	}
 
-			for _, val := range attr.Values {
-				got, _, _, _, err := gossh.ParseAuthorizedKey([]byte(val))
-				if err != nil {
-					continue
-				}
-				if pubkey.Type() == got.Type() && reflect.DeepEqual(pubkey.Marshal(), got.Marshal()) {
-					return true
-				}
+	var memberUidsOfUser []string
+
+	for _, entry := range sr.Entries {
+		for _, attr := range entry.Attributes {
+			if attr.Name == "sshPublicKey" {
+				ret = append(ret, attr.Values...)
+			} else if attr.Name == "memberUid" {
+				memberUidsOfUser = append(memberUidsOfUser, attr.Values...)
 			}
 		}
 	}
-	return false
+
+	var to_join_users string
+	for _, uid := range memberUidsOfUser {
+		to_join_users += "(uid=" + uid + ")"
+	}
+
+	sr, err = conn.Search(ldap.NewSearchRequest(
+		backend.searchBase,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		"(|(&(objectClass=posixGroup)(|(memberUid="+username+")(memberUid=ALL)))(&(objectClass=posixAccount)(|"+to_join_users+")))",
+		[]string{"sshPublicKey"},
+		nil,
+	))
+
+	if err != nil {
+		return
+	}
+
+	for _, entry := range sr.Entries {
+		for _, attr := range entry.Attributes {
+			ret = append(ret, attr.Values...)
+		}
+	}
+
+	return
+
 }
 
 func (mgr *ldapBackend) AllowForwardProxy(username string) bool {
@@ -129,7 +169,7 @@ func NewLDAPBackend(url, searchBase, bindDN, bindPW string) *ldapBackend {
 		if err != nil {
 			panic(err)
 		}
-		fmt.Println("LDAP connection established")
+		// fmt.Println("LDAP connection established")
 		return conn
 	}
 
