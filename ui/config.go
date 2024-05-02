@@ -15,9 +15,18 @@ type Cfg struct {
 }
 
 type authConfig struct {
-	Users    []User   `yaml:"Users,flow"`
-	Policies []Policy `yaml:"Policies,flow"`
+	Users    []User     `yaml:"Users,flow"`
+	Policies []Policy   `yaml:"Policies,flow"`
+	LDAP     LDAPConfig `yaml:"LDAP"`
 }
+
+type LDAPConfig struct {
+	Url        string `yaml:"Url"`
+	SearchBase string `yaml:"SearchBase"`
+	BindDN     string `yaml:"BindDN"`
+	BindPW     string `yaml:"BindPW"`
+}
+
 type User struct {
 	Username          string `yaml:"Username"`
 	PasswordHash      string `yaml:"PasswordHash"`

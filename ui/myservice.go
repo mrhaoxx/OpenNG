@@ -228,6 +228,11 @@ func LoadCfg(cfgs []byte) error {
 
 		fileBackend.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy, pks, u.SSHAllowPassword)
 	}
+	if cfg.Auth.LDAP.Url != "" {
+		ldapBackend := auth.NewLDAPBackend(cfg.Auth.LDAP.Url, cfg.Auth.LDAP.SearchBase, cfg.Auth.LDAP.BindDN, cfg.Auth.LDAP.BindPW)
+		pba.AddBackends([]auth.PolicyBackend{ldapBackend})
+		log.Println("sys", "auth", "use ldap backend as [1]")
+	}
 	for _, p := range cfg.Auth.Policies {
 		log.Println("sys", "auth", "Found Policy", p.Name)
 		if err = pba.AddPolicy(p.Name, p.Allowance, p.Users, p.Hosts, p.Paths); err != nil {

@@ -84,20 +84,6 @@ func (mgr *fileBackend) CheckSSHKey(ctx *ssh.Ctx, pubkey gossh.PublicKey) bool {
 	return false
 }
 
-func (mgr *fileBackend) SSHAuthPwd(ctx *ssh.Ctx, password []byte) bool {
-	usr, ok := mgr.usrs[ctx.User]
-	if !ok {
-		return false
-	}
-	if !usr.allowsshpwd {
-		return false
-	}
-	if usr.checkpwd(string(password)) {
-		return true
-	}
-	return false
-}
-
 func (mgr *fileBackend) CheckPassword(username string, password string) bool {
 	usr, ok := mgr.usrs[username]
 	if !ok {
