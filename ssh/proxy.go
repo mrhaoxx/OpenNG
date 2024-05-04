@@ -150,7 +150,11 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 
 	if err != nil {
 		// log.Println(err)
-		e := err.(*ssh.OpenChannelError)
+		e, ok := err.(*ssh.OpenChannelError)
+		if !ok {
+			nc.Reject(ssh.Prohibited, err.Error())
+			return
+		}
 		nc.Reject(e.Reason, e.Message)
 		return
 	}
