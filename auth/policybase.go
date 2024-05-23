@@ -117,7 +117,8 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	var token string
 	var exists bool
 	cookieHeader := ctx.Req.Header["Cookie"]
-	for i, cookie := range cookieHeader {
+	newCookieHeader := make([]string, 0)
+	for _, cookie := range cookieHeader {
 		cookies := strings.Split(cookie, ";")
 		for j, item := range cookies {
 			if strings.Contains(item, verfiyCookieKey+"=") {
@@ -127,11 +128,15 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 				break
 			}
 		}
-		cookieHeader[i] = strings.Join(cookies, ";")
+
+		cookie_str := strings.Join(cookies, ";")
+		if cookie_str != "" {
+			newCookieHeader = append(newCookieHeader, cookie_str)
+		}
 	}
 
 	if exists {
-		ctx.Req.Header["Cookie"] = cookieHeader
+		ctx.Req.Header["Cookie"] = newCookieHeader
 	}
 
 	var session *session
