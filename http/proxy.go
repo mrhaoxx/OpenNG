@@ -1,6 +1,7 @@
 package http
 
 import (
+	"context"
 	"crypto/tls"
 	"errors"
 	"net"
@@ -116,6 +117,29 @@ func (hpx *httpproxy) Delete(id string) error {
 	return errors.New("not found")
 }
 
+var _my_cipher_suit = []uint16{
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
+	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
+	tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
+	tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+	tls.TLS_AES_128_GCM_SHA256,
+	tls.TLS_AES_256_GCM_SHA384,
+	tls.TLS_CHACHA20_POLY1305_SHA256,
+}
+
 // @Param int index index to insert
 // @Param string id id of proxy
 // @Param []string host list of host
@@ -124,6 +148,7 @@ func (hpx *httpproxy) Delete(id string) error {
 // @OptionalParam bool=false TransportArgs::InsecureSkipVerify skip verify
 //
 //ng:generate def func httpproxy::Insert
+
 func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend string, MaxConnsPerHost int, InsecureSkipVerify bool) error {
 	buf := Httphost{
 		Id:         id,
@@ -131,75 +156,54 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Backend:    backend,
 	}
 
-	var tlsc = tls.Config{
-		MinVersion: tls.VersionTLS10,
-		CipherSuites: []uint16{
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-			tls.TLS_AES_128_GCM_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_CHACHA20_POLY1305_SHA256,
-		},
+	var HTTPTlsConfig = tls.Config{
+		MinVersion:         tls.VersionTLS10,
+		CipherSuites:       _my_cipher_suit,
+		InsecureSkipVerify: InsecureSkipVerify,
 	}
-	var tpa = &http.Transport{
-		TLSClientConfig: &tlsc,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          0,
-		IdleConnTimeout:       0,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
+
+	var WSTlsConfig = tls.Config{
+		MinVersion:         tls.VersionTLS10,
+		CipherSuites:       _my_cipher_suit,
+		InsecureSkipVerify: InsecureSkipVerify,
 	}
-	tpa.MaxConnsPerHost = MaxConnsPerHost
-	tlsc.InsecureSkipVerify = InsecureSkipVerify
+
 	u, _ := url.Parse(backend)
 	hostport, _ := hostPortNoPort(u)
 
+	dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
+		dialer := &net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}
+		return dialer.DialContext(ctx, network, hostport)
+	}
+
 	buf.Proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
-			// rw.(*NgResponseWriter).Header().Add("X-Ng-Proxy-Err", strconv.Quote(e.Error()))
 			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(e.Error()))
 			log.Println("sys", "httpproxy", r.Host, "->", id, e)
 		},
-		Director: func(req *http.Request) {
-			req.URL.Scheme = u.Scheme
-			req.URL.Host = u.Host
+		Transport: &http.Transport{
+			TLSClientConfig:       &HTTPTlsConfig,
+			DialContext:           dialer,
+			MaxIdleConns:          1000,
+			MaxIdleConnsPerHost:   1000,
+			IdleConnTimeout:       0,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			MaxConnsPerHost:       MaxConnsPerHost,
 		},
-		Transport:     tpa,
-		FlushInterval: 0,
+		Director: func(r *http.Request) {
+			r.URL.Scheme = u.Scheme
+			r.URL.Host = u.Host
+		},
+		FlushInterval: -1,
 	}
 
-	buf.WSProxy = &WebsocketProxy{Backend: func(r *http.Request) *url.URL {
-		var u_ws *url.URL
-
-		if strings.HasPrefix(backend, "https") {
-			u_ws = &url.URL{
-				Scheme:   "wss",
-				Host:     r.Host,
-				Path:     r.URL.Path,
-				Opaque:   r.URL.Opaque,
-				User:     r.URL.User,
-				RawQuery: r.URL.RawQuery,
-				Fragment: r.URL.Fragment,
-			}
-		} else {
-			u_ws = &url.URL{
+	buf.WSProxy = &WebsocketProxy{
+		Backend: func(r *http.Request) *url.URL {
+			var u_ws *url.URL = &url.URL{
 				Scheme:   "ws",
 				Host:     r.Host,
 				Path:     r.URL.Path,
@@ -208,40 +212,17 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 				RawQuery: r.URL.RawQuery,
 				Fragment: r.URL.Fragment,
 			}
-		}
-		return u_ws
-	}}
-	var tlsc_ws = tls.Config{
-		MinVersion: tls.VersionTLS10,
-		CipherSuites: []uint16{
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
-			tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-			tls.TLS_AES_128_GCM_SHA256,
-			tls.TLS_AES_256_GCM_SHA384,
-			tls.TLS_CHACHA20_POLY1305_SHA256,
+			if strings.HasPrefix(backend, "https") {
+				u_ws.Scheme = "wss"
+			}
+			return u_ws
+		},
+		Dialer: &websocket.Dialer{
+			TLSClientConfig: &WSTlsConfig,
+			NetDialContext:  dialer,
 		},
 	}
-	tlsc_ws.InsecureSkipVerify = InsecureSkipVerify
 
-	buf.WSProxy.Dialer = &websocket.Dialer{TLSClientConfig: &tlsc_ws, NetDial: func(network, addr string) (net.Conn, error) {
-		netDialer := &net.Dialer{}
-		return netDialer.Dial(network, hostport)
-	}}
 	hpx.hosts = insert(hpx.hosts, index, &buf)
 	return nil
 }
