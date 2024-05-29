@@ -3,8 +3,8 @@ package auth
 import (
 	"crypto/tls"
 	"reflect"
-	"strings"
 	"sync"
+	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/mrhaoxx/OpenNG/ssh"
@@ -38,6 +38,12 @@ func (backend *ldapBackend) tryGetQueryConn() *ldap.Conn {
 }
 
 func (backend *ldapBackend) CheckPassword(username string, password string) bool {
+	// only allow a-z A-Z 0-9 _ - . @
+	for _, r := range username {
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
+			return false
+		}
+	}
 
 	conn := backend.tryGetQueryConn()
 	defer backend.ldapQueryConnPool.Put(conn)
@@ -67,9 +73,11 @@ func (backend *ldapBackend) CheckPassword(username string, password string) bool
 }
 
 func (backend *ldapBackend) CheckSSHKey(ctx *ssh.Ctx, pubkey gossh.PublicKey) bool {
-
-	if strings.ContainsAny(ctx.User, "\" ',=+<>#:;\\()") {
-		return false
+	// only allow a-z A-Z 0-9 _ - . @
+	for _, r := range ctx.User {
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
+			return false
+		}
 	}
 
 	keys, err := backend.searchUserSSHPubkey(ctx.User)

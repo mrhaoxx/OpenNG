@@ -77,7 +77,8 @@ type srv struct {
 type Midware struct {
 	private_keys []ssh.Signer
 
-	banner string
+	banner     string
+	rnd_quotes []string
 
 	PasswordCallback  PasswordCbFn
 	PublicKeyCallback PublicKeyCbFn
@@ -118,6 +119,11 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 		serv.BannerCallback = func(conn ssh.ConnMetadata) string {
 			b := strings.ReplaceAll(ctl.banner, "%h", conn.RemoteAddr().String())
 			b = strings.ReplaceAll(b, "%u", conn.User())
+			b = strings.ReplaceAll(b, "%t", ctx.starttime.Format(time.RFC1123Z))
+
+			if len(ctl.rnd_quotes) > 0 {
+				b += "%%% " + ctl.rnd_quotes[ctx.starttime.UnixMilli()%int64(len(ctl.rnd_quotes))] + "\n"
+			}
 			return b
 		}
 	}
@@ -178,12 +184,13 @@ func (c *Midware) AddHandler(h ConnHandler, alt utils.GroupRegexp) {
 	c.current = append(c.current, srv{hdr: h, matchalt: alt})
 }
 
-func NewSSHController(private_keys []ssh.Signer, banner string, pwdcb PasswordCbFn, pubcb PublicKeyCbFn) *Midware {
+func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string, pwdcb PasswordCbFn, pubcb PublicKeyCbFn) *Midware {
 	Midware := Midware{
 		private_keys:      private_keys,
 		banner:            banner,
 		PasswordCallback:  pwdcb,
 		PublicKeyCallback: pubcb,
+		rnd_quotes:        quotes,
 	}
 
 	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) interface{} {

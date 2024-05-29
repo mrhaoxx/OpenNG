@@ -352,9 +352,14 @@ func LoadCfg(cfgs []byte) error {
 			ak := gossh.MarshalAuthorizedKey(s.PublicKey())
 			log.Println("sys", "ssh", "Found private key with authorized key", string(ak[:len(ak)-1]), "fingerprint", gossh.FingerprintSHA256(s.PublicKey()))
 			prik = append(prik, s)
-
 		}
-		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, nil, pba.CheckSSHKey)
+
+		var quotes = []string{}
+		for _, q := range cfg.SSH.Quotes {
+			quotes = append(quotes, strings.TrimSpace(q))
+		}
+
+		var sshs = ssh.NewSSHController(prik, cfg.SSH.Banner, quotes, nil, pba.CheckSSHKey)
 		hm := map[string]ssh.Host{}
 		for i, u := range cfg.SSH.Hosts {
 			u.Host = strings.ToLower(u.Host)

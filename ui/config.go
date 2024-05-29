@@ -139,6 +139,7 @@ type SSHConfig struct {
 	PrivateKeys []string  `yaml:"PrivateKeys,flow"`
 	Banner      string    `yaml:"Banner"`
 	Hosts       []SSHHost `yaml:"Hosts,flow"`
+	Quotes      []string  `yaml:"Quotes,flow"`
 }
 type SSHHost struct {
 	Host     string `yaml:"Host"`
