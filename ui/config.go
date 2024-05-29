@@ -80,10 +80,11 @@ type ProxierConfig struct {
 	Hosts []ProxyHost `yaml:"Hosts,flow"`
 }
 type ProxyHost struct {
-	Name          string   `yaml:"Name"`
-	Hosts         []string `yaml:"Hosts"`
-	Backend       string   `yaml:"Backend"`
-	TlsSkipVerify bool     `yaml:"TlsSkipVerify"`
+	Name            string   `yaml:"Name"`
+	Hosts           []string `yaml:"Hosts"`
+	Backend         string   `yaml:"Backend"`
+	TlsSkipVerify   bool     `yaml:"TlsSkipVerify"`
+	MaxConnsPerHost int      `yaml:"MaxConnsPerHost"`
 }
 
 type logConfig struct {

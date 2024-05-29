@@ -311,7 +311,7 @@ func LoadCfg(cfgs []byte) error {
 
 	for _, host := range cfg.HTTP.Proxier.Hosts {
 		log.Println("sys", "httpproxy", host.Name, host.Hosts)
-		if err := HttpProxier.Add(host.Name, host.Hosts, host.Backend, 0, host.TlsSkipVerify); err != nil {
+		if err := HttpProxier.Add(host.Name, host.Hosts, host.Backend, host.MaxConnsPerHost, host.TlsSkipVerify); err != nil {
 			break
 		}
 	}
