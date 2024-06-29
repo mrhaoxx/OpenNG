@@ -10,7 +10,6 @@ import (
 
 	stdhttp "net/http"
 
-	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/dns"
 	http "github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
@@ -19,9 +18,6 @@ import (
 
 	gossh "golang.org/x/crypto/ssh"
 )
-
-const PrefixAuthPolicy string = "/pb"
-const verfiyCookieKey string = "_ng_s"
 
 type session struct {
 	lastseen time.Time
@@ -36,10 +32,37 @@ func (u *session) id() string {
 	return "[" + strconv.Itoa(u.src) + "]" + u.username
 }
 
-func (u *session) updateSession() {
+func (u *session) renew() {
 	u.muS.Lock()
 	u.lastseen = time.Now()
 	u.muS.Unlock()
+}
+
+type policy struct {
+	name string
+
+	allowance bool
+
+	users map[string]bool
+
+	hosts utils.GroupRegexp
+	hup   *utils.BufferedLookup
+
+	paths utils.GroupRegexp
+}
+
+// 0 -> next;1 -> refuse;2 -> accept
+func (p *policy) check(username string, path string) uint8 {
+	if p.users[""] || p.users[username] {
+		if p.paths == nil || p.paths.MatchString(path) {
+			if p.allowance {
+				return 2
+			} else {
+				return 1
+			}
+		}
+	}
+	return 0
 }
 
 type policyBaseAuth struct {
@@ -50,6 +73,12 @@ type policyBaseAuth struct {
 
 	sessions  map[string]*session
 	muSession sync.RWMutex
+}
+
+func (p *policyBaseAuth) at(session string) *session {
+	p.muSession.RLock()
+	defer p.muSession.RUnlock()
+	return p.sessions[session]
 }
 
 type PolicyBackend interface {
@@ -89,14 +118,13 @@ func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
 
 func NewPBAuth() *policyBaseAuth {
 	po := &policyBaseAuth{
-		// usrs:     map[string]*user{},
 		sessions: map[string]*session{},
 	}
 
 	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) interface{} {
 		var r []*policy = nil
 		for _, p := range po.policies {
-			if p.hosts.MatchString(s) {
+			if p.hosts == nil || p.hosts.MatchString(s) {
 				r = append(r, p)
 			}
 		}
@@ -114,41 +142,17 @@ func NewPBAuth() *policyBaseAuth {
 
 func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 	// First Lets get user info
-	var token string
-	var exists bool
-	cookieHeader := ctx.Req.Header["Cookie"]
-	newCookieHeader := make([]string, 0)
-	for _, cookie := range cookieHeader {
-		cookies := strings.Split(cookie, ";")
-		for j, item := range cookies {
-			if strings.Contains(item, verfiyCookieKey+"=") {
-				token = strings.TrimPrefix(strings.TrimSpace(item), verfiyCookieKey+"=")
-				cookies = append(cookies[:j], cookies[j+1:]...)
-				exists = true
-				break
-			}
-		}
-
-		cookie_str := strings.Join(cookies, ";")
-		if cookie_str != "" {
-			newCookieHeader = append(newCookieHeader, cookie_str)
-		}
-	}
-
-	if exists {
-		ctx.Req.Header["Cookie"] = newCookieHeader
-	}
+	var token = ctx.RemoveCookie(verfiyCookieKey)
 
 	var session *session
 	var user string
+
 	if token != "" {
-		mgr.muSession.RLock()
-		session = mgr.sessions[token]
-		mgr.muSession.RUnlock()
+		session = mgr.at(token)
 
 		if session != nil {
 			user = session.username
-			session.updateSession()
+			session.renew()
 		}
 	}
 
@@ -162,20 +166,20 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 			})
 		}
 
-		return AC
+		return Accept
 	case 0:
-		return CT // no hit
+		return Continue // no hit
 	case 1:
 		url := http.PrefixNg + PrefixAuth + PrefixAuthPolicy + "/login?r=" + base64.URLEncoding.EncodeToString([]byte(ctx.Req.RequestURI))
 		ctx.Redirect(url, http.StatusFound) //auth required
 	}
 
-	return DE
+	return Deny
 
 }
 
 func needAuth(ctx *http.HttpCtx) {
-	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\"NetGATE\"")
+	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\""+utils.ServerSign+"\"")
 	ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
 }
 
@@ -219,31 +223,19 @@ func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
 }
 
 func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Ret {
-	cookie, _ := ctx.Req.Cookie(verfiyCookieKey)
+	token := ctx.RemoveCookie(verfiyCookieKey)
+
 	var session *session
 	var user string
-	if cookie != nil {
-		mgr.muSession.RLock()
-		session = mgr.sessions[cookie.Value]
-		mgr.muSession.RUnlock()
+	if token != "" {
+		session = mgr.at(token)
 
 		if session != nil {
 			user = session.username
 		}
 	}
-	var Maindomain string
-	n := strings.Split(ctx.Req.Host, ".")
-	if len(n) >= 2 {
-		last2 := strings.Join(n[len(n)-2:], ".")
-		if last2 == "edu.cn" {
-			Maindomain = strings.Join(n[len(n)-3:], ".")
-		} else {
-			Maindomain = strings.Join(n[len(n)-2:], ".")
-		}
-		Maindomain = strings.Split(Maindomain, ":")[0]
-	} else {
-		Maindomain = ctx.Req.Host
-	}
+
+	var Maindomain = http.GetRootDomain(ctx.Req.Host)
 
 	path = strings.TrimPrefix(path, PrefixAuth+PrefixAuthPolicy)
 
@@ -255,8 +247,9 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	}
 
 	truepath := string(p)
-	if truepath == "" {
-		truepath = "/"
+
+	if !strings.HasPrefix(truepath, "/") {
+		truepath = "/" + truepath
 	}
 
 	code := mgr.determine(ctx.Req.Host, ctx.Req.URL.Path, user)
@@ -370,8 +363,8 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 			SameSite: stdhttp.SameSiteNoneMode,
 		})
 		if session != nil {
-			mgr.rmSession(cookie.Value)
-			log.Println("%", "-", session.id(), "+"+cookie.Value, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+			mgr.rmSession(token)
+			log.Println("%", "-", session.id(), "+"+token, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
 		}
 		ctx.Resp.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
 	default:
@@ -380,10 +373,8 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	return http.RequestEnd
 }
 
-var regexpforit = regexp2.MustCompile("^"+PrefixAuth+PrefixAuthPolicy+"/.*$", 0)
-
 func (l *policyBaseAuth) Paths() utils.GroupRegexp {
-	return []*regexp2.Regexp{regexpforit}
+	return regexpforauthpath
 }
 
 func (mgr *policyBaseAuth) generateSession(username string, src int) string {
@@ -432,26 +423,23 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		name:      name,
 		allowance: allow,
 		users:     map[string]bool{},
-		hosts:     []*regexp2.Regexp{},
+		hosts:     nil,
 		hup:       nil,
-		paths:     []*regexp2.Regexp{},
+		paths:     nil,
 	}
 	for _, u := range users {
 		p.users[u] = true
 	}
+
 	p.hup = utils.NewBufferedLookup(func(s string) interface{} {
-		return p.hosts.MatchString(s)
+		return p.hosts == nil || p.hosts.MatchString(s)
 	})
 
-	if len(hosts) == 0 {
-		p.hosts = append(p.hosts, regexpforall)
-	} else {
+	if len(hosts) != 0 {
 		p.hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 	}
 
-	if len(paths) == 0 {
-		p.paths = append(p.paths, regexpforall)
-	} else {
+	if len(paths) != 0 {
 		p.paths = utils.MustCompileRegexp((paths))
 	}
 

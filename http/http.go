@@ -61,6 +61,37 @@ func (c *HttpCtx) WriteString(s string) {
 func (c *HttpCtx) SetCookie(k *http.Cookie) {
 	http.SetCookie(c.Resp, k)
 }
+
+func (ctx *HttpCtx) RemoveCookie(key string) (value string) {
+	var exists bool
+
+	cookieHeader := ctx.Req.Header["Cookie"]
+	newCookieHeader := make([]string, 0)
+
+	for _, cookie := range cookieHeader {
+		cookies := strings.Split(cookie, ";")
+		for j, item := range cookies {
+			if strings.Contains(item, key+"=") {
+				value = strings.TrimPrefix(strings.TrimSpace(item), key+"=")
+				cookies = append(cookies[:j], cookies[j+1:]...)
+				exists = true
+				break
+			}
+		}
+
+		cookie_str := strings.Join(cookies, ";")
+		if cookie_str != "" {
+			newCookieHeader = append(newCookieHeader, cookie_str)
+		}
+	}
+
+	if exists {
+		ctx.Req.Header["Cookie"] = newCookieHeader
+	}
+
+	return
+}
+
 func (c *HttpCtx) Close() {
 	for _, f := range c.onClose {
 		f(c)

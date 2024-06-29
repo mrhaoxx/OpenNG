@@ -11,6 +11,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/auth"
+	authbackends "github.com/mrhaoxx/OpenNG/auth/backend"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
@@ -34,7 +35,7 @@ var TcpProxier = tcp.NewTcpProxier()
 var TlsMgr = tls.NewTlsMgr()
 
 var pba = auth.NewPBAuth()
-var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba})
+var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba}, utils.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
 
 var Dns = dns.NewServer()
 
@@ -260,7 +261,7 @@ func LoadCfg(cfgs []byte) error {
 		log.Println("sys", "SSE Logger Registered")
 	}
 
-	var fileBackend = auth.NewFileBackend()
+	var fileBackend = authbackends.NewFileBackend()
 	pba.AddBackends([]auth.PolicyBackend{fileBackend})
 	log.Println("sys", "auth", "use file backend as [0]")
 	for _, u := range cfg.Auth.Users {
@@ -286,7 +287,7 @@ func LoadCfg(cfgs []byte) error {
 		fileBackend.SetUser(u.Username, u.PasswordHash, u.AllowForwardProxy, pks, u.SSHAllowPassword)
 	}
 	if cfg.Auth.LDAP.Url != "" {
-		ldapBackend := auth.NewLDAPBackend(cfg.Auth.LDAP.Url, cfg.Auth.LDAP.SearchBase, cfg.Auth.LDAP.BindDN, cfg.Auth.LDAP.BindPW)
+		ldapBackend := authbackends.NewLDAPBackend(cfg.Auth.LDAP.Url, cfg.Auth.LDAP.SearchBase, cfg.Auth.LDAP.BindDN, cfg.Auth.LDAP.BindPW)
 		pba.AddBackends([]auth.PolicyBackend{ldapBackend})
 		log.Println("sys", "auth", "use ldap backend as [1]")
 	}

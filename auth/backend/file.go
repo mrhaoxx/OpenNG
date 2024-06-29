@@ -40,33 +40,6 @@ _false:
 	return false
 }
 
-type policy struct {
-	name string
-
-	allowance bool
-
-	users map[string]bool
-
-	hosts utils.GroupRegexp
-	hup   *utils.BufferedLookup
-
-	paths utils.GroupRegexp
-}
-
-// 0 -> next;1 -> refuse;2 -> accept
-func (p *policy) check(username string, path string) uint8 {
-	if p.users[""] || p.users[username] {
-		if p.paths.MatchString(path) {
-			if p.allowance {
-				return 2
-			} else {
-				return 1
-			}
-		}
-	}
-	return 0
-}
-
 type fileBackend struct {
 	usrs map[string]*user
 }
