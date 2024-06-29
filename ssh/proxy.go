@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
@@ -26,6 +25,10 @@ type Host struct {
 	Addr string
 
 	Pubkey ssh.PublicKey
+
+	User        string
+	IdentityKey ssh.Signer
+	Password    string
 }
 
 type proxier struct {
@@ -34,6 +37,8 @@ type proxier struct {
 	Privkey []ssh.Signer
 
 	keyBanner string
+
+	AllowDnsQuery bool
 }
 
 func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
@@ -52,8 +57,9 @@ func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
 }
 
 func (p *proxier) HandleConn(ctx *Ctx) {
+	HostName := ctx.Alt
 
-	h, ok := p.Hosts[strings.ToLower(ctx.Alt)]
+	h, ok := p.Hosts[HostName]
 	if !ok {
 
 		ctx.Error("* Unknown host " + strconv.Quote(ctx.Alt) + "\r\n")
@@ -61,12 +67,29 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		return
 	}
 
+	var auth_method []ssh.AuthMethod
+	if h.IdentityKey != nil {
+		auth_method = []ssh.AuthMethod{ssh.PublicKeys(h.IdentityKey)}
+	} else if h.Password != "" {
+		auth_method = []ssh.AuthMethod{ssh.Password(h.Password)}
+	} else {
+		auth_method = []ssh.AuthMethod{ssh.PublicKeys(p.Privkey...)}
+	}
+
+	var user string
+	if h.User != "" {
+		user = h.User
+	} else {
+		user = ctx.User
+	}
+
 	cfg := ssh.ClientConfig{
-		User:          ctx.User,
+		User:          user,
 		ClientVersion: string("SSH-2.0-OpenNG"),
-		Auth:          []ssh.AuthMethod{ssh.PublicKeys(p.Privkey...)},
+		Auth:          auth_method,
 		Timeout:       time.Second * 3,
 	}
+
 	if h.Pubkey != nil {
 		cfg.HostKeyCallback = ssh.FixedHostKey(h.Pubkey)
 	} else {

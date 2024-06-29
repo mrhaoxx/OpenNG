@@ -158,48 +158,14 @@ func LoadCfgV2(cfgs []byte) error {
 	if err != nil {
 		return err
 	}
-	aaa := Assert{
-		Type: "map",
-		Subnodes: AssertMap{
-			"hosts": {
-				Type:     "list",
-				Required: true,
-				Subnodes: AssertMap{
-					"_": {
-						Type: "map",
-						Subnodes: AssertMap{
-							"name": {
-								Type:     "string",
-								Required: true,
-							},
-							"hosts": {
-								Type:     "list",
-								Required: true,
-								Subnodes: AssertMap{
-									"_": {Type: "string"},
-								},
-							},
-							"backend": {
-								Type:     "string",
-								Required: true,
-							},
-							"MaxConnsPerHost": {
-								Type: "int",
-							},
-							"TlsSkipVerify": {
-								Type: "bool",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	nodes, err := ParseFromAny(cfg.Services[0].ArgsRaw)
+
+	nodes, err := ParseFromAny(cfg.Services)
 	if err != nil {
 		return err
 	}
-	err = nodes.Assert(aaa)
+
+	Dedref(nodes)
+	err = nodes.Assert(_builtin_refs_assertions["builtin::http::proxier"])
 
 	if err != nil {
 		return err
