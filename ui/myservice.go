@@ -242,22 +242,22 @@ func LoadCfg(cfgs []byte) error {
 
 	if cfg.Logger.DisableConsole {
 		log.Println("sys", "Disabling Console Logging")
-		log.ClearLoggers()
+		log.Loggers = []log.Logger{}
 	}
 
 	if cfg.Logger.File != "" {
 		f, _ := os.OpenFile(cfg.Logger.File, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-		log.RegisterLogger(f)
+		log.Loggers = append(log.Loggers, f)
 		log.Println("sys", "File Logger Registered", cfg.Logger.File)
 	}
 
 	if cfg.Logger.UDP.Address != "" {
-		log.RegisterLogger(NewUdpLogger(cfg.Logger.UDP.Address))
+		log.Loggers = append(log.Loggers, NewUdpLogger(cfg.Logger.UDP.Address))
 		log.Println("sys", "UDP Logger Registered", cfg.Logger.UDP.Address)
 	}
 
 	if cfg.Logger.EnableSSE {
-		log.RegisterLogger(Sselogger)
+		log.Loggers = append(log.Loggers, Sselogger)
 		log.Println("sys", "SSE Logger Registered")
 	}
 
@@ -369,7 +369,7 @@ func LoadCfg(cfgs []byte) error {
 
 	for _, host := range cfg.HTTP.Proxier.Hosts {
 		log.Println("sys", "httpproxy", host.Name, host.Hosts)
-		if err := HttpProxier.Add(host.Name, host.Hosts, host.Backend, host.MaxConnsPerHost, host.TlsSkipVerify); err != nil {
+		if err := HttpProxier.Insert(HttpProxier.Len(), host.Name, host.Hosts, host.Backend, host.MaxConnsPerHost, host.TlsSkipVerify); err != nil {
 			break
 		}
 	}

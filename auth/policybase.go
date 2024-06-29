@@ -161,7 +161,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 		if session != nil {
 			atomic.AddUint64(&session.active, uint64(1))
 
-			ctx.RegCloseHandle(func(*http.HttpCtx) {
+			ctx.OnClose(func(*http.HttpCtx) {
 				atomic.AddUint64(&session.active, ^uint64(0))
 			})
 		}
@@ -373,7 +373,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	return http.RequestEnd
 }
 
-func (l *policyBaseAuth) Paths() utils.GroupRegexp {
+func (l *policyBaseAuth) CgiPaths() utils.GroupRegexp {
 	return regexpforauthpath
 }
 

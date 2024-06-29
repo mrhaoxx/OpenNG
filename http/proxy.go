@@ -16,29 +16,29 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
-
-	"github.com/dlclark/regexp2"
 )
 
-type Httphost struct {
+type HttpHost struct {
 	Id         string
 	ServerName utils.GroupRegexp
-	Proxy      *httputil.ReverseProxy
-	WSProxy    *WebsocketProxy
+	proxy      *httputil.ReverseProxy
+	wsproxy    *WebsocketProxy
 	Backend    string
 }
 
 //ng:generate def obj httpproxy
 type httpproxy struct {
-	hosts []*Httphost
+	hosts []*HttpHost
 	buf   *utils.BufferedLookup
+
+	allowhosts utils.GroupRegexp
 }
 
 func (h *httpproxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	_host := h.buf.Lookup(ctx.Req.Host)
 	var id string
 	if _host != nil {
-		id = _host.(*Httphost).Id
+		id = _host.(*HttpHost).Id
 	} else {
 		id = "nohit"
 	}
@@ -46,15 +46,13 @@ func (h *httpproxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	ctx.WriteString("id: " + id + "\n")
 	return RequestEnd
 }
-func (*httpproxy) Paths() utils.GroupRegexp {
-	return []*regexp2.Regexp{regexpforproxy}
+func (*httpproxy) CgiPaths() utils.GroupRegexp {
+	return regexpforproxy
 }
-
-var regexpforproxy = regexp2.MustCompile("^/proxy/trace$", 0)
 
 func NewHTTPProxier() *httpproxy {
 	hpx := &httpproxy{
-		hosts: make([]*Httphost, 0),
+		hosts: make([]*HttpHost, 0),
 		buf:   nil,
 	}
 	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {
@@ -75,82 +73,31 @@ func (h *httpproxy) HandleHTTP(ctx *HttpCtx) Ret {
 	if _host == nil {
 		return Continue
 	}
-	host := _host.(*Httphost)
+
+	host := _host.(*HttpHost)
 
 	defer func() {
 		recover()
 	}()
 
 	if ctx.Req.Header.Get("Upgrade") == "websocket" {
-		host.WSProxy.ServeHTTP(ctx.Resp, ctx.Req)
+		host.wsproxy.ServeHTTP(ctx.Resp, ctx.Req)
 	} else {
-		host.Proxy.ServeHTTP(ctx.Resp, ctx.Req)
+		host.proxy.ServeHTTP(ctx.Resp, ctx.Req)
 	}
 	return RequestEnd
 }
 
-var catchallexp = []*regexp2.Regexp{regexp2.MustCompile("^.*$", 0)}
-
 func (h *httpproxy) Hosts() utils.GroupRegexp {
-	return catchallexp
+	return h.allowhosts
 }
 
-// @RetVal []*Httphost hosts of proxy
-//
-//ng:generate def func httpproxy::GetHosts
-func (hpx *httpproxy) GetHosts() []*Httphost {
+func (hpx *httpproxy) GetHosts() []*HttpHost {
 	return hpx.hosts
 }
 
-// @Param string id id of proxy
-// @RetVal error
-//
-//ng:generate def func httpproxy::Delete
-func (hpx *httpproxy) Delete(id string) error {
-	for i, v := range hpx.hosts {
-		if v.Id == id {
-			hpx.hosts = append(hpx.hosts[:i], hpx.hosts[i+1:]...)
-			hpx.buf.Refresh()
-			return nil
-		}
-	}
-	return errors.New("not found")
-}
-
-var _my_cipher_suit = []uint16{
-	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
-	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-	tls.TLS_RSA_WITH_AES_128_CBC_SHA256,
-	tls.TLS_RSA_WITH_AES_128_GCM_SHA256,
-	tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
-	tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
-	tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
-	tls.TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
-	tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
-	tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-	tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
-	tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
-	tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
-	tls.TLS_AES_128_GCM_SHA256,
-	tls.TLS_AES_256_GCM_SHA384,
-	tls.TLS_CHACHA20_POLY1305_SHA256,
-}
-
-// @Param int index index to insert
-// @Param string id id of proxy
-// @Param []string host list of host
-// @Param string backend backend of proxy
-// @OptionalParam int=0 TransportArgs::MaxConnsPerHost max connections per host
-// @OptionalParam bool=false TransportArgs::InsecureSkipVerify skip verify
-//
-//ng:generate def func httpproxy::Insert
-
 func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend string, MaxConnsPerHost int, InsecureSkipVerify bool) error {
-	buf := Httphost{
+	buf := HttpHost{
 		Id:         id,
 		ServerName: utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
 		Backend:    backend,
@@ -179,7 +126,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		return dialer.DialContext(ctx, network, hostport)
 	}
 
-	buf.Proxy = &httputil.ReverseProxy{
+	buf.proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
 			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(e.Error()))
 			log.Println("sys", "httpproxy", r.Host, "->", id, e)
@@ -201,7 +148,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		FlushInterval: -1,
 	}
 
-	buf.WSProxy = &WebsocketProxy{
+	buf.wsproxy = &WebsocketProxy{
 		Backend: func(r *http.Request) *url.URL {
 			var u_ws *url.URL = &url.URL{
 				Scheme:   "ws",
@@ -226,7 +173,7 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 	hpx.hosts = insert(hpx.hosts, index, &buf)
 	return nil
 }
-func insert(a []*Httphost, index int, value *Httphost) []*Httphost {
+func insert(a []*HttpHost, index int, value *HttpHost) []*HttpHost {
 	if index < 0 {
 		panic(errors.New("index out of range"))
 	}
@@ -239,20 +186,13 @@ func insert(a []*Httphost, index int, value *Httphost) []*Httphost {
 	return a
 }
 
-// @Param string id id of proxy
-// @Param []string host list of host
-// @Param string backend backend of proxy
-// @OptionalParam int=0 TransportArgs::MaxConnsPerHost max connections per host
-// @OptionalParam bool=false TransportArgs::InsecureSkipVerify skip verify
-//
-//ng:generate def func httpproxy::Add
-func (hpx *httpproxy) Add(id string, hosts []string, backend string, MaxConnsPerHost int, InsecureSkipVerify bool) error {
-	return hpx.Insert(len(hpx.hosts), id, hosts, backend, MaxConnsPerHost, InsecureSkipVerify)
+func (hpx *httpproxy) Len() int {
+	return len(hpx.hosts)
 }
 
-//ng:generate def func httpproxy::Reset
 func (hpx *httpproxy) Reset() error {
-	hpx.hosts = make([]*Httphost, 0)
+	hpx.hosts = make([]*HttpHost, 0)
 	hpx.buf.Refresh()
+
 	return nil
 }

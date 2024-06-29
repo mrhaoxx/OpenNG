@@ -10,11 +10,7 @@ type Logger interface {
 	Write([]byte) (int, error)
 }
 
-var loggers = []Logger{os.Stdout}
-
-func RegisterLogger(_loggers ...Logger) {
-	loggers = append(loggers, _loggers...)
-}
+var Loggers = []Logger{os.Stdout}
 
 func Println(msgs ...any) {
 	var t = time.Now().UTC()
@@ -36,7 +32,7 @@ func Println(msgs ...any) {
 	itoa(&buf, t.Nanosecond()/1e3, 6)
 	buf = append(buf, ' ')
 
-	for _, logger := range loggers {
+	for _, logger := range Loggers {
 		logger.Write(fmt.Appendln(buf, msgs...))
 	}
 }
@@ -54,8 +50,4 @@ func itoa(buf *[]byte, i int, wid int) {
 	// i < 10
 	b[bp] = byte('0' + i)
 	*buf = append(*buf, b[bp:]...)
-}
-
-func ClearLoggers() {
-	loggers = []Logger{}
 }

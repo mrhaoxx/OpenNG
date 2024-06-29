@@ -14,8 +14,8 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/res"
-	tcp "github.com/mrhaoxx/OpenNG/tcp"
-	utils "github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/tcp"
+	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
 )
 
@@ -48,14 +48,14 @@ type CgiHandler func(*HttpCtx, string) Ret
 
 type CgiStruct struct {
 	CgiHandler
-	Paths utils.GroupRegexp
+	CgiPaths utils.GroupRegexp
 }
 type Service interface {
 	Hosts() utils.GroupRegexp
 	HandleHTTP(*HttpCtx) Ret
 }
 type Cgi interface {
-	Paths() utils.GroupRegexp
+	CgiPaths() utils.GroupRegexp
 	HandleHTTPCgi(*HttpCtx, string) Ret
 }
 
@@ -64,15 +64,19 @@ func (mid *Midware) AddServices(svc ...*ServiceStruct) {
 	mid.bufferedLookupForHost.Refresh()
 }
 
+// AddCgis adds a list of Cgi to the midware.
+// The CgiPaths is called immediately in this function to get the allowed paths of the Cgi.
 func (mid *Midware) AddCgis(svcs ...Cgi) {
 	for _, svc := range svcs {
 		mid.currentCgi = append(mid.currentCgi, &CgiStruct{
 			CgiHandler: svc.HandleHTTPCgi,
-			Paths:      svc.Paths(),
+			CgiPaths:   svc.CgiPaths(),
 		})
 	}
 	mid.bufferedLookupForCgi.Refresh()
 }
+
+var h2s = &http2.Server{}
 
 func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	top := c.TopProtocol()
@@ -200,14 +204,14 @@ func NewHttpMidware(sni []string) *Midware {
 				"remoteip: " + ctx.Req.RemoteAddr + "\n")
 			return RequestEnd
 		},
-		Paths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
+		CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
 	},
 		{
 			CgiHandler: func(ctx *HttpCtx, path string) Ret {
 				res.WriteLogo(ctx.Resp)
 				return RequestEnd
 			},
-			Paths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
+			CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
 		}}
 
 	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) interface{} {
@@ -222,7 +226,7 @@ func NewHttpMidware(sni []string) *Midware {
 	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) interface{} {
 		var m []*CgiStruct = nil
 		for _, t := range hmw.currentCgi {
-			for _, r := range t.Paths {
+			for _, r := range t.CgiPaths {
 				if ok, _ := r.MatchString(s); ok {
 					m = append(m, t)
 				}

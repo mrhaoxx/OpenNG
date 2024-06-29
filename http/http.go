@@ -19,10 +19,10 @@ import (
 	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/andybalholm/brotli"
-	"golang.org/x/net/http2"
 )
 
-//ng:generate def obj HttpCtx
+// HttpCtx is the context of a http request
+// It holds the request and response writer
 type HttpCtx struct {
 	//unsync readonly
 	Id        uint64
@@ -42,14 +42,7 @@ type HttpCtx struct {
 	onClose []func(*HttpCtx)
 }
 
-// @Param int code eg. 0 -> RequestEnd; 1-> Continue; 2 -> Relocate
-// @RetVal error
-//
-//ng:generate def func HttpCtx::Return
-// func (c *HttpCtx) Return(v int) error {
-// 	return c.Signal(Return, Ret(v))
-// }
-
+// Redirect redirects the request to another url
 func (c *HttpCtx) Redirect(url string, code int) {
 	http.Redirect(c.Resp, c.Req, url, code)
 }
@@ -62,6 +55,8 @@ func (c *HttpCtx) SetCookie(k *http.Cookie) {
 	http.SetCookie(c.Resp, k)
 }
 
+// RemoveCookie removes a cookie from the request.
+// it modifies the orginal request header.
 func (ctx *HttpCtx) RemoveCookie(key string) (value string) {
 	var exists bool
 
@@ -92,6 +87,8 @@ func (ctx *HttpCtx) RemoveCookie(key string) (value string) {
 	return
 }
 
+// Close executes the close handles.
+// A HttpCtx must be closed after the request is done. It's usually done by the [Midware]
 func (c *HttpCtx) Close() {
 	for _, f := range c.onClose {
 		f(c)
@@ -99,14 +96,14 @@ func (c *HttpCtx) Close() {
 
 	close(c.closing)
 }
+
 func (c *HttpCtx) IsClosing() <-chan struct{} {
 	return c.closing
 }
-func (c *HttpCtx) RegCloseHandle(f func(*HttpCtx)) {
+
+func (c *HttpCtx) OnClose(f func(*HttpCtx)) {
 	c.onClose = append(c.onClose, f)
 }
-
-var h2s = &http2.Server{}
 
 type Ret bool
 
@@ -154,7 +151,7 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 		acceptEncoding: r.Header.Get("Accept-Encoding"),
 	}
 
-	r.Header.Del("Accept-Encoding")
+	r.Header.Del("Accept-Encoding") // we don't want the backend to encode. WE DO IT.
 
 	c, kill := context.WithCancel(r.Context())
 
@@ -190,6 +187,8 @@ type NgResponseWriter struct {
 	init sync.Once
 
 	ctx *HttpCtx
+
+	closed bool
 }
 
 func (w *NgResponseWriter) Write(b []byte) (byt int, e error) {
@@ -209,6 +208,7 @@ func (w *NgResponseWriter) WriteHeader(statusCode int) {
 func (w *NgResponseWriter) Header() http.Header {
 	return w.stdrw.Header()
 }
+
 func (w *NgResponseWriter) initForWrite() {
 	w.Header().Set("Server", utils.ServerSign)
 	switch w.code {
@@ -258,7 +258,13 @@ func (w *NgResponseWriter) initForWrite() {
 	// }
 	w.stdrw.WriteHeader(w.code) // write the header to the real writer
 }
+
+// Close closes the writer. It must be called after the request is done.
 func (w *NgResponseWriter) Close() error {
+	if w.closed {
+		panic("Close() called twice")
+	}
+
 	w.init.Do(w.initForWrite)
 
 	switch w.encoding {
@@ -267,8 +273,11 @@ func (w *NgResponseWriter) Close() error {
 		w.writer.(io.Closer).Close()
 		encoderpool[w.encoding].Put(w.writer)
 	}
+
+	w.closed = true
 	return nil
 }
+
 func (w *NgResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	if hj, ok := w.stdrw.(http.Hijacker); ok {
 		w.code = http.StatusSwitchingProtocols
@@ -277,15 +286,11 @@ func (w *NgResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return nil, nil, fmt.Errorf("http.Hijacker interface is not supported")
 }
 
-type NgFlusher interface {
-	Flush() error
-}
-
 func (w *NgResponseWriter) Flush() {
 	w.init.Do(w.initForWrite)
 
 	if w.encoding != 0 {
-		w.writer.(NgFlusher).Flush()
+		w.writer.(interface{ Flush() error }).Flush()
 	}
 	if fl, ok := w.stdrw.(http.Flusher); ok {
 		fl.Flush()
