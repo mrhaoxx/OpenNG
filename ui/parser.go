@@ -35,14 +35,14 @@ func (node *ArgNode) Assert(assertions Assert) error {
 			return fmt.Errorf("required field is null")
 		}
 	} else {
-		if node.Type != assertions.Type {
+		if assertions.Type != "any" && node.Type != assertions.Type {
 			return fmt.Errorf("type mismatch: %s != %s", node.Type, assertions.Type)
 		}
 	}
 
 	switch assertions.Type {
 	case "map":
-		if subnodes, ok := node.Value.(map[string]ArgNode); ok {
+		if subnodes, ok := node.Value.(map[string]*ArgNode); ok {
 			keys := map[string]struct{}{}
 			for k := range subnodes {
 				keys[k] = struct{}{}
@@ -55,7 +55,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 						return fmt.Errorf("missing required key: %s", k)
 					} else {
 						if v.Default != nil {
-							subnodes[k] = ArgNode{
+							subnodes[k] = &ArgNode{
 								Type:  v.Type,
 								Value: v.Default,
 							}
@@ -91,7 +91,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 		if !ok {
 			return fmt.Errorf("missing default assertion")
 		}
-		realnodes, ok := node.Value.([]ArgNode)
+		realnodes, ok := node.Value.([]*ArgNode)
 		if !ok {
 			return fmt.Errorf("expected list, got %T", node.Value)
 		}

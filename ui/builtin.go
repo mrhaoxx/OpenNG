@@ -1,12 +1,19 @@
 package ui
 
+import "fmt"
+
 var _builtin_refs_assertions = map[string]Assert{
 	"_": {
 		Type: "list",
 		Sub: AssertMap{
-			"name": {Type: "string", Required: true},
-			"ref":  {Type: "string", Required: true},
-			"args": {Type: "map"},
+			"_": {
+				Type: "map",
+				Sub: AssertMap{
+					"name": {Type: "string", Required: true},
+					"ref":  {Type: "string", Required: true},
+					"args": {Type: "any"},
+				},
+			},
 		},
 	},
 	"builtin::http::proxier": {
@@ -54,5 +61,15 @@ var _builtin_refs_assertions = map[string]Assert{
 				},
 			},
 		},
+	},
+}
+
+var _builtin_refs = map[string]Inst{
+	"test": func(args *ArgNode) (any, error) {
+		return "Hello World", nil
+	},
+	"print": func(args *ArgNode) (any, error) {
+		fmt.Println(args.Value)
+		return nil, nil
 	},
 }

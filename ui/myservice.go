@@ -165,12 +165,18 @@ func LoadCfgV2(cfgs []byte) error {
 	}
 
 	Dedref(nodes)
-	err = nodes.Assert(_builtin_refs_assertions["builtin::http::proxier"])
+	err = nodes.Assert(_builtin_refs_assertions["_"])
 
 	if err != nil {
 		return err
 	}
 	log.Println(nodes)
+
+	space := Space{
+		Refs: _builtin_refs,
+	}
+
+	err = space.Apply(nodes)
 
 	return nil
 }
