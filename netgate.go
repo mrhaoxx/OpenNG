@@ -22,12 +22,12 @@ func main() {
 	if os.Args[len(os.Args)-1] == "version" {
 		return
 	}
-	r, err := os.ReadFile("config.yaml")
+	r, err := os.ReadFile("new.config.yaml")
 	if err != nil {
 		fmt.Println(err.Error())
 		return
 	}
-	if err := ui.LoadCfg(r); err != nil {
+	if err := ui.LoadCfgV2(r); err != nil {
 		log.Println(err)
 		os.Exit(-1)
 	}

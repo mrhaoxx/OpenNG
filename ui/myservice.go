@@ -151,6 +151,63 @@ var builtinTcpServices = map[string]tcp.ServiceHandler{
 	}},
 }
 
+func LoadCfgV2(cfgs []byte) error {
+	var cfg TopLevelConfig
+	err := yaml.Unmarshal(cfgs, &cfg)
+	if err != nil {
+		return err
+	}
+	aaa := Assert{
+		Type: "map",
+		Subnodes: AssertMap{
+			"hosts": {
+				Type:     "list",
+				Required: true,
+				Subnodes: AssertMap{
+					"_": {
+						Type: "map",
+						Subnodes: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"hosts": {
+								Type:     "list",
+								Required: true,
+								Subnodes: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+							"backend": {
+								Type:     "string",
+								Required: true,
+							},
+							"MaxConnsPerHost": {
+								Type: "int",
+							},
+							"TlsSkipVerify": {
+								Type: "bool",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	nodes, err := ParseFromAny(cfg.Services[0].ArgsRaw)
+	if err != nil {
+		return err
+	}
+	err = nodes.Assert(aaa)
+
+	if err != nil {
+		return err
+	}
+	log.Println(nodes)
+
+	return nil
+}
+
 func LoadCfg(cfgs []byte) error {
 	var cfg Cfg
 
