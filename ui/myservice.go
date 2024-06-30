@@ -153,13 +153,13 @@ var builtinTcpServices = map[string]tcp.ServiceHandler{
 }
 
 func LoadCfgV2(cfgs []byte) error {
-	var cfg TopLevelConfig
+	var cfg any
 	err := yaml.Unmarshal(cfgs, &cfg)
 	if err != nil {
 		return err
 	}
 
-	nodes, err := ParseFromAny(cfg.Services)
+	nodes, err := ParseFromAny(cfg)
 	if err != nil {
 		return err
 	}
@@ -173,7 +173,8 @@ func LoadCfgV2(cfgs []byte) error {
 	log.Println(nodes)
 
 	space := Space{
-		Refs: _builtin_refs,
+		Refs:     _builtin_refs,
+		Services: map[string]any{},
 	}
 
 	err = space.Apply(nodes)

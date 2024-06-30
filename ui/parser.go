@@ -3,6 +3,7 @@ package ui
 import (
 	"fmt"
 	"log"
+	"reflect"
 	"strings"
 )
 
@@ -37,6 +38,11 @@ func (node *ArgNode) Assert(assertions Assert) error {
 	} else {
 		if assertions.Type != "any" && node.Type != assertions.Type {
 			return fmt.Errorf("type mismatch: %s != %s", node.Type, assertions.Type)
+		}
+		if assertions.Required && assertions.Default != nil {
+			if !reflect.DeepEqual(node.Value, assertions.Default) {
+				return fmt.Errorf("required field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
+			}
 		}
 	}
 
@@ -113,6 +119,28 @@ func ParseFromAny(raw any) (*ArgNode, error) {
 			Value: nil,
 		}, nil
 	case string:
+		switch {
+		case strings.HasPrefix(raw, "$dref{"):
+			{
+				if strings.HasSuffix(raw, "...") {
+					return &ArgNode{
+						Type:  "dref...",
+						Value: raw[len("$dref{") : len(raw)-4],
+					}, nil
+				}
+				return &ArgNode{
+					Type:  "dref",
+					Value: raw[len("$dref{") : len(raw)-1],
+				}, nil
+			}
+		case strings.HasPrefix(raw, "$ptr{"):
+			{
+				return &ArgNode{
+					Type:  "ptr",
+					Value: raw[len("$ptr{") : len(raw)-1],
+				}, nil
+			}
+		}
 		return &ArgNode{
 			Type:  "string",
 			Value: raw,
@@ -161,6 +189,10 @@ func ParseFromAny(raw any) (*ArgNode, error) {
 	default:
 		return nil, fmt.Errorf("unsupported type: %T", raw)
 	}
+}
+func (node *ArgNode) MustGet(path string) *ArgNode {
+	v, _ := node.Get(path)
+	return v
 }
 
 func (node *ArgNode) Get(path string) (*ArgNode, error) {
@@ -245,31 +277,26 @@ func Dedref(nodes *ArgNode) {
 		switch node.Type {
 		case "map":
 			for k, v := range node.Value.(map[string]*ArgNode) {
-				walk(v, path+"."+k)
+				if path != "" {
+					walk(v, path+"."+k)
+				} else {
+					walk(v, k)
+				}
 			}
 		case "list":
 			for i, v := range node.Value.([]*ArgNode) {
 				walk(v, path+"["+fmt.Sprint(i)+"]")
 			}
-		case "string":
-			if strings.HasPrefix(node.Value.(string), "$dref{") {
-				exp := strings.HasSuffix(node.Value.(string), "...")
-				var dec int
-				if exp {
-					dec = 4
-				} else {
-					dec = 1
-				}
-				reqtree[path] = _dref{path: node.Value.(string)[6 : len(node.Value.(string))-dec], exp: exp}
-			}
+		case "dref":
+			reqtree[path] = _dref{path: node.Value.(string), exp: false}
+		case "dref...":
+			reqtree[path] = _dref{path: node.Value.(string), exp: true}
+
 		default:
 		}
 	}
 
 	walk(nodes, "") // find all dref nodes
-
-	t, err := nodes.Get("[0]")
-	log.Println(t, err)
 
 	for k, v := range reqtree {
 		var err error
