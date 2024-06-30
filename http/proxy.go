@@ -50,11 +50,12 @@ func (*httpproxy) CgiPaths() utils.GroupRegexp {
 	return regexpforproxy
 }
 
-func NewHTTPProxier() *httpproxy {
+func NewHTTPProxier(allowedhosts []string) *httpproxy {
 	hpx := &httpproxy{
-		hosts: make([]*HttpHost, 0),
-		buf:   nil,
+		hosts:      make([]*HttpHost, 0),
+		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
 	}
+
 	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {
 		for _, t := range hpx.hosts {
 			if t.ServerName.MatchString(host) {

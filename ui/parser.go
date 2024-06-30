@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"reflect"
+	"strconv"
 	"strings"
 )
 
@@ -58,7 +59,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				subnode, ok := subnodes[k]
 				if !ok {
 					if v.Required {
-						return fmt.Errorf("missing required key: %s", k)
+						return fmt.Errorf("missing required key: %s", strconv.Quote(k))
 					} else {
 						if v.Default != nil {
 							subnodes[k] = &ArgNode{
@@ -72,7 +73,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 					continue
 				}
 				if err := subnode.Assert(v); err != nil {
-					return fmt.Errorf("key %s: %w", k, err)
+					return fmt.Errorf("key %s: %w", strconv.Quote(k), err)
 				}
 
 				delete(keys, k)
@@ -86,7 +87,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				for k := range keys {
 					subnode := subnodes[k]
 					if err := subnode.Assert(defaultassertion); err != nil {
-						return fmt.Errorf("key %s: %w", k, err)
+						return fmt.Errorf("key %s: %w", strconv.Quote(k), err)
 					}
 				}
 			}
@@ -195,6 +196,76 @@ func (node *ArgNode) MustGet(path string) *ArgNode {
 	return v
 }
 
+func (node *ArgNode) ToStringList() []string {
+	if node == nil {
+		return nil
+	}
+
+	if node.Type != "list" {
+		return nil
+	}
+	var ret []string
+	for _, v := range node.ToList() {
+		if v.Type == "string" {
+			ret = append(ret, v.Value.(string))
+		}
+	}
+	return ret
+}
+
+func (node *ArgNode) ToString() string {
+	if node == nil {
+		panic("nil node")
+	}
+
+	if node.Type != "string" {
+		return ""
+	}
+	return node.Value.(string)
+}
+
+func (node *ArgNode) ToInt() int {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "int" {
+		return 0
+	}
+	return node.Value.(int)
+}
+
+func (node *ArgNode) ToBool() bool {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "bool" {
+		return false
+	}
+	return node.Value.(bool)
+}
+
+func (node *ArgNode) ToList() []*ArgNode {
+	if node == nil {
+		panic("nil node")
+	}
+
+	if node.Type != "list" {
+		return nil
+	}
+	return node.Value.([]*ArgNode)
+}
+
+func (node *ArgNode) ToMap() map[string]*ArgNode {
+	if node == nil {
+		panic("nil node")
+	}
+
+	if node.Type != "map" {
+		return nil
+	}
+	return node.Value.(map[string]*ArgNode)
+}
+
 func (node *ArgNode) Get(path string) (*ArgNode, error) {
 	if path == "" {
 		return node, nil
@@ -216,7 +287,7 @@ func (node *ArgNode) Get(path string) (*ArgNode, error) {
 			access = access[1:]
 		}
 
-		v, ok := node.Value.(map[string]*ArgNode)[rh]
+		v, ok := node.ToMap()[rh]
 		if !ok {
 			return nil, fmt.Errorf("path not found")
 		}
@@ -228,13 +299,13 @@ func (node *ArgNode) Get(path string) (*ArgNode, error) {
 			fmt.Sscanf(path, "[%d]", &index)
 			inds := path[len(fmt.Sprintf("[%d]", index)):]
 			if inds == "" {
-				return node.Value.([]*ArgNode)[index], nil
+				return node.ToList()[index], nil
 			} else if inds[0] == '.' {
-				return node.Value.([]*ArgNode)[index].Get(inds[1:])
+				return node.ToList()[index].Get(inds[1:])
 			}
 			return nil, fmt.Errorf("invalid path")
 		} else {
-			for _, v := range node.Value.([]*ArgNode) {
+			for _, v := range node.ToList() {
 				name, err := v.Get("name")
 				if err != nil || name.Type != "string" {
 					continue
@@ -276,7 +347,7 @@ func Dedref(nodes *ArgNode) {
 	walk = func(node *ArgNode, path string) {
 		switch node.Type {
 		case "map":
-			for k, v := range node.Value.(map[string]*ArgNode) {
+			for k, v := range node.ToMap() {
 				if path != "" {
 					walk(v, path+"."+k)
 				} else {
@@ -284,7 +355,7 @@ func Dedref(nodes *ArgNode) {
 				}
 			}
 		case "list":
-			for i, v := range node.Value.([]*ArgNode) {
+			for i, v := range node.ToList() {
 				walk(v, path+"["+fmt.Sprint(i)+"]")
 			}
 		case "dref":
@@ -336,7 +407,7 @@ func Dedref(nodes *ArgNode) {
 
 			switch parent.Type {
 			case "map":
-				parent.Value.(map[string]*ArgNode)[thislevel[1:]] = n
+				parent.ToMap()[thislevel[1:]] = n
 			case "list":
 				var index int
 				fmt.Sscanf(thislevel, "[%d]", &index)
@@ -345,9 +416,9 @@ func Dedref(nodes *ArgNode) {
 					if n.Type != "list" {
 						continue
 					}
-					parent.Value = append(parent.Value.([]*ArgNode)[:index], append(n.Value.([]*ArgNode), parent.Value.([]*ArgNode)[index+1:]...)...)
+					parent.Value = append(parent.ToList()[:index], append(n.ToList(), parent.ToList()[index+1:]...)...)
 				} else {
-					parent.Value.([]*ArgNode)[index] = n
+					parent.ToList()[index] = n
 				}
 			default:
 				continue
@@ -358,7 +429,7 @@ func Dedref(nodes *ArgNode) {
 	}
 
 	if len(reqtree) > 0 {
-		log.Println("unresolved dref nodes", reqtree)
+		log.Println("warning", "unresolved dref nodes", reqtree)
 	}
 
 }

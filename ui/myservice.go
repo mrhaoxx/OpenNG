@@ -28,7 +28,7 @@ import (
 var TcpController = tcp.NewTcpController()
 var HttpMidware = http.NewHttpMidware([]string{"*"})
 
-var HttpProxier = http.NewHTTPProxier()
+var HttpProxier = http.NewHTTPProxier([]string{"*"})
 
 var TcpProxier = tcp.NewTcpProxier()
 
@@ -179,7 +179,7 @@ func LoadCfgV2(cfgs []byte) error {
 
 	err = space.Apply(nodes)
 
-	return nil
+	return err
 }
 
 func LoadCfg(cfgs []byte) error {
