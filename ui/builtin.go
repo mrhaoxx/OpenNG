@@ -50,7 +50,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-	"builtin::http::proxier": {
+	"builtin::http::reverseproxier": {
 		Type:     "map",
 		Required: true,
 		Sub: AssertMap{
@@ -148,6 +148,44 @@ var _builtin_refs_assertions = map[string]Assert{
 					},
 				},
 			},
+			"cgis": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"logi": {
+								Type:     "ptr",
+								Required: true,
+							},
+							"paths": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+			"forward": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"logi": {
+								Type:     "ptr",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
 		},
 	},
 	"builtin::tcp::det": {
@@ -198,6 +236,336 @@ var _builtin_refs_assertions = map[string]Assert{
 						},
 					},
 				},
+			},
+		},
+	},
+	"builtin::tls::watch": {},
+
+	"builtin::tcp::controller::listen": {
+		Type:     "ptr",
+		Required: true,
+	},
+	"builtin::tcp::proxier": {
+		Type: "map",
+		Sub: AssertMap{
+			"hosts": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"backend": {
+								Type:     "string",
+								Required: true,
+							},
+							"protocol": {
+								Type:     "string",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"builtin::tcp::proxyprotocolhandler": {
+		Type: "map",
+		Sub: AssertMap{
+			"allowedsrcs": {
+				Type:    "list",
+				Default: []*ArgNode{{Type: "string", Value: "127.0.0.1"}},
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+		},
+	},
+	"builtin::tcp::securehttp": {
+		Type: "null",
+	},
+	"builtin::auth::manager": {
+		Type: "map",
+		Sub: AssertMap{
+			"backends": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "ptr"},
+				},
+			},
+		},
+	},
+
+	"builtin::auth::backend::file": {
+		Type: "map",
+		Sub: AssertMap{
+			"users": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"PasswordHash": {
+								Type:    "string",
+								Default: "",
+							},
+							"AllowForwardProxy": {
+								Type:    "bool",
+								Default: false,
+							},
+							"SSHAuthorizedKeys": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"builtin::auth::backend::ldap": {
+		Type: "map",
+		Sub: AssertMap{
+			"Url":        {Type: "string", Required: true},
+			"SearchBase": {Type: "string", Required: true},
+			"BindDN":     {Type: "string", Required: true},
+			"BindPW":     {Type: "string", Required: true},
+		},
+	},
+	"builtin::auth::policyd": {
+		Type: "map",
+		Sub: AssertMap{
+			"Policies": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name":      {Type: "string", Required: true},
+							"Allowance": {Type: "bool", Required: true},
+							"Users": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+							"Hosts": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+			"backends": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "ptr"},
+				},
+			},
+		},
+	},
+	"builtin::auth::knocked": {
+		Type: "map",
+		Sub: AssertMap{
+			"timeout": {
+				Type:    "int",
+				Default: 300,
+			},
+		},
+	},
+
+	"builtin::dns::server": {
+		Type: "map",
+		Sub: AssertMap{
+			"AddressBindings": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"Domain": {
+				Type:    "string",
+				Default: "local",
+			},
+			"Records": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"Name": {
+								Type:     "string",
+								Required: true,
+							},
+							"Type": {
+								Type:     "string",
+								Required: true,
+							},
+							"Value": {
+								Type:     "string",
+								Required: true,
+							},
+							"TTL": {
+								Type:    "int",
+								Default: 300,
+							},
+						},
+					},
+				},
+			},
+			"Filters": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"Name": {
+								Type:     "string",
+								Required: true,
+							},
+							"Allowance": {
+								Type:    "bool",
+								Default: true,
+							},
+						},
+					},
+				},
+			},
+			"Binds": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"Name": {
+								Type:     "string",
+								Required: true,
+							},
+							"Addr": {
+								Type:     "string",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+
+	"builtin::http::forwardproxier": {
+		Type: "null",
+	},
+
+	"builtin::http::acme::fileprovider": {
+		Type: "map",
+		Sub: AssertMap{
+			"Hosts": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"WWWRoot": {
+				Type:     "string",
+				Required: true,
+			},
+		},
+	},
+	"builtin::webui": {
+		Type: "ptr",
+	},
+
+	"builtin::ssh::midware": {
+		Type: "map",
+		Sub: AssertMap{
+			"services": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"logi": {
+								Type:     "ptr",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
+			"banner": {
+				Type:    "string",
+				Default: "Welcome to OpenNG SSH Server",
+			},
+			"quotes": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"privatekeys": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+		},
+	},
+	"builtin::ssh::reverseproxier": {
+		Type: "map",
+		Sub: AssertMap{
+			"hosts": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+							"HostName": {
+								Type:     "string",
+								Required: true,
+							},
+							"Port": {
+								Type:    "int",
+								Default: 22,
+							},
+							"Pubkey": {
+								Type: "string",
+							},
+							"Identity": {
+								Type: "string",
+							},
+							"User": {
+								Type: "string",
+							},
+							"Password": {
+								Type: "string",
+							},
+						},
+					},
+				},
+			},
+			"allowdnsquery": {
+				Type:    "bool",
+				Default: false,
 			},
 		},
 	},
