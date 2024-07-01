@@ -197,6 +197,11 @@ func GlobalCfg(config *ArgNode) error {
 			fmt.Fprintln(os.Stderr, "timezone:", tz)
 		}
 
+		if verb := logger.MustGet("Verbose").ToBool(); verb {
+			log.Verb = true
+			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
+		}
+
 		if !logger.MustGet("EnableConsoleLogger").ToBool() {
 			log.Println("sys", "Disabling Console Logging")
 			log.Loggers = []log.Logger{}

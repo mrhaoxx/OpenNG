@@ -30,7 +30,8 @@ type Midware struct {
 	currentCgi           []*CgiStruct
 	bufferedLookupForCgi *utils.BufferedLookup
 
-	currentProxy []ServiceHandler
+	currentForward           []*ServiceStruct
+	bufferedLookupForForward *utils.BufferedLookup
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[uint64]*HttpCtx
@@ -74,6 +75,11 @@ func (mid *Midware) AddCgis(svcs ...Cgi) {
 		})
 	}
 	mid.bufferedLookupForCgi.Refresh()
+}
+
+func (h *Midware) AddForwardServices(p ...*ServiceStruct) {
+	h.currentForward = append(h.currentForward, p...)
+	h.bufferedLookupForForward.Refresh()
 }
 
 var h2s = &http2.Server{}
@@ -223,6 +229,7 @@ func NewHttpMidware(sni []string) *Midware {
 		}
 		return ret
 	})
+
 	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) interface{} {
 		var m []*CgiStruct = nil
 		for _, t := range hmw.currentCgi {
@@ -235,10 +242,22 @@ func NewHttpMidware(sni []string) *Midware {
 		return m
 	})
 
+	hmw.bufferedLookupForForward = utils.NewBufferedLookup(func(s string) interface{} {
+		ret := make([]*ServiceStruct, 0)
+		for _, r := range hmw.currentForward {
+			if r.Hosts.MatchString(s) {
+				ret = append(ret, r)
+			}
+		}
+		return ret
+	})
+
 	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) interface{} {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
+
 	hmw.sni = utils.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
+
 	return hmw
 }
 

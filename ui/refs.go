@@ -19,7 +19,7 @@ func (space *Space) Apply(root *ArgNode) error {
 
 	srvs := root.MustGet("Services")
 
-	for _, _srv := range srvs.Value.([]*ArgNode) {
+	for i, _srv := range srvs.Value.([]*ArgNode) {
 		_time := time.Now()
 
 		_ref := _srv.MustGet("kind").ToString()
@@ -29,7 +29,7 @@ func (space *Space) Apply(root *ArgNode) error {
 		if !ok {
 			ref, ok = _builtin_refs[_ref]
 			if !ok {
-				return fmt.Errorf("kind not found: %s", _ref)
+				return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 			}
 		}
 
@@ -37,30 +37,30 @@ func (space *Space) Apply(root *ArgNode) error {
 
 		spec_assert, ok := _builtin_refs_assertions[_ref]
 		if !ok {
-			return fmt.Errorf("assert not found: %s", _ref)
+			return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
 
 		err := spec.Assert(spec_assert)
 
 		if err != nil {
-			return fmt.Errorf("%s: assert failed: %w", _ref, err)
+			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
 		err = space.Deptr(spec)
 
 		if err != nil {
-			return fmt.Errorf("%s: deptr failed: %w", _ref, err)
+			return fmt.Errorf("%s: deptr failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
 		inst, err := ref(spec)
 
 		if err != nil {
-			return fmt.Errorf("%s: %w", _ref, err)
+			return fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
 		space.Services[to] = inst
 
-		used_time := fmt.Sprintf("%10s", time.Since(_time).String())
+		used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
 
 		if to != "_" {
 			log.Println(used_time, _ref, "->", to)

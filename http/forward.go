@@ -7,29 +7,30 @@ import (
 	"net"
 	"net/http"
 	"sync"
+
+	"github.com/mrhaoxx/OpenNG/utils"
 )
 
 func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
-	if h.currentProxy != nil {
-		for _, v := range h.currentProxy {
-			switch v(ctx) {
-			case RequestEnd:
-				goto _break
-			case Continue:
-				continue
-			}
+
+	ServicesToExecute := h.bufferedLookupForForward.Lookup(ctx.Req.Host).([]*ServiceStruct)
+	for i := 0; i < len(ServicesToExecute); i++ {
+
+		*RequestPath += ServicesToExecute[i].Id + " "
+		switch ServicesToExecute[i].ServiceHandler(ctx) {
+		case RequestEnd:
+			*RequestPath += "-"
+			return
+		case Continue:
+			continue
 		}
 	}
-_break:
-	*RequestPath += "-"
 
 }
 
-func (h *Midware) AddForwardProxiers(p ...ServiceHandler) {
-	h.currentProxy = append(h.currentProxy, p...)
-}
+type StdForwardProxy struct{}
 
-func StdForwardProxy(ctx *HttpCtx) Ret {
+func (StdForwardProxy) HandleHTTP(ctx *HttpCtx) Ret {
 	delHopHeaders(ctx.Req.Header)
 
 	if ctx.Req.Method == "CONNECT" {
@@ -79,6 +80,10 @@ func StdForwardProxy(ctx *HttpCtx) Ret {
 	}
 
 	return RequestEnd
+}
+
+func (StdForwardProxy) Hosts() utils.GroupRegexp {
+	return nil
 }
 
 var hopHeaders = []string{

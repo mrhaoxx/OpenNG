@@ -28,6 +28,13 @@ type Assert struct {
 }
 
 func (node *ArgNode) Assert(assertions Assert) error {
+	if node == nil {
+		if assertions.Type == "null" || assertions.Type == "any" {
+			return nil
+		} else {
+			return fmt.Errorf("required field is nil")
+		}
+	}
 	if node.Type == "null" {
 		if !assertions.Required {
 			node.Type = assertions.Type

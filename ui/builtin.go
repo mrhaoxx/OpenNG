@@ -2,6 +2,7 @@ package ui
 
 import (
 	"errors"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -49,6 +50,10 @@ var _builtin_refs_assertions = map[string]Assert{
 							"TimeZone": {
 								Type:    "string",
 								Default: "Local",
+							},
+							"Verbose": {
+								Type:    "bool",
+								Default: false,
 							},
 							"EnableSSELogger": {
 								Type:    "bool",
@@ -215,6 +220,13 @@ var _builtin_refs_assertions = map[string]Assert{
 							"logi": {
 								Type:     "ptr",
 								Required: true,
+							},
+							"hosts": {
+								Type:    "list",
+								Default: []*ArgNode{{Type: "string", Value: "*"}},
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
 							},
 						},
 					},
@@ -652,7 +664,7 @@ var _builtin_refs = map[string]Inst{
 
 			proxier.Insert(proxier.Len(), name, hosts, backend, maxconns, tlsskip)
 
-			log.Println("sys", "http", name, "->", hosts, backend, maxconns, tlsskip)
+			log.Verboseln(fmt.Sprintf("new http reverse host %#v: hosts=%#v backend=%#v maxconns=%d tlsskip=%v", name, hosts, backend, maxconns, tlsskip))
 		}
 
 		return proxier, nil
@@ -668,7 +680,7 @@ var _builtin_refs = map[string]Inst{
 
 			tls.LoadCertificate(certfile, keyfile)
 
-			log.Println("sys", "tls", certfile, keyfile)
+			log.Verboseln(fmt.Sprintf("new tls certificate: certfile=%#v keyfile=%#v", certfile, keyfile))
 		}
 
 		return tls, nil
@@ -685,11 +697,12 @@ var _builtin_refs = map[string]Inst{
 			logi := srv.MustGet("logi")
 			_hosts := srv.MustGet("hosts").ToStringList()
 
-			var hosts []*regexp2.Regexp
 			service, ok := logi.Value.(http.Service)
 			if !ok {
 				return nil, errors.New("ptr " + name + " is not a http.Service")
 			}
+
+			var hosts utils.GroupRegexp
 			if len(_hosts) == 0 {
 				hosts = service.Hosts()
 			} else {
@@ -702,7 +715,7 @@ var _builtin_refs = map[string]Inst{
 				ServiceHandler: service.HandleHTTP,
 			})
 
-			log.Println("sys", "http", name, "->", hosts, logi.Value)
+			log.Verboseln(fmt.Sprintf("new http service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
 		}
 
 		for _, cgi := range cgis {
@@ -714,17 +727,32 @@ var _builtin_refs = map[string]Inst{
 			}
 
 			midware.AddCgis(service)
+			log.Verboseln(fmt.Sprintf("new http cgi: logi=%T", logi.Value))
 		}
 
 		for _, fwd := range forwards {
 			name := fwd.MustGet("name").ToString()
 			logi := fwd.MustGet("logi")
-			service, ok := logi.Value.(http.ServiceHandler)
+			_hosts := fwd.MustGet("hosts").ToStringList()
+
+			service, ok := logi.Value.(http.Service)
 			if !ok {
 				return nil, errors.New("ptr " + name + " is not a http.ServiceHandler")
 			}
 
-			midware.AddForwardProxiers(service)
+			var hosts utils.GroupRegexp
+			if len(_hosts) == 0 {
+				hosts = service.Hosts()
+			} else {
+				hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(_hosts))
+			}
+
+			midware.AddForwardServices(&http.ServiceStruct{
+				Id:             name,
+				Hosts:          hosts,
+				ServiceHandler: service.HandleHTTP,
+			})
+			log.Verboseln(fmt.Sprintf("new http forward service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
 		}
 
 		return midware, nil
@@ -750,6 +778,8 @@ var _builtin_refs = map[string]Inst{
 			}
 		}
 
+		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v", protocols))
+
 		return &tcp.Detect{Dets: dets}, nil
 	},
 	"builtin::tcp::controller": func(spec *ArgNode) (any, error) {
@@ -759,25 +789,24 @@ var _builtin_refs = map[string]Inst{
 
 		for name, srvs := range services {
 			var _bindings []tcp.ServiceBinding
-			for _, srv := range srvs.ToList() {
+			for i, srv := range srvs.ToList() {
 
-				name := srv.MustGet("name").ToString()
+				_name := srv.MustGet("name").ToString()
 				logi := srv.MustGet("logi")
 				service, ok := logi.Value.(tcp.ServiceHandler)
 				if !ok {
 					return nil, errors.New("ptr " + name + " is not a tcp.ServiceHandler")
 				}
 				_bindings = append(_bindings, tcp.ServiceBinding{
-					Name:           name,
+					Name:           _name,
 					ServiceHandler: service,
 				})
+
+				log.Verboseln(fmt.Sprintf("on tcp %#v[%d]: name=%v logi=%T", name, i, _name, logi.Value))
 
 			}
 
 			controller.Bind(name, _bindings...)
-
-			log.Println("sys", "tcp", name, "->", services)
-
 		}
 
 		return controller, nil
@@ -785,6 +814,7 @@ var _builtin_refs = map[string]Inst{
 	"builtin::tls::watch": func(spec *ArgNode) (any, error) {
 		panic("not implemented")
 	},
+
 	"builtin::tcp::listen": func(spec *ArgNode) (any, error) {
 		ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
 
@@ -796,6 +826,7 @@ var _builtin_refs = map[string]Inst{
 			if err := ctl.Listen(addr); err != nil {
 				return nil, err
 			}
+			log.Verboseln(fmt.Sprintf("tcp listen on %v", addr))
 		}
 		return nil, nil
 	},
@@ -813,14 +844,14 @@ var _builtin_refs = map[string]Inst{
 			if err != nil {
 				return nil, err
 			}
-			log.Println("sys", "tcp", name, "->", backend, protocol)
+			log.Verboseln(fmt.Sprintf("new tcp proxy host %#v: backend=%#v protocol=%#v", name, backend, protocol))
 		}
 
 		return proxier, nil
 	},
 	"builtin::tcp::proxyprotocolhandler": func(spec *ArgNode) (any, error) {
 		allowedsrcs := spec.MustGet("allowedsrcs").ToStringList()
-
+		log.Verboseln(fmt.Sprintf("new tcp proxy protocol handler: allowedsrcs=%#v", allowedsrcs))
 		return tcp.NewTCPProxyProtocolHandler(allowedsrcs), nil
 	},
 	"builtin::tcp::securehttp": func(spec *ArgNode) (any, error) {
@@ -839,6 +870,8 @@ var _builtin_refs = map[string]Inst{
 			}
 			authmethods = append(authmethods, b)
 		}
+
+		log.Verboseln(fmt.Sprintf("new auth manager: backends=%#v", authmethods))
 
 		manager := auth.NewAuthMgr(authmethods,
 			utils.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
@@ -866,6 +899,8 @@ var _builtin_refs = map[string]Inst{
 			}
 
 			backend.SetUser(name, pw, allowfp, _sshkeys, false)
+
+			log.Verboseln(fmt.Sprintf("new auth file user %#v: pwh=%#.11v... allowfp=%v sshkeys=%#.26v", name, pw, allowfp, sshkeys))
 		}
 
 		return backend, nil
@@ -876,6 +911,7 @@ var _builtin_refs = map[string]Inst{
 		binddn := spec.MustGet("BindDN").ToString()
 		bindpw := spec.MustGet("BindPW").ToString()
 
+		log.Verboseln(fmt.Sprintf("new auth ldap backend: url=... searchbase=%#v binddn=%#v bindpw=...", searchbase, binddn))
 		return authbackends.NewLDAPBackend(url, searchbase, binddn, bindpw), nil
 	},
 	"builtin::auth::policyd": func(spec *ArgNode) (any, error) {
@@ -896,6 +932,8 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
+			log.Verboseln(fmt.Sprintf("new auth policy %#v: allowance=%v users=%#v hosts=%#v paths=%#v", name, allowance, users, hosts, paths))
+
 		}
 
 		var b []auth.PolicyBackend
@@ -905,6 +943,8 @@ var _builtin_refs = map[string]Inst{
 				return nil, errors.New("ptr is not a auth.PolicyBackend")
 			}
 			b = append(b, _b)
+
+			log.Verboseln(fmt.Sprintf("new auth policy backend %#v", backend))
 		}
 
 		policyd.AddBackends(b)
@@ -938,6 +978,8 @@ var _builtin_refs = map[string]Inst{
 			ttl := record.MustGet("TTL").ToInt()
 
 			Dns.AddRecord(regexp2.MustCompile(name, 0), dns.DnsStringTypeToInt(typ), value, uint32(ttl))
+
+			log.Verboseln(fmt.Sprintf("new dns record: name=%#v type=%#v value=%#v ttl=%d", name, typ, value, ttl))
 		}
 
 		for _, filter := range filters {
@@ -948,6 +990,8 @@ var _builtin_refs = map[string]Inst{
 			if err != nil {
 				return nil, err
 			}
+
+			log.Verboseln(fmt.Sprintf("new dns filter: name=%#v allowance=%v", name, allowance))
 		}
 
 		for _, bind := range binds {
@@ -959,6 +1003,7 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
+			log.Verboseln(fmt.Sprintf("new dns bind: name=%#v addr=%#v", name, addr))
 		}
 
 		for _, listen := range listens {
@@ -966,12 +1011,13 @@ var _builtin_refs = map[string]Inst{
 			if err != nil {
 				return nil, err
 			}
+			log.Verboseln(fmt.Sprintf("dns listen: addr=%#v", listen))
 		}
 
 		return Dns, nil
 	},
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
-		return http.StdForwardProxy, nil
+		return http.StdForwardProxy{}, nil
 	},
 	"builtin::http::acme::fileprovider": func(spec *ArgNode) (any, error) {
 		host := spec.MustGet("Hosts").ToStringList()
@@ -981,6 +1027,7 @@ var _builtin_refs = map[string]Inst{
 			WWWRoot:      wwwroot,
 		}
 
+		log.Verboseln(fmt.Sprintf("new acme file provider: hosts=%#v wwwroot=%#v", host, wwwroot))
 		return acmec, nil
 	},
 	"builtin::webui": func(spec *ArgNode) (any, error) {
@@ -1004,10 +1051,15 @@ var _builtin_refs = map[string]Inst{
 			}
 			prik = append(prik, pk)
 		}
+
+		log.Verboseln("got", len(prik), "private keys")
+
 		var _quotes []string
 		for _, q := range quotes {
 			_quotes = append(_quotes, strings.TrimSpace(q))
 		}
+
+		log.Verboseln("got", len(_quotes), "quotes")
 
 		midware := ssh.NewSSHController(prik, banner, _quotes, nil, policyd)
 
@@ -1022,7 +1074,7 @@ var _builtin_refs = map[string]Inst{
 
 			midware.AddHandler(service, utils.MustCompileRegexp([]string{"^.*$"}))
 
-			log.Println("sys", "ssh", name, "->", logi.Value)
+			log.Verboseln(fmt.Sprintf("new ssh service %#v: logi=%T", name, logi.Value))
 		}
 		return midware, nil
 	},
@@ -1039,6 +1091,8 @@ var _builtin_refs = map[string]Inst{
 			}
 			prik = append(prik, pk)
 		}
+
+		log.Verboseln("got", len(prik), "default private keys")
 
 		hm := map[string]ssh.Host{}
 
@@ -1077,9 +1131,13 @@ var _builtin_refs = map[string]Inst{
 				User:        user,
 				Password:    password,
 			}
+			log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v identity=... user=... password=...", name, hostname, port, pubkey))
+
 			if i == 0 {
 				hm["_"] = hm[name]
+				log.Verboseln("this is the default host")
 			}
+
 		}
 
 		serv := ssh.NewSSHProxier(hm, prik)

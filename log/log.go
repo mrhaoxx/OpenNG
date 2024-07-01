@@ -14,7 +14,9 @@ var Loggers = []Logger{os.Stdout}
 
 var TZ = time.Local
 
-func Println(msgs ...any) {
+var Verb = false
+
+func println(loggers []Logger, msgs ...any) {
 	var t = time.Now().In(TZ)
 	var buf []byte
 	year, month, day := t.Date()
@@ -34,10 +36,21 @@ func Println(msgs ...any) {
 	itoa(&buf, t.Nanosecond()/1e3, 6)
 	buf = append(buf, ' ')
 
-	for _, logger := range Loggers {
+	for _, logger := range loggers {
 		logger.Write(fmt.Appendln(buf, msgs...))
 	}
 }
+
+func Println(msgs ...any) {
+	println(Loggers, msgs...)
+}
+
+func Verboseln(msgs ...any) {
+	if Verb {
+		println(Loggers, append(append([]any{"\033[90m[verb]"}, msgs...), "\033[0m")...)
+	}
+}
+
 func itoa(buf *[]byte, i int, wid int) {
 	// Assemble decimal in reverse order.
 	var b [20]byte
