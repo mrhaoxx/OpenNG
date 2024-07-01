@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -340,7 +339,7 @@ type _dref struct {
 	exp  bool
 }
 
-func Dedref(nodes *ArgNode) {
+func Dedref(nodes *ArgNode) error {
 	reqtree := map[string]_dref{}
 
 	var walk func(node *ArgNode, path string)
@@ -366,6 +365,8 @@ func Dedref(nodes *ArgNode) {
 		default:
 		}
 	}
+
+_regen:
 
 	walk(nodes, "") // find all dref nodes
 
@@ -393,8 +394,6 @@ func Dedref(nodes *ArgNode) {
 			goto next
 		} else {
 
-			fmt.Println(__v, "->", _k)
-
 			__k := upperlevel(_k)
 
 			if __k == "" {
@@ -405,6 +404,8 @@ func Dedref(nodes *ArgNode) {
 
 			thislevel := _k[len(__k):]
 
+			regen := false
+
 			switch parent.Type {
 			case "map":
 				parent.ToMap()[thislevel[1:]] = n
@@ -414,8 +415,9 @@ func Dedref(nodes *ArgNode) {
 
 				if v.exp {
 					if n.Type != "list" {
-						continue
+						return fmt.Errorf("expected list got %s", n.Type)
 					}
+					regen = true // here makes copies, so we need regen the dref table
 					parent.Value = append(parent.ToList()[:index], append(n.ToList(), parent.ToList()[index+1:]...)...)
 				} else {
 					parent.ToList()[index] = n
@@ -425,11 +427,17 @@ func Dedref(nodes *ArgNode) {
 			}
 
 			delete(reqtree, _k)
+
+			if regen {
+				goto _regen
+			}
 		}
 	}
 
 	if len(reqtree) > 0 {
-		log.Println("warning", "unresolved dref nodes", reqtree)
+		return fmt.Errorf("unresolved dref nodes %v", reqtree)
 	}
+
+	return nil
 
 }

@@ -12,8 +12,10 @@ type Logger interface {
 
 var Loggers = []Logger{os.Stdout}
 
+var TZ = time.Local
+
 func Println(msgs ...any) {
-	var t = time.Now().UTC()
+	var t = time.Now().In(TZ)
 	var buf []byte
 	year, month, day := t.Date()
 	itoa(&buf, year, 4)

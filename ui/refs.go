@@ -2,7 +2,9 @@ package ui
 
 import (
 	"fmt"
-	"log"
+	"time"
+
+	"github.com/mrhaoxx/OpenNG/log"
 )
 
 type Inst func(*ArgNode) (any, error)
@@ -18,7 +20,11 @@ func (space *Space) Apply(root *ArgNode) error {
 	srvs := root.MustGet("Services")
 
 	for _, _srv := range srvs.Value.([]*ArgNode) {
+		_time := time.Now()
+
 		_ref := _srv.MustGet("kind").ToString()
+		to := _srv.MustGet("name").ToString()
+
 		ref, ok := space.Refs[_ref]
 		if !ok {
 			ref, ok = _builtin_refs[_ref]
@@ -37,27 +43,31 @@ func (space *Space) Apply(root *ArgNode) error {
 		err := spec.Assert(spec_assert)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: assert failed: %w", _ref, err)
 		}
 
 		err = space.Deptr(spec)
 
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: deptr failed: %w", _ref, err)
 		}
 
 		inst, err := ref(spec)
 
-		log.Println(err, inst, "<-", ref, _ref, spec)
-
 		if err != nil {
-			return err
+			return fmt.Errorf("%s: %w", _ref, err)
 		}
 
-		to := _srv.MustGet("name").Value.(string)
+		space.Services[to] = inst
+
+		used_time := fmt.Sprintf("%10s", time.Since(_time).String())
+
 		if to != "_" {
-			space.Services[to] = inst
+			log.Println(used_time, _ref, "->", to)
+		} else {
+			log.Println(used_time, _ref)
 		}
+
 	}
 	return nil
 
@@ -90,7 +100,7 @@ func (space *Space) Deptr(root *ArgNode) error {
 			if ok {
 				node.Value = v
 			} else {
-				return fmt.Errorf(" ptr not found: %s", node.Value.(string))
+				return fmt.Errorf("ptr not found: %s", node.Value.(string))
 			}
 		}
 		return nil

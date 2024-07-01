@@ -1,10 +1,14 @@
 package ui
 
 import (
+	"fmt"
 	"net"
 	stdhttp "net/http"
+	"os"
 	"strings"
+	"time"
 
+	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
 
@@ -150,8 +154,19 @@ func LoadCfgV2(cfgs []byte) error {
 		return err
 	}
 
-	Dedref(nodes)
+	err = Dedref(nodes)
+
+	if err != nil {
+		return err
+	}
+
 	err = nodes.Assert(_builtin_refs_assertions["_"])
+
+	if err != nil {
+		return err
+	}
+
+	err = GlobalCfg(nodes.MustGet("Config"))
 
 	if err != nil {
 		return err
@@ -165,6 +180,45 @@ func LoadCfgV2(cfgs []byte) error {
 	err = space.Apply(nodes)
 
 	return err
+}
+
+func GlobalCfg(config *ArgNode) error {
+
+	if logger, err := config.Get("Logger"); err == nil {
+
+		if tz := logger.MustGet("TimeZone").ToString(); tz != "Local" {
+			_tz, err := time.LoadLocation(tz)
+			if err != nil {
+				return err
+			} else {
+				log.TZ = _tz
+			}
+
+			fmt.Fprintln(os.Stderr, "timezone:", tz)
+		}
+
+		if !logger.MustGet("EnableConsoleLogger").ToBool() {
+			log.Println("sys", "Disabling Console Logging")
+			log.Loggers = []log.Logger{}
+		}
+
+		if logger.MustGet("EnableSSELogger").ToBool() {
+			log.Loggers = append(log.Loggers, Sselogger)
+			log.Println("sys", "SSE Logger Registered")
+		}
+
+		if file, err := logger.Get("FileLogger"); err == nil {
+			f, _ := os.OpenFile(file.MustGet("Path").ToString(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+			log.Loggers = append(log.Loggers, f)
+			log.Println("sys", "File Logger Registered", file.MustGet("Path").ToString())
+		}
+
+		if udp, err := logger.Get("UDPLogger"); err == nil {
+			log.Loggers = append(log.Loggers, NewUdpLogger(udp.MustGet("Addr").ToString()))
+			log.Println("sys", "UDP Logger Registered", udp.MustGet("Addr").ToString())
+		}
+	}
+	return nil
 }
 
 // func LoadCfg(cfgs []byte) error {
