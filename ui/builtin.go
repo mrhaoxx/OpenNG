@@ -977,7 +977,7 @@ var _builtin_refs = map[string]Inst{
 			value := record.MustGet("Value").ToString()
 			ttl := record.MustGet("TTL").ToInt()
 
-			Dns.AddRecord(regexp2.MustCompile(name, 0), dns.DnsStringTypeToInt(typ), value, uint32(ttl))
+			Dns.AddRecord(regexp2.MustCompile(dns.Dnsname2Regexp(name), 0), dns.DnsStringTypeToInt(typ), value, uint32(ttl))
 
 			log.Verboseln(fmt.Sprintf("new dns record: name=%#v type=%#v value=%#v ttl=%d", name, typ, value, ttl))
 		}
@@ -986,7 +986,7 @@ var _builtin_refs = map[string]Inst{
 			name := filter.MustGet("Name").ToString()
 			allowance := filter.MustGet("Allowance").ToBool()
 
-			err := Dns.AddFilter(regexp2.MustCompile(name, 0), allowance)
+			err := Dns.AddFilter(regexp2.MustCompile(dns.Dnsname2Regexp(name), 0), allowance)
 			if err != nil {
 				return nil, err
 			}
@@ -1007,10 +1007,8 @@ var _builtin_refs = map[string]Inst{
 		}
 
 		for _, listen := range listens {
-			err := Dns.Listen(listen)
-			if err != nil {
-				return nil, err
-			}
+			go Dns.Listen(listen)
+
 			log.Verboseln(fmt.Sprintf("dns listen: addr=%#v", listen))
 		}
 

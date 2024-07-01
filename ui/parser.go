@@ -252,7 +252,7 @@ func (node *ArgNode) ToBool() bool {
 
 func (node *ArgNode) ToList() []*ArgNode {
 	if node == nil {
-		panic("nil node")
+		return nil
 	}
 
 	if node.Type != "list" {
