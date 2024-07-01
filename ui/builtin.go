@@ -575,7 +575,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 			"banner": {
 				Type:    "string",
-				Default: "Welcome to OpenNG SSH Server",
+				Default: "Welcome to OpenNG SSH Server\n",
 			},
 			"quotes": {
 				Type: "list",
@@ -944,7 +944,7 @@ var _builtin_refs = map[string]Inst{
 			}
 			b = append(b, _b)
 
-			log.Verboseln(fmt.Sprintf("new auth policy backend %#v", backend))
+			log.Verboseln(fmt.Sprintf("new auth policy backend %T", backend.Value))
 		}
 
 		policyd.AddBackends(b)
@@ -1134,7 +1134,7 @@ var _builtin_refs = map[string]Inst{
 			log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v identity=... user=... password=...", name, hostname, port, pubkey))
 
 			if i == 0 {
-				hm["_"] = hm[name]
+				hm[""] = hm[name]
 				log.Verboseln("this is the default host")
 			}
 

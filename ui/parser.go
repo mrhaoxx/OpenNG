@@ -221,7 +221,7 @@ func (node *ArgNode) ToStringList() []string {
 
 func (node *ArgNode) ToString() string {
 	if node == nil {
-		panic("nil node")
+		return ""
 	}
 
 	if node.Type != "string" {
@@ -232,7 +232,7 @@ func (node *ArgNode) ToString() string {
 
 func (node *ArgNode) ToInt() int {
 	if node == nil {
-		panic("nil node")
+		return 0
 	}
 	if node.Type != "int" {
 		return 0
