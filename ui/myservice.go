@@ -215,6 +215,7 @@ func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ssh.Ctx, key gossh.Publi
 		resp, err := stdhttp.Get(url)
 
 		if err != nil {
+			log.Verboseln("gitlab >", err)
 			return false
 		}
 
@@ -252,7 +253,7 @@ func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ssh.Ctx, key gossh.Publi
 		}
 	}
 
-	return false
+	return g.PolicyBackend.CheckSSHKey(ctx, key)
 }
 
 func (g *GitlabEnhancedPolicydBackend) AllowForwardProxy(username string) bool {
