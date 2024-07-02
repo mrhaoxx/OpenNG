@@ -30,7 +30,7 @@ func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
 
 type StdForwardProxy struct{}
 
-func (StdForwardProxy) HandleHTTP(ctx *HttpCtx) Ret {
+func (StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
 	delHopHeaders(ctx.Req.Header)
 
 	if ctx.Req.Method == "CONNECT" {
@@ -82,7 +82,7 @@ func (StdForwardProxy) HandleHTTP(ctx *HttpCtx) Ret {
 	return RequestEnd
 }
 
-func (StdForwardProxy) Hosts() utils.GroupRegexp {
+func (StdForwardProxy) HostsForward() utils.GroupRegexp {
 	return nil
 }
 

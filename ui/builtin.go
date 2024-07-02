@@ -658,6 +658,12 @@ var _builtin_refs_assertions = map[string]Assert{
 							"Password": {
 								Type: "string",
 							},
+							"AllowedUsers": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
 						},
 					},
 				},
@@ -788,7 +794,11 @@ var _builtin_refs = map[string]Inst{
 			certfile := cert.MustGet("CertFile").ToString()
 			keyfile := cert.MustGet("KeyFile").ToString()
 
-			tls.LoadCertificate(certfile, keyfile)
+			err := tls.LoadCertificate(certfile, keyfile)
+
+			if err != nil {
+				return nil, err
+			}
 
 			log.Verboseln(fmt.Sprintf("new tls certificate: certfile=%#v keyfile=%#v", certfile, keyfile))
 		}
@@ -845,14 +855,14 @@ var _builtin_refs = map[string]Inst{
 			logi := fwd.MustGet("logi")
 			_hosts := fwd.MustGet("hosts").ToStringList()
 
-			service, ok := logi.Value.(http.Service)
+			service, ok := logi.Value.(http.Forward)
 			if !ok {
-				return nil, errors.New("ptr " + name + " is not a http.ServiceHandler")
+				return nil, errors.New("ptr " + name + " is not a http.Forward")
 			}
 
 			var hosts utils.GroupRegexp
 			if len(_hosts) == 0 {
-				hosts = service.Hosts()
+				hosts = service.HostsForward()
 			} else {
 				hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(_hosts))
 			}
@@ -860,7 +870,7 @@ var _builtin_refs = map[string]Inst{
 			midware.AddForwardServices(&http.ServiceStruct{
 				Id:             name,
 				Hosts:          hosts,
-				ServiceHandler: service.HandleHTTP,
+				ServiceHandler: service.HandleHTTPForward,
 			})
 			log.Verboseln(fmt.Sprintf("new http forward service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
 		}
@@ -1222,6 +1232,14 @@ var _builtin_refs = map[string]Inst{
 			user := host.MustGet("User").ToString()
 			password := host.MustGet("Password").ToString()
 
+			_allowedusers := host.MustGet("AllowedUsers").ToStringList()
+
+			var allowedusers utils.GroupRegexp = nil
+
+			if len(_allowedusers) > 0 {
+				allowedusers = utils.MustCompileRegexp(_allowedusers)
+			}
+
 			name = strings.ToLower(name)
 			var pubkeyf gossh.PublicKey
 			if pubkey != "" {
@@ -1247,8 +1265,10 @@ var _builtin_refs = map[string]Inst{
 				IdentityKey: idk,
 				User:        user,
 				Password:    password,
+
+				AllowedUsers: allowedusers,
 			}
-			log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v identity=... user=... password=...", name, hostname, port, pubkey))
+			log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v allowedusers=%#v identity=... user=... password=...", name, hostname, port, pubkey, allowedusers.String()))
 
 			if i == 0 {
 				hm[""] = hm[name]

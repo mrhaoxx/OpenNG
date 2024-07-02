@@ -184,7 +184,7 @@ func needAuth(ctx *http.HttpCtx) {
 	ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
 }
 
-func (l *policyBaseAuth) HandleProxy(ctx *http.HttpCtx) http.Ret {
+func (l *policyBaseAuth) HandleHTTPForward(ctx *http.HttpCtx) http.Ret {
 	hdr := ctx.Req.Header.Get("Proxy-Authorization")
 	if hdr == "" {
 		needAuth(ctx)
@@ -391,6 +391,10 @@ func (mgr *policyBaseAuth) generateSession(username string, src int) string {
 	}
 	mgr.muSession.Unlock()
 	return rand
+}
+
+func (*policyBaseAuth) HostsForward() utils.GroupRegexp {
+	return nil
 }
 
 func (mgr *policyBaseAuth) rmSession(session string) {

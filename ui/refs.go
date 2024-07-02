@@ -176,24 +176,25 @@ func GlobalCfg(config *ArgNode) error {
 		}
 
 		if !logger.MustGet("EnableConsoleLogger").ToBool() {
-			log.Println("sys", "Disabling Console Logging")
 			log.Loggers = []log.Logger{}
+			fmt.Fprintln(os.Stderr, "console log disabled")
 		}
 
 		if logger.MustGet("EnableSSELogger").ToBool() {
 			log.Loggers = append(log.Loggers, Sselogger)
-			log.Println("sys", "SSE Logger Registered")
+			fmt.Fprintln(os.Stderr, "SSE logger enabled")
+
 		}
 
 		if file, err := logger.Get("FileLogger"); err == nil {
 			f, _ := os.OpenFile(file.MustGet("Path").ToString(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			log.Loggers = append(log.Loggers, f)
-			log.Println("sys", "File Logger Registered", file.MustGet("Path").ToString())
+			fmt.Fprintln(os.Stderr, "file logger enabled:", file.MustGet("Path").ToString())
 		}
 
 		if udp, err := logger.Get("UDPLogger"); err == nil {
 			log.Loggers = append(log.Loggers, NewUdpLogger(udp.MustGet("Addr").ToString()))
-			log.Println("sys", "UDP Logger Registered", udp.MustGet("Addr").ToString())
+			fmt.Fprintln(os.Stderr, "UDP logger enabled:", udp.MustGet("Addr").ToString())
 		}
 	}
 	return nil

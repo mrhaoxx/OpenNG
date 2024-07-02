@@ -12,7 +12,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/ui"
 )
 
-var configfile = flag.String("config", "new.config.yaml", "the config file to load")
+var configfile = flag.String("config", "config.yaml", "the config file to load")
 var printversion = flag.Bool("version", false, "print version and exit")
 var helpmessage = flag.Bool("help", false, "print help message")
 
@@ -33,10 +33,12 @@ func main() {
 |_| \_|\___|\__|\____/_/   \_\_| |_____|
 
 %s %s 
-
 %s %s %s %s
+
+config: %s
+
 `,
-		gitver, buildstamp, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler)
+		gitver, buildstamp, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler, *configfile)
 
 	if *printversion {
 		return
@@ -57,6 +59,6 @@ func main() {
 		os.Exit(-1)
 	}
 
-	log.Println("sys", "Loaded in", time.Since(_start).String())
+	fmt.Fprintf(os.Stderr, "configuration from %s loaded in %s\n", *configfile, time.Since(_start).String())
 	select {}
 }

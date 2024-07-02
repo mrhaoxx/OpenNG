@@ -59,6 +59,10 @@ type Cgi interface {
 	CgiPaths() utils.GroupRegexp
 	HandleHTTPCgi(*HttpCtx, string) Ret
 }
+type Forward interface {
+	HostsForward() utils.GroupRegexp
+	HandleHTTPForward(*HttpCtx) Ret
+}
 
 func (mid *Midware) AddServices(svc ...*ServiceStruct) {
 	mid.current = append(mid.current, svc...)

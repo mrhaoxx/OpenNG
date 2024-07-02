@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -29,6 +30,8 @@ type Host struct {
 	User        string
 	IdentityKey ssh.Signer
 	Password    string
+
+	AllowedUsers utils.GroupRegexp
 }
 
 type proxier struct {
@@ -64,6 +67,10 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 
 		ctx.Error("* Unknown host " + strconv.Quote(ctx.Alt) + "\r\n")
 
+		return
+	}
+
+	if h.AllowedUsers != nil && !h.AllowedUsers.MatchString(ctx.User) {
 		return
 	}
 
