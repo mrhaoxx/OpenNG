@@ -595,6 +595,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+
 	"builtin::ssh::reverseproxier": {
 		Type: "map",
 		Sub: AssertMap{
@@ -641,6 +642,46 @@ var _builtin_refs_assertions = map[string]Assert{
 				Sub: AssertMap{
 					"_": {Type: "string"},
 				},
+			},
+		},
+	},
+
+	"builtin::ipfilter": {
+		Type:     "map",
+		Required: true,
+		Sub: AssertMap{
+			"blockedcidrs": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"allowedcidrs": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"next": {
+				Type:    "ptr",
+				Default: nil,
+			},
+		},
+	},
+
+	"builtin::hostfilter": {
+		Type:     "map",
+		Required: true,
+		Sub: AssertMap{
+			"allowedhosts": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"next": {
+				Type:    "ptr",
+				Default: nil,
 			},
 		},
 	},
@@ -795,7 +836,7 @@ var _builtin_refs = map[string]Inst{
 				logi := srv.MustGet("logi")
 				service, ok := logi.Value.(tcp.ServiceHandler)
 				if !ok {
-					return nil, errors.New("ptr " + name + " is not a tcp.ServiceHandler")
+					return nil, errors.New("ptr " + _name + " is not a tcp.ServiceHandler " + fmt.Sprintf("%T %#v", logi.Value, logi.Value))
 				}
 				_bindings = append(_bindings, tcp.ServiceBinding{
 					Name:           _name,
@@ -1142,5 +1183,42 @@ var _builtin_refs = map[string]Inst{
 		serv.AllowDnsQuery = allowdnsquery
 
 		return serv, nil
+	},
+	"builtin::ipfilter": func(spec *ArgNode) (any, error) {
+		allowedcidrs := spec.MustGet("allowedcidrs").ToStringList()
+		blockedcidrs := spec.MustGet("blockedcidrs").ToStringList()
+		next := spec.MustGet("next")
+
+		var f = NewIPFilter(allowedcidrs, blockedcidrs)
+
+		if next != nil {
+			nextf, ok := next.Value.(tcp.ServiceHandler)
+			if !ok {
+				return nil, errors.New("ptr is not a http.HttpHandler")
+			}
+			f.next = nextf
+		}
+
+		log.Verboseln(fmt.Sprintf("new ip filter: allowedcidrs=%#v", allowedcidrs))
+
+		return f, nil
+	},
+	"builtin::hostfilter": func(spec *ArgNode) (any, error) {
+		allowedhosts := spec.MustGet("allowedhosts").ToStringList()
+		next := spec.MustGet("next")
+
+		var f = &HostFilter{AllowedHosts: allowedhosts}
+
+		if next != nil {
+			nextf, ok := next.Value.(tcp.ServiceHandler)
+			if !ok {
+				return nil, errors.New("ptr is not a http.HttpHandler")
+			}
+			f.next = nextf
+		}
+
+		log.Verboseln(fmt.Sprintf("new host filter: allowedhosts=%#v", allowedhosts))
+
+		return f, nil
 	},
 }

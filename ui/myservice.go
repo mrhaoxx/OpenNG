@@ -15,34 +15,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// var TcpController = tcp.NewTcpController()
-// var HttpMidware = http.NewHttpMidware([]string{"*"})
-
-// var HttpProxier = http.NewHTTPProxier([]string{"*"})
-
-// var TcpProxier = tcp.NewTcpProxier()
-
-// var TlsMgr = tls.NewTlsMgr()
-
-// var pba = auth.NewPBAuth()
-// var Auth = auth.NewAuthMgr([]auth.AuthHandle{pba}, utils.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
-
-// var Dns = dns.NewServer()
-
-// var Knock = auth.NewKnockMgr()
-
-// var builtinForwardProxiers = map[string]http.ServiceHandler{
-// 	"Auth":       pba.HandleProxy,
-// 	"StdProxier": http.StdForwardProxy,
-// }
-
-// var builtinHttpServices = map[string]http.Service{
-// 	"Proxier": HttpProxier,
-// 	"Auth":    Auth,
-// 	"Knock":   Knock,
-// 	"NgUI":    &UI{},
-// }
-
 type AcmeWebRoot struct {
 	AllowedHosts []string
 	WWWRoot      string
@@ -79,68 +51,107 @@ allowed:
 
 }
 
-type SniAndipFilter struct {
-	AllowedSNI []string
-	ipf        tcp.ServiceHandler
+type IpFilter struct {
+	allowedCIDR map[string]*net.IPNet
+	blockedCIDR map[string]*net.IPNet
+	next        tcp.ServiceHandler
 }
 
-func (s *SniAndipFilter) Handle(conn *tcp.Conn) tcp.SerRet {
-	_req, ok := conn.Load(tcp.KeyTlsSni)
-	if !ok {
-		return tcp.Close
+func (filter *IpFilter) Handle(c *tcp.Conn) tcp.SerRet {
+	// Check if the IP is allowed
+	host, _, err := net.SplitHostPort(c.Addr().String())
+	if err != nil {
+		panic(err)
 	}
-	sni, ok := _req.(string)
-	if !ok {
-		return tcp.Close
+
+	for _, v := range filter.blockedCIDR {
+		if v.Contains(net.ParseIP(host)) {
+			return tcp.Close
+		}
 	}
-	for _, h := range s.AllowedSNI {
-		if sni == h {
+
+	for _, v := range filter.allowedCIDR {
+		if v.Contains(net.ParseIP(host)) {
 			return tcp.Continue
 		}
 	}
-	return s.ipf.Handle(conn)
+
+	if filter.next != nil {
+		return filter.next.Handle(c)
+	}
+
+	return tcp.Close
 }
 
-type HostAndipFilter struct {
+func NewIPFilter(allowedCIDR []string, blockedCIDR []string) *IpFilter {
+	filter := &IpFilter{
+		allowedCIDR: make(map[string]*net.IPNet),
+		blockedCIDR: make(map[string]*net.IPNet),
+	}
+	for _, v := range allowedCIDR {
+		_, ipnet, err := net.ParseCIDR(v)
+		if err != nil {
+			panic(err)
+		}
+		filter.allowedCIDR[v] = ipnet
+	}
+
+	for _, v := range blockedCIDR {
+		_, ipnet, err := net.ParseCIDR(v)
+		if err != nil {
+			panic(err)
+		}
+		filter.blockedCIDR[v] = ipnet
+	}
+
+	return filter
+}
+
+type HostFilter struct {
 	AllowedHosts []string
-	ipf          tcp.ServiceHandler
+	next         tcp.ServiceHandler
 }
 
-func (s *HostAndipFilter) Handle(conn *tcp.Conn) tcp.SerRet {
-	_req, ok := conn.Load(tcp.KeyHTTPRequest)
-	if !ok {
-		return tcp.Close
-	}
+func (s *HostFilter) Handle(conn *tcp.Conn) tcp.SerRet {
 
-	req, ok := _req.(*stdhttp.Request)
+	switch conn.TopProtocol() {
+	case "HTTP1":
+		_req, ok := conn.Load(tcp.KeyHTTPRequest)
+		if !ok {
+			return tcp.Close
+		}
 
-	if !ok {
-		return tcp.Close
-	}
+		req, ok := _req.(*stdhttp.Request)
 
-	for _, h := range s.AllowedHosts {
-		if req.Host == h {
-			return tcp.Continue
+		if !ok {
+			return tcp.Close
+		}
+
+		for _, h := range s.AllowedHosts {
+			if req.Host == h {
+				return tcp.Continue
+			}
+		}
+	case "TLS":
+		_req, ok := conn.Load(tcp.KeyTlsSni)
+		if !ok {
+			return tcp.Close
+		}
+		sni, ok := _req.(string)
+		if !ok {
+			return tcp.Close
+		}
+		for _, h := range s.AllowedHosts {
+			if sni == h {
+				return tcp.Continue
+			}
 		}
 	}
-	return s.ipf.Handle(conn)
+	if s.next != nil {
+		return s.next.Handle(conn)
+	}
+	return tcp.Close
 }
-
-// var builtinTcpServices = map[string]tcp.ServiceHandler{
-// 	"tls":     TlsMgr,
-// 	"knock":   Knock,
-// 	"proxier": TcpProxier,
-// 	"pph":     tcp.NewTCPProxyProtocolHandler([]string{"127.0.0.1"}),
-// 	"rdtls":   http.Redirect2TLS,
-// 	"http":    HttpMidware,
-// 	"det": &tcp.Detect{Dets: []tcp.Detector{
-// 		tcp.DetectTLS,
-// 		tcp.DetectPROXYPROTOCOL,
-// 		tcp.DetectSSH,
-// 		tcp.DetectRDP,
-// 		tcp.DetectHTTP,
-// 	}},
-// }
 
 func LoadCfgV2(cfgs []byte) error {
 	var cfg any
