@@ -1,18 +1,20 @@
 package ui
 
 import (
-	"fmt"
+	"bufio"
 	"net"
 	stdhttp "net/http"
-	"os"
+	"reflect"
 	"strings"
+	"sync"
 	"time"
 
+	"github.com/mrhaoxx/OpenNG/auth"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
-
-	"gopkg.in/yaml.v3"
+	gossh "golang.org/x/crypto/ssh"
 )
 
 type AcmeWebRoot struct {
@@ -153,88 +155,111 @@ func (s *HostFilter) Handle(conn *tcp.Conn) tcp.SerRet {
 	return tcp.Close
 }
 
-func LoadCfgV2(cfgs []byte) error {
-	var cfg any
-	err := yaml.Unmarshal(cfgs, &cfg)
-	if err != nil {
-		return err
-	}
+type SSHKeyCache struct {
+	sshKeys []gossh.PublicKey
 
-	nodes, err := ParseFromAny(cfg)
-	if err != nil {
-		return err
-	}
-
-	err = Dedref(nodes)
-
-	if err != nil {
-		return err
-	}
-
-	err = nodes.Assert(_builtin_refs_assertions["_"])
-
-	if err != nil {
-		return err
-	}
-
-	err = GlobalCfg(nodes.MustGet("Config"))
-
-	if err != nil {
-		return err
-	}
-
-	space := Space{
-		Refs:     _builtin_refs,
-		Services: map[string]any{},
-	}
-
-	err = space.Apply(nodes)
-
-	return err
+	time.Time
 }
 
-func GlobalCfg(config *ArgNode) error {
+type GitlabEnhancedPolicydBackend struct {
+	auth.PolicyBackend
 
-	if logger, err := config.Get("Logger"); err == nil {
+	gitlabUrl     string
+	matchUsername utils.GroupRegexp
+	prefix        string
+	ttl           time.Duration
 
-		if tz := logger.MustGet("TimeZone").ToString(); tz != "Local" {
-			_tz, err := time.LoadLocation(tz)
+	cache     map[string]*SSHKeyCache
+	cachelock sync.RWMutex
+}
+
+func (g *GitlabEnhancedPolicydBackend) CheckPassword(username string, password string) bool {
+	if g.PolicyBackend == nil {
+		return false
+	}
+	return g.PolicyBackend.CheckPassword(username, password)
+}
+
+func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) bool {
+
+	rus, ok := strings.CutPrefix(ctx.User, g.prefix)
+
+	if !ok || !g.matchUsername.MatchString(ctx.User) {
+		if g.PolicyBackend == nil {
+			return false
+		}
+		return g.PolicyBackend.CheckSSHKey(ctx, key)
+	}
+
+	// gitlabUrl + username + .keys
+	// https://gitlab.com/username.keys
+
+	if strings.ContainsAny(ctx.User, "./+") {
+		return false
+	}
+
+	if !g.PolicyBackend.ExistsUser(ctx.User) {
+		return false
+	}
+
+	g.cachelock.RLock()
+	cache, ok := g.cache[ctx.User]
+	g.cachelock.RUnlock()
+
+	if !ok || cache.Time.Add(g.ttl).Before(time.Now()) {
+
+		url := g.gitlabUrl + rus + ".keys"
+
+		log.Verboseln(ok, cache, "gitlab >", url)
+
+		resp, err := stdhttp.Get(url)
+
+		if err != nil {
+			return false
+		}
+
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			return false
+		}
+
+		keys := []gossh.PublicKey{}
+
+		scanner := bufio.NewScanner(resp.Body)
+
+		for scanner.Scan() {
+			key, _, _, _, err := gossh.ParseAuthorizedKey(scanner.Bytes())
 			if err != nil {
-				return err
-			} else {
-				log.TZ = _tz
+				continue
 			}
-
-			fmt.Fprintln(os.Stderr, "timezone:", tz)
+			keys = append(keys, key)
 		}
 
-		if verb := logger.MustGet("Verbose").ToBool(); verb {
-			log.Verb = true
-			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
+		cache = &SSHKeyCache{
+			sshKeys: keys,
+			Time:    time.Now(),
 		}
 
-		if !logger.MustGet("EnableConsoleLogger").ToBool() {
-			log.Println("sys", "Disabling Console Logging")
-			log.Loggers = []log.Logger{}
-		}
+		g.cachelock.Lock()
+		g.cache[ctx.User] = cache
+		g.cachelock.Unlock()
+	}
 
-		if logger.MustGet("EnableSSELogger").ToBool() {
-			log.Loggers = append(log.Loggers, Sselogger)
-			log.Println("sys", "SSE Logger Registered")
-		}
-
-		if file, err := logger.Get("FileLogger"); err == nil {
-			f, _ := os.OpenFile(file.MustGet("Path").ToString(), os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
-			log.Loggers = append(log.Loggers, f)
-			log.Println("sys", "File Logger Registered", file.MustGet("Path").ToString())
-		}
-
-		if udp, err := logger.Get("UDPLogger"); err == nil {
-			log.Loggers = append(log.Loggers, NewUdpLogger(udp.MustGet("Addr").ToString()))
-			log.Println("sys", "UDP Logger Registered", udp.MustGet("Addr").ToString())
+	for _, k := range cache.sshKeys {
+		if k.Type() == key.Type() && reflect.DeepEqual(k.Marshal(), key.Marshal()) {
+			return true
 		}
 	}
-	return nil
+
+	return false
+}
+
+func (g *GitlabEnhancedPolicydBackend) AllowForwardProxy(username string) bool {
+	if g.PolicyBackend == nil {
+		return false
+	}
+	return g.PolicyBackend.AllowForwardProxy(username)
 }
 
 // func LoadCfg(cfgs []byte) error {

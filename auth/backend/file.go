@@ -88,3 +88,8 @@ func NewFileBackend() *fileBackend {
 		usrs: make(map[string]*user),
 	}
 }
+
+func (mgr *fileBackend) ExistsUser(username string) bool {
+	_, ok := mgr.usrs[username]
+	return ok
+}

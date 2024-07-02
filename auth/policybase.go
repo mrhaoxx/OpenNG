@@ -46,7 +46,7 @@ type policy struct {
 	users map[string]bool
 
 	hosts utils.GroupRegexp
-	hup   *utils.BufferedLookup
+	// hup   *utils.BufferedLookup
 
 	paths utils.GroupRegexp
 }
@@ -85,6 +85,7 @@ type PolicyBackend interface {
 	CheckPassword(username string, password string) bool
 	CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) bool
 	AllowForwardProxy(username string) bool
+	ExistsUser(username string) bool
 }
 
 type backendGroup []PolicyBackend
@@ -124,7 +125,7 @@ func NewPBAuth() *policyBaseAuth {
 	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) interface{} {
 		var r []*policy = nil
 		for _, p := range po.policies {
-			if p.hosts == nil || p.hosts.MatchString(s) {
+			if p.hosts != nil && p.hosts.MatchString(s) {
 				r = append(r, p)
 			}
 		}
@@ -424,16 +425,16 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		allowance: allow,
 		users:     map[string]bool{},
 		hosts:     nil,
-		hup:       nil,
-		paths:     nil,
+		// hup:       nil,
+		paths: nil,
 	}
 	for _, u := range users {
 		p.users[u] = true
 	}
 
-	p.hup = utils.NewBufferedLookup(func(s string) interface{} {
-		return p.hosts == nil || p.hosts.MatchString(s)
-	})
+	// p.hup = utils.NewBufferedLookup(func(s string) interface{} {
+	// 	return p.hosts == nil || p.hosts.MatchString(s)
+	// })
 
 	if len(hosts) != 0 {
 		p.hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))

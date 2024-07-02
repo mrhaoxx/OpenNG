@@ -261,7 +261,7 @@ func NewHttpMidware(sni []string) *Midware {
 	return hmw
 }
 
-func (ctl *Midware) ReportActiveRequests() map[uint64]interface{} {
+func (ctl *Midware) Report() map[uint64]interface{} {
 	ctl.muActiveRequest.RLock()
 	defer ctl.muActiveRequest.RUnlock()
 	ret := make(map[uint64]interface{})

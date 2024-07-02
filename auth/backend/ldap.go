@@ -183,3 +183,26 @@ func NewLDAPBackend(url, searchBase, bindDN, bindPW string) *ldapBackend {
 
 	return back
 }
+
+func (mgr *ldapBackend) ExistsUser(username string) bool {
+	for _, r := range username {
+		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
+			return false
+		}
+	}
+
+	conn := mgr.tryGetQueryConn()
+	defer mgr.ldapQueryConnPool.Put(conn)
+
+	searchRequest := ldap.NewSearchRequest(
+		mgr.searchBase,
+		ldap.ScopeWholeSubtree, ldap.NeverDerefAliases, 0, 0, false,
+		"(&(objectClass=posixAccount)(uid="+username+"))",
+		[]string{"dn"},
+		nil,
+	)
+	if result, err := conn.Search(searchRequest); err == nil {
+		return len(result.Entries) == 1
+	}
+	return false
+}

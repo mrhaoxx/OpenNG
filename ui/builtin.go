@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/auth"
@@ -450,7 +451,39 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-
+	"builtin::http::midware::addservice": {
+		Type: "map",
+		Sub: AssertMap{
+			"midware": {
+				Type:     "ptr",
+				Required: true,
+			},
+			"services": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"logi": {
+								Type:     "ptr",
+								Required: true,
+							},
+							"hosts": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 	"builtin::dns::server": {
 		Type: "map",
 		Sub: AssertMap{
@@ -548,10 +581,6 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-	"builtin::webui": {
-		Type: "ptr",
-	},
-
 	"builtin::ssh::midware": {
 		Type: "map",
 		Sub: AssertMap{
@@ -682,6 +711,46 @@ var _builtin_refs_assertions = map[string]Assert{
 			"next": {
 				Type:    "ptr",
 				Default: nil,
+			},
+		},
+	},
+	"builtin::gitlabauth": {
+		Type: "map",
+		Sub: AssertMap{
+			"gitlab_url": {
+				Type:     "string",
+				Required: true,
+			},
+			"cache_ttl": {
+				Type:    "string",
+				Default: "10s",
+			},
+			"matchusernames": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"prefix": {
+				Type:    "string",
+				Default: "",
+			},
+			"next": {
+				Type:    "ptr",
+				Default: nil,
+			},
+		},
+	},
+	"builtin::webui": {
+		Type: "map",
+		Sub: AssertMap{
+			"tcpcontroller": {
+				Type:     "ptr",
+				Required: true,
+			},
+			"httpmidware": {
+				Type:     "ptr",
+				Required: true,
 			},
 		},
 	},
@@ -1070,7 +1139,16 @@ var _builtin_refs = map[string]Inst{
 		return acmec, nil
 	},
 	"builtin::webui": func(spec *ArgNode) (any, error) {
-		panic("not implemented")
+		tcpcontroller, ok := spec.MustGet("tcpcontroller").Value.(Reporter)
+		if !ok {
+			return nil, errors.New("tcp controller ptr is not a Reporter")
+		}
+		httpmidware, ok := spec.MustGet("httpmidware").Value.(Reporter)
+		if !ok {
+			return nil, errors.New("http midware ptr is not a Reporter")
+		}
+
+		return &UI{tcpcontroller, httpmidware}, nil
 	},
 	"builtin::ssh::midware": func(spec *ArgNode) (any, error) {
 		services := spec.MustGet("services").ToList()
@@ -1220,5 +1298,73 @@ var _builtin_refs = map[string]Inst{
 		log.Verboseln(fmt.Sprintf("new host filter: allowedhosts=%#v", allowedhosts))
 
 		return f, nil
+	},
+	"builtin::gitlabauth": func(spec *ArgNode) (any, error) {
+		gitlaburl := spec.MustGet("gitlab_url").ToString()
+		cachettl := spec.MustGet("cache_ttl").ToString()
+		matchusernames := spec.MustGet("matchusernames").ToStringList()
+		prefix := spec.MustGet("prefix").ToString()
+		next := spec.MustGet("next")
+
+		ttl, err := time.ParseDuration(cachettl)
+		if err != nil {
+			return nil, err
+		}
+
+		var f = &GitlabEnhancedPolicydBackend{
+			gitlabUrl:     gitlaburl,
+			ttl:           ttl,
+			matchUsername: utils.MustCompileRegexp(matchusernames),
+			cache:         make(map[string]*SSHKeyCache),
+			prefix:        prefix,
+		}
+
+		if next != nil {
+			nextf, ok := next.Value.(auth.PolicyBackend)
+			if !ok {
+				return nil, errors.New("ptr is not a auth.PolicyBackend" + fmt.Sprintf("%T", next.Value))
+			}
+			f.PolicyBackend = nextf
+		}
+
+		log.Verboseln(fmt.Sprintf("new gitlab auth: gitlaburl=%#v cachettl=%v matchusernames=%#v next=%#v", gitlaburl, f.ttl.String(), f.matchUsername.String(), next))
+		return f, nil
+	},
+	"builtin::http::midware::addservice": func(spec *ArgNode) (any, error) {
+		midware, ok := spec.MustGet("midware").Value.(*http.Midware)
+		if !ok {
+			return nil, errors.New("ptr is not a http.Midware")
+		}
+
+		services := spec.MustGet("services").ToList()
+
+		for _, srv := range services {
+			name := srv.MustGet("name").ToString()
+			logi := srv.MustGet("logi")
+			_hosts := srv.MustGet("hosts").ToStringList()
+
+			service, ok := logi.Value.(http.Service)
+			if !ok {
+				return nil, errors.New("ptr " + name + " is not a http.Service")
+			}
+
+			var hosts utils.GroupRegexp
+			if len(_hosts) == 0 {
+				hosts = service.Hosts()
+			} else {
+				hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(_hosts))
+			}
+
+			midware.AddServices(&http.ServiceStruct{
+				Id:             name,
+				Hosts:          hosts,
+				ServiceHandler: service.HandleHTTP,
+			})
+
+			log.Verboseln(fmt.Sprintf("new http service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
+		}
+
+		return nil, nil
+
 	},
 }

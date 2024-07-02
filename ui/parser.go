@@ -55,6 +55,10 @@ func (node *ArgNode) Assert(assertions Assert) error {
 
 	switch assertions.Type {
 	case "map":
+		if node.Value == nil {
+			node.Value = map[string]*ArgNode{}
+		}
+
 		if subnodes, ok := node.Value.(map[string]*ArgNode); ok {
 			keys := map[string]struct{}{}
 			for k := range subnodes {
@@ -104,6 +108,12 @@ func (node *ArgNode) Assert(assertions Assert) error {
 		if !ok {
 			return fmt.Errorf("missing default assertion")
 		}
+
+		if node.Value == nil {
+			node.Value = []*ArgNode{}
+			return nil
+		}
+
 		realnodes, ok := node.Value.([]*ArgNode)
 		if !ok {
 			return fmt.Errorf("expected list, got %T", node.Value)

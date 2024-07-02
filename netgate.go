@@ -48,9 +48,11 @@ func main() {
 		return
 	}
 
+	ui.ConfigFile = *configfile
+
 	_start := time.Now()
 
-	if err := ui.LoadCfgV2(r); err != nil {
+	if err := ui.LoadCfg(r); err != nil {
 		log.Println(err)
 		os.Exit(-1)
 	}

@@ -136,7 +136,7 @@ func (ctl *controller) Bind(protocol string, svcs ...ServiceBinding) {
 	ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
 }
 
-func (ctl *controller) ReportActiveConnections() map[uint64]interface{} {
+func (ctl *controller) Report() map[uint64]interface{} {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	ret := make(map[uint64]interface{})
