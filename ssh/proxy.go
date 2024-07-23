@@ -5,6 +5,7 @@ import (
 	"io"
 	"net"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -120,6 +121,8 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		return
 	}
 
+	defer remote.Close()
+
 	go func() {
 		for nc := range chans {
 			chn := atomic.AddUint64(&ctx.chn, 1) - 1
@@ -131,7 +134,6 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
 			}()
 		}
-
 	}()
 
 	go func() {
@@ -148,8 +150,6 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 	}()
 
 	go func() {
-		defer ctx.sshconn.Close()
-
 		for req := range reqs {
 			switch req.Type {
 			case "hostkeys-00@openssh.com": // Unsupported OpenSSH extension
@@ -163,16 +163,17 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		}
 	}()
 
-	defer remote.Close()
+	go func() {
+		for req := range ctx.r {
+			_1, _2, _ := remote.SendRequest(req.Type, req.WantReply, req.Payload)
+			req.Reply(_1, _2)
 
-	for req := range ctx.r {
-		_1, _2, _ := remote.SendRequest(req.Type, req.WantReply, req.Payload)
-		req.Reply(_1, _2)
+			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				"c"+strconv.FormatUint(ctx.conn.Id, 10), ">", req.Type, hex.EncodeToString(req.Payload))
+		}
+	}()
 
-		log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-			"c"+strconv.FormatUint(ctx.conn.Id, 10), ">", req.Type, hex.EncodeToString(req.Payload))
-	}
-
+	ctx.sshconn.Wait()
 }
 func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
@@ -195,17 +196,30 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		panic("accept failed")
 	}
 
+	wg := sync.WaitGroup{}
+	wg.Add(4)
+
+	stdup := make(chan struct{})
+	stddown := make(chan struct{})
+
+	go io.Copy(c.Stderr(), _c.Stderr())
+
+	go io.Copy(_c.Stderr(), c.Stderr())
+
 	go func() {
 		io.Copy(_c, c)
 		_c.CloseWrite()
-	}()
 
-	go io.Copy(c.Stderr(), _c.Stderr())
-	go io.Copy(_c.Stderr(), c.Stderr())
+		close(stddown)
+		wg.Done()
+	}()
 
 	go func() {
 		io.Copy(c, _c)
 		c.CloseWrite()
+
+		close(stdup)
+		wg.Done()
 	}()
 
 	go func() {
@@ -213,15 +227,27 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 			_1, _ := _c.SendRequest(a.Type, a.WantReply, a.Payload)
 			a.Reply(_1, nil)
 			if a.Type == "exit-status" || a.Type == "exit-signal" {
+				<-stddown
 				_c.Close()
 			}
+			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
 		}
+		wg.Done()
 	}()
-	for a := range _r {
-		_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
-		a.Reply(_1, nil)
-		if a.Type == "exit-status" || a.Type == "exit-signal" {
-			c.Close()
+	go func() {
+		for a := range _r {
+			_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
+			a.Reply(_1, nil)
+			if a.Type == "exit-status" || a.Type == "exit-signal" {
+				<-stdup
+				c.Close()
+			}
+			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
 		}
-	}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }
