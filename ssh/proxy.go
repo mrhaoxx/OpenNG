@@ -173,7 +173,9 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		}
 	}()
 
-	ctx.sshconn.Wait()
+	log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+		"c"+strconv.FormatUint(ctx.conn.Id, 10), "-", ctx.sshconn.Wait())
+
 }
 func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
@@ -211,6 +213,7 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		_c.CloseWrite()
 
 		close(stddown)
+		// log.Println("<-stddown")
 		wg.Done()
 	}()
 
@@ -219,6 +222,7 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		c.CloseWrite()
 
 		close(stdup)
+		// log.Println("->stdup")
 		wg.Done()
 	}()
 
@@ -230,8 +234,8 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 				<-stddown
 				_c.Close()
 			}
-			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-			// 	"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
+			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
 		}
 		wg.Done()
 	}()
@@ -243,8 +247,8 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 				<-stdup
 				c.Close()
 			}
-			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-			// 	"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
+			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
 		}
 		wg.Done()
 	}()
