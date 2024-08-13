@@ -247,6 +247,14 @@ var _builtin_refs_assertions = map[string]Assert{
 					},
 				},
 			},
+			"timeout": {
+				Type:    "int",
+				Default: 0,
+			},
+			"timeoutprotocol": {
+				Type:    "string",
+				Default: "UNKNOWN",
+			},
 		},
 	},
 	"builtin::tcp::controller": {
@@ -879,6 +887,10 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::tcp::det": func(spec *ArgNode) (any, error) {
 		protocols := spec.MustGet("protocols").ToStringList()
+		timeout := spec.MustGet("timeout").ToInt()
+		_t := time.Duration(timeout)
+
+		timeoutprotocol := spec.MustGet("timeoutprotocol").ToString()
 
 		var dets []tcp.Detector
 		for _, p := range protocols {
@@ -898,9 +910,9 @@ var _builtin_refs = map[string]Inst{
 			}
 		}
 
-		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v", protocols))
+		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%d(%s) timeoutprotocol=%s", protocols, timeout, _t.String(), timeoutprotocol))
 
-		return &tcp.Detect{Dets: dets}, nil
+		return &tcp.Detect{Dets: dets, Timeout: _t, TimeoutProtocol: timeoutprotocol}, nil
 	},
 	"builtin::tcp::controller": func(spec *ArgNode) (any, error) {
 		services := spec.MustGet("services").ToMap()

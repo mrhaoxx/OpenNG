@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"time"
 
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
@@ -40,6 +41,9 @@ type Detector func(io.Reader, *Conn) string
 
 type Detect struct {
 	Dets []Detector
+
+	Timeout         time.Duration
+	TimeoutProtocol string
 }
 
 // var detectors = []detector{
@@ -65,9 +69,17 @@ func (det *Detect) Handle(c *Conn) SerRet {
 		Writer:  raw,
 		Rawconn: raw,
 	})
+	if det.Timeout > 0 {
+		raw.SetReadDeadline(time.Now().Add(det.Timeout))
+		defer raw.SetReadDeadline(time.Time{})
+	}
 	var proto string
-	for _, f := range det.Dets {
+	for i, f := range det.Dets {
 		if proto = f(buf, c); proto != "" {
+			break
+		}
+		if i == 0 && buf.buffer.Len() == 0 {
+			proto = det.TimeoutProtocol
 			break
 		}
 		buf.Reset(true)
