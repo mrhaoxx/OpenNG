@@ -13,6 +13,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/socks"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
@@ -569,7 +570,9 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-
+	"builtin::socks5::server": {
+		Type: "any",
+	},
 	"builtin::http::forwardproxier": {
 		Type: "null",
 	},
@@ -905,6 +908,8 @@ var _builtin_refs = map[string]Inst{
 				dets = append(dets, tcp.DetectRDP)
 			case "http":
 				dets = append(dets, tcp.DetectHTTP)
+			case "socks5":
+				dets = append(dets, tcp.DetectSOCKS5)
 			default:
 				return nil, errors.New("unknown protocol: " + p)
 			}
@@ -1398,5 +1403,22 @@ var _builtin_refs = map[string]Inst{
 
 		return nil, nil
 
+	},
+	"builtin::socks5::server": func(spec *ArgNode) (any, error) {
+		policyd := spec.Value
+		var p socks.Socks5AuthFn = nil
+		if policyd != nil {
+			__p, ok := policyd.(interface {
+				HandleSocks5(username string, password string, userAddr string) bool
+			})
+
+			if !ok {
+				return nil, errors.New("ptr is not a socks.Socks5AuthFn")
+			}
+
+			p = __p.HandleSocks5
+
+		}
+		return socks.NewSocks5Server(p), nil
 	},
 }

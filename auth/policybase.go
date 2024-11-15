@@ -223,6 +223,14 @@ func (l *policyBaseAuth) HandleHTTPForward(ctx *http.HttpCtx) http.Ret {
 
 }
 
+func (mgr *policyBaseAuth) HandleSocks5(username string, password string, userAddr string) bool {
+	allowed, i := mgr.backends.AllowForwardProxy(username)
+	if allowed && mgr.backends[i].CheckPassword(username, password) {
+		return true
+	}
+	return false
+}
+
 func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Ret {
 	token := ctx.RemoveCookie(verfiyCookieKey)
 

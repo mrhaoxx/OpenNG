@@ -148,3 +148,15 @@ func DetectPROXYPROTOCOL(r io.Reader, _ *Conn) string {
 	}
 	return ""
 }
+
+func DetectSOCKS5(r io.Reader, _ *Conn) string {
+	var buf = make([]byte, 2)
+	_, err := r.Read(buf)
+	if err != nil {
+		return ""
+	}
+	if reflect.DeepEqual(buf[:2], []byte("\u0005\u0001")) {
+		return "SOCKS5"
+	}
+	return ""
+}
