@@ -1405,10 +1405,10 @@ var _builtin_refs = map[string]Inst{
 
 	},
 	"builtin::socks5::server": func(spec *ArgNode) (any, error) {
-		policyd := spec.Value
+		policyd := spec
 		var p socks.Socks5AuthFn = nil
 		if policyd != nil {
-			__p, ok := policyd.(interface {
+			__p, ok := policyd.Value.(interface {
 				HandleSocks5(username string, password string, userAddr string) bool
 			})
 

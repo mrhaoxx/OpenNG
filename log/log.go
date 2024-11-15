@@ -10,13 +10,22 @@ type Logger interface {
 	Write([]byte) (int, error)
 }
 
-var Loggers = []Logger{os.Stdout}
+type loggers struct {
+	Loggers []Logger
+}
+
+func (l loggers) Errorf(format string, arg ...interface{}) {
+	println(Loggers, append(append([]any{"\033[90m[verb]"}, arg...), "\033[0m")...)
+
+}
+
+var Loggers = loggers{[]Logger{os.Stdout}}
 
 var TZ = time.Local
 
 var Verb = false
 
-func println(loggers []Logger, msgs ...any) {
+func println(loggers loggers, msgs ...any) {
 	var t = time.Now().In(TZ)
 	var buf []byte
 	year, month, day := t.Date()
@@ -36,7 +45,7 @@ func println(loggers []Logger, msgs ...any) {
 	itoa(&buf, t.Nanosecond()/1e3, 6)
 	buf = append(buf, ' ')
 
-	for _, logger := range loggers {
+	for _, logger := range loggers.Loggers {
 		logger.Write(fmt.Appendln(buf, msgs...))
 	}
 }

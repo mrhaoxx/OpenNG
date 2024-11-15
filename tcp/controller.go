@@ -77,7 +77,11 @@ _restart:
 
 		conn.AppendPath(v.Name + " ")
 
+		timing := time.Now()
+
 		ret = v.Handle(conn)
+
+		conn.AppendPath(time.Since(timing).Round(10*time.Microsecond).String() + " ")
 
 		switch ret {
 		case Close:

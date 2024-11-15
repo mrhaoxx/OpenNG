@@ -27,11 +27,11 @@ func (auth *socks5Auth) Valid(username string, password string, userAddr string)
 
 func NewSocks5Server(auther Socks5AuthFn) *socks5Server {
 	if auther == nil {
-		return &socks5Server{socks5.NewServer(), 0}
+		return &socks5Server{socks5.NewServer(socks5.WithLogger(log.Loggers)), 0}
 	} else {
 		return &socks5Server{socks5.NewServer(socks5.WithAuthMethods([]socks5.Authenticator{
 			socks5.UserPassAuthenticator{Credentials: &socks5Auth{auther}},
-		})), 0}
+		}), socks5.WithLogger(log.Loggers)), 0}
 	}
 }
 
