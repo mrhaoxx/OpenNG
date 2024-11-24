@@ -29,6 +29,8 @@ It currently supports linux, windows, macos
 	- compliant for most IPMI html5 consoles
 - HTTP Forward Proxy
 	- support http proxy basic auth
+- Socks5 Proxy
+  - support socks5 proxy
 - SSH Virtual Host
 	- high compatibility with all backend ssh features
 		- can use with vscode, etc.
@@ -42,6 +44,8 @@ It currently supports linux, windows, macos
 - Logging
 	- supports udp logging output
 		- with a analyzer, we can turn the log data structed to write to influxdb  
+- DNS Server
+
 
 ## Installation
 You can find the *(not that)latest* OpenNG release on the [release page](https://github.com/mrhaoxx/OpenNG/releases). But a release is not made so often. So I recommend you to **build it yourself**.

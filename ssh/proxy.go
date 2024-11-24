@@ -114,10 +114,10 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 	remote, chans, reqs, err := ssh.NewClientConn(remote_conn, h.Addr, &cfg)
 
 	if err != nil {
-		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n" +
-			"* If this is an authentication issue, please add one of these public keys\r\n" +
-			p.keyBanner +
-			"* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
+		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n")
+		// "* If this is an authentication issue, please add one of these public keys\r\n" +
+		// p.keyBanner +
+		// "* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
 		return
 	}
 
