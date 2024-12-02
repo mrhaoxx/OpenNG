@@ -1,5 +1,5 @@
 <h1 align="center">
-  <img src="./res/NetGATE.svg" alt="Clash" width="200">
+  <img src="./ui/NetGATE.svg" alt="OpenNG" width="200">
   <br>OpenNG<br>
 </h1>
 
