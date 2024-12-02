@@ -5,6 +5,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type TopLevelConfig struct {
@@ -72,10 +73,12 @@ func (node *ArgNode) Assert(assertions Assert) error {
 						return fmt.Errorf("missing required key: %s", strconv.Quote(k))
 					} else {
 						if v.Default != nil {
-							subnodes[k] = &ArgNode{
+							node := &ArgNode{
 								Type:  v.Type,
 								Value: v.Default,
 							}
+							node.Assert(v)
+							subnodes[k] = node
 						} else {
 							continue
 						}
@@ -280,6 +283,22 @@ func (node *ArgNode) ToMap() map[string]*ArgNode {
 		return nil
 	}
 	return node.Value.(map[string]*ArgNode)
+}
+
+func (node *ArgNode) ToDuration() time.Duration {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "duration" {
+		return 0
+	}
+
+	dur, err := time.ParseDuration(node.Value.(string))
+	if err != nil {
+		panic(err)
+	}
+
+	return dur
 }
 
 func (node *ArgNode) Get(path string) (*ArgNode, error) {

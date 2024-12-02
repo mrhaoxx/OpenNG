@@ -54,12 +54,25 @@ func Println(msgs ...any) {
 	println(Loggers, msgs...)
 }
 
+func Printf(format string, arg ...interface{}) {
+	println(Loggers, fmt.Sprintf(format, arg...))
+}
+
+func Errorf(format string, arg ...interface{}) {
+	println(Loggers, append(append([]any{"\033[31m[error]"}, arg...), "\033[0m")...)
+}
+
 func Verboseln(msgs ...any) {
 	if Verb {
 		println(Loggers, append(append([]any{"\033[90m[verb]"}, msgs...), "\033[0m")...)
 	}
 }
 
+func Verbosef(format string, msgs ...any) {
+	if Verb {
+		println(Loggers, append(append([]any{"\033[90m[verb]"}, fmt.Sprintf(format, msgs...)), "\033[0m")...)
+	}
+}
 func itoa(buf *[]byte, i int, wid int) {
 	// Assemble decimal in reverse order.
 	var b [20]byte

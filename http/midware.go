@@ -13,7 +13,6 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
-	"github.com/mrhaoxx/OpenNG/res"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
@@ -71,13 +70,8 @@ func (mid *Midware) AddServices(svc ...*ServiceStruct) {
 
 // AddCgis adds a list of Cgi to the midware.
 // The CgiPaths is called immediately in this function to get the allowed paths of the Cgi.
-func (mid *Midware) AddCgis(svcs ...Cgi) {
-	for _, svc := range svcs {
-		mid.currentCgi = append(mid.currentCgi, &CgiStruct{
-			CgiHandler: svc.HandleHTTPCgi,
-			CgiPaths:   svc.CgiPaths(),
-		})
-	}
+func (mid *Midware) AddCgis(svcs ...*CgiStruct) {
+	mid.currentCgi = append(mid.currentCgi, svcs...)
 	mid.bufferedLookupForCgi.Refresh()
 }
 
@@ -216,13 +210,7 @@ func NewHttpMidware(sni []string) *Midware {
 		},
 		CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
 	},
-		{
-			CgiHandler: func(ctx *HttpCtx, path string) Ret {
-				res.WriteLogo(ctx.Resp)
-				return RequestEnd
-			},
-			CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
-		}}
+	}
 
 	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) interface{} {
 		ret := make([]*ServiceStruct, 0)

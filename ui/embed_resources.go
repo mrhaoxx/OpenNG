@@ -1,4 +1,4 @@
-package res
+package ui
 
 import (
 	_ "embed"

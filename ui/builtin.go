@@ -13,11 +13,11 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
-	"github.com/mrhaoxx/OpenNG/socks"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
 	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/wireguard"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -570,9 +570,9 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-	"builtin::socks5::server": {
-		Type: "any",
-	},
+	// "builtin::socks5::server": {
+	// 	Type: "any",
+	// },
 	"builtin::http::forwardproxier": {
 		Type: "null",
 	},
@@ -771,6 +771,96 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::wireguard::server": {
+		Type: "map",
+		Sub: AssertMap{
+			"ListenPort": {
+				Type:     "int",
+				Required: true,
+			},
+			"PrivateKey": {
+				Type:     "string",
+				Required: true,
+			},
+			"Address": {
+				Type:     "string",
+				Required: true,
+			},
+			"MTU": {
+				Type:    "int",
+				Default: 1420,
+			},
+			"Forwarding": {
+				Type:    "map",
+				Default: map[string]*ArgNode{},
+				Sub: AssertMap{
+					"EnableTCP": {
+						Type:    "bool",
+						Default: true,
+					},
+					"EnableUDP": {
+						Type:    "bool",
+						Default: true,
+					},
+					"TCP": {
+						Type:    "map",
+						Default: map[string]*ArgNode{},
+						Sub: AssertMap{
+							"CatchTimeout": {
+								Type:    "duration",
+								Default: "1s",
+							},
+							"ConnTimeout": {
+								Type:    "duration",
+								Default: "3s",
+							},
+							"KeepaliveIdle": {
+								Type:    "duration",
+								Default: "10s",
+							},
+							"KeepaliveInterval": {
+								Type:    "duration",
+								Default: "10s",
+							},
+							"KeepaliveCount": {
+								Type:    "int",
+								Default: 3,
+							},
+						},
+					},
+				},
+			},
+		},
+	},
+	"builtin::wireguard::addpeers": {
+		Type: "map",
+		Sub: AssertMap{
+			"server": {
+				Type:     "ptr",
+				Required: true,
+			},
+			"Peers": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {
+						Type: "map",
+						Sub: AssertMap{
+							"PublicKey": {
+								Type:     "string",
+								Required: true,
+							},
+							"AllowedIPs": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 var _builtin_refs = map[string]Inst{
@@ -823,6 +913,14 @@ var _builtin_refs = map[string]Inst{
 
 		var midware = http.NewHttpMidware([]string{"*"})
 
+		midware.AddCgis(&http.CgiStruct{
+			CgiHandler: func(ctx *http.HttpCtx, path string) http.Ret {
+				WriteLogo(ctx.Resp)
+				return http.RequestEnd
+			},
+			CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
+		})
+
 		for _, srv := range services {
 			name := srv.MustGet("name").ToString()
 			logi := srv.MustGet("logi")
@@ -857,7 +955,10 @@ var _builtin_refs = map[string]Inst{
 				return nil, errors.New("ptr is not a http.Cgi")
 			}
 
-			midware.AddCgis(service)
+			midware.AddCgis(&http.CgiStruct{
+				CgiHandler: service.HandleHTTPCgi,
+				CgiPaths:   service.CgiPaths(),
+			})
 			log.Verboseln(fmt.Sprintf("new http cgi: logi=%T", logi.Value))
 		}
 
@@ -1404,21 +1505,73 @@ var _builtin_refs = map[string]Inst{
 		return nil, nil
 
 	},
-	"builtin::socks5::server": func(spec *ArgNode) (any, error) {
-		policyd := spec
-		var p socks.Socks5AuthFn = nil
-		if policyd != nil {
-			__p, ok := policyd.Value.(interface {
-				HandleSocks5(username string, password string, userAddr string) bool
-			})
+	// "builtin::socks5::server": func(spec *ArgNode) (any, error) {
+	// 	policyd := spec
+	// 	var p socks.Socks5AuthFn = nil
+	// 	if policyd != nil {
+	// 		__p, ok := policyd.Value.(interface {
+	// 			HandleSocks5(username string, password string, userAddr string) bool
+	// 		})
 
-			if !ok {
-				return nil, errors.New("ptr is not a socks.Socks5AuthFn")
-			}
+	// 		if !ok {
+	// 			return nil, errors.New("ptr is not a socks.Socks5AuthFn")
+	// 		}
 
-			p = __p.HandleSocks5
+	// 		p = __p.HandleSocks5
 
+	// 	}
+	// 	return socks.NewSocks5Server(p), nil
+	// },
+	"builtin::wireguard::server": func(spec *ArgNode) (any, error) {
+		listenport := spec.MustGet("ListenPort").ToInt()
+		privatekey := spec.MustGet("PrivateKey").ToString()
+		address := spec.MustGet("Address").ToString()
+		mtu := spec.MustGet("MTU").ToInt()
+
+		forwarding := spec.MustGet("Forwarding")
+		enabletcp := forwarding.MustGet("EnableTCP").ToBool()
+		enableudp := forwarding.MustGet("EnableUDP").ToBool()
+		tcp := forwarding.MustGet("TCP")
+		catchtimeout := tcp.MustGet("CatchTimeout").ToDuration()
+		conntimeout := tcp.MustGet("ConnTimeout").ToDuration()
+		keepaliveidle := tcp.MustGet("KeepaliveIdle").ToDuration()
+		keepaliveinterval := tcp.MustGet("KeepaliveInterval").ToDuration()
+		keepalivecount := tcp.MustGet("KeepaliveCount").ToInt()
+
+		cfg := &wireguard.WireGuardConfig{
+			ListenPort: listenport,
+			PrivateKey: privatekey,
+			Address:    address,
+			MTU:        mtu,
+
+			EnableTCP: enabletcp,
+			EnableUDP: enableudp,
+
+			TcpCatchTimeout:      catchtimeout,
+			TcpConnTimeout:       conntimeout,
+			TcpKeepaliveIdle:     keepaliveidle,
+			TcpKeepaliveInterval: keepaliveinterval,
+			TcpKeepAliveCount:    keepalivecount,
 		}
-		return socks.NewSocks5Server(p), nil
+
+		return wireguard.NewWireGuardServer(cfg)
+
+	},
+
+	"builtin::wireguard::addpeers": func(spec *ArgNode) (any, error) {
+		peers := spec.MustGet("Peers").ToList()
+		server := spec.MustGet("server").Value.(*wireguard.WireGuardServer)
+
+		for _, peer := range peers {
+			publickey := peer.MustGet("PublicKey").ToString()
+			allowedips := peer.MustGet("AllowedIPs").ToStringList()
+
+			err := server.AddPeer(publickey, allowedips)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return nil, nil
 	},
 }
