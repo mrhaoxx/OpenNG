@@ -59,7 +59,7 @@ type Config struct {
 // TODO: Clean this up. Can't use UDPForwarder because it doesn't offer a way to return false, which is required to send Unreachables.
 func Handler(c Config) func(stack.TransportEndpointID, stack.PacketBufferPtr) bool {
 	return func(teid stack.TransportEndpointID, pkb stack.PacketBufferPtr) bool {
-		log.Printf("wg %s UDP -> %s", net.JoinHostPort(teid.RemoteAddress.String(), fmt.Sprint(teid.RemotePort)), net.JoinHostPort(teid.LocalAddress.String(), fmt.Sprint(teid.LocalPort)))
+		// log.Printf("wg %s UDP -> %s", net.JoinHostPort(teid.RemoteAddress.String(), fmt.Sprint(teid.RemotePort)), net.JoinHostPort(teid.LocalAddress.String(), fmt.Sprint(teid.LocalPort)))
 
 		packetClone := pkb.Clone()
 		go func() {
