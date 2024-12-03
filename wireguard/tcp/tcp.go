@@ -57,6 +57,7 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 			req.Complete(false)
 			return
 		}
+
 		defer func() {
 			err := c.Tnet.RemoveAddress(addr, c.Tnet.Stack(), c.StackLock)
 			if err != nil {
@@ -68,11 +69,13 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		now = time.Now()
 
 		// Address is added, now test if remote endpoint is available.
-		dstConn, caughtChan, rst := checkDst(&c, s)
+		dstConn, rst := checkDst(&c, s)
 		if dstConn == nil {
 			req.Complete(rst)
 			return
 		}
+
+		defer dstConn.Close()
 
 		path += fmt.Sprintf(" remote %s", time.Since(now))
 		now = time.Now()
@@ -84,11 +87,10 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 			log.Verbosef("[wireguard] failed to create endpoint: %v", err)
 			return
 		}
+		defer srcConn.Close()
 
-		// Tell checker that this connection was caught, timer can shutdown.
-		caughtChan <- true
-
-		utils.ConnSync(dstConn, srcConn)
+		// utils.ConnSync(dstConn, srcConn)
+		utils.ConnSync(srcConn, dstConn)
 
 		path += fmt.Sprintf(" accept %s", time.Since(now))
 
@@ -100,7 +102,7 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 // Returns the connection on success,
 // a channel for the caller to populate when the connection is used,
 // and whether or not to send RST to source.
-func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, chan bool, bool) {
+func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 	c, err := net.DialTimeout("tcp", net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), config.ConnTimeout)
 
 	if err != nil {
@@ -108,31 +110,32 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, chan bool,
 		if oerr, ok := err.(*net.OpError); ok {
 			if syserr, ok := oerr.Err.(*os.SyscallError); ok {
 				if syserr.Err == syscall.ECONNREFUSED {
-					return nil, nil, true
+					return nil, true
 				}
 			}
 		}
 
 		log.Verbosef("[wireguard] failed to connect to %s: %v", net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), err)
-		return nil, nil, true
+		return nil, true
 	}
 
 	// Start "catch" timer to make sure connection is actually used.
-	caughtChan := make(chan bool)
-	go func() {
-		select {
-		case <-time.After(config.CatchTimeout):
-			c.Close()
-		case <-caughtChan:
-		}
-	}()
+	// caughtChan := make(chan bool)
+	// go func() {
+	// 	select {
+	// 	case <-time.After(config.CatchTimeout):
+	// 		c.Close()
+	// 	case <-caughtChan:
+	// 	}
+	// }()
 
-	return c, caughtChan, false
+	// return c, caughtChan, false
+	return c, false
 }
 
 // accept converts a forwarder request to an endpoint, sets sockopts, then converts to conn.
 // "Completes" forwarding request without RST.
-func accept(c *Config, req *tcp.ForwarderRequest) (net.Conn, error) {
+func accept(c *Config, req *tcp.ForwarderRequest) (*gonet.TCPConn, error) {
 	// We want to accept this flow, setup endpoint to complete handshake.
 	var wq waiter.Queue
 	ep, err := req.CreateEndpoint(&wq)

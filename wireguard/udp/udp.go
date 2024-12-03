@@ -158,8 +158,7 @@ func newPacket(packet stack.PacketBufferPtr, s *stack.Stack) {
 		port = 0
 	}
 
-	log.Verbosef("[wireguard] new UDP connection from %s to %s on port %d", source.String(), dest.String(), port)
-
+	log.Printf("wg %s UDP -> %s", source.String(), dest.String())
 	// New packet channel and dialer need to be created.
 	pktChan = make(chan stack.PacketBufferPtr, 1)
 	connMapWrite(conn, pktChan)
