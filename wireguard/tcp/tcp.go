@@ -45,7 +45,9 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 	return func(req *tcp.ForwarderRequest) {
 		// Received TCP flow, add address so we can work with it.
 		s := req.ID()
-		log.Printf("wg %s TCP -> %s", net.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
+
+		now := time.Now()
+		path := fmt.Sprintf("wg %s TCP -> %s", net.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
 		// Add address to stack.
 		addr, _ := netip.AddrFromSlice(s.LocalAddress.AsSlice())
@@ -58,9 +60,12 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		defer func() {
 			err := c.Tnet.RemoveAddress(addr, c.Tnet.Stack(), c.StackLock)
 			if err != nil {
-				log.Println("failed to remove address: ", err)
+				log.Verbosef("[wireguard] failed to remove address: %v", err)
 			}
 		}()
+
+		path += fmt.Sprintf(" prep %s", time.Since(now))
+		now = time.Now()
 
 		// Address is added, now test if remote endpoint is available.
 		dstConn, caughtChan, rst := checkDst(&c, s)
@@ -69,18 +74,25 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 			return
 		}
 
+		path += fmt.Sprintf(" remote %s", time.Since(now))
+		now = time.Now()
+
 		// Accept conn.
 		srcConn, err := accept(&c, req)
 		if err != nil {
 			dstConn.Close()
-			log.Println("failed to create endpoint:", err)
+			log.Verbosef("[wireguard] failed to create endpoint: %v", err)
 			return
 		}
 
 		// Tell checker that this connection was caught, timer can shutdown.
 		caughtChan <- true
 
-		utils.ConnSync(srcConn, dstConn)
+		utils.ConnSync(dstConn, srcConn)
+
+		path += fmt.Sprintf(" accept %s", time.Since(now))
+
+		log.Println(path)
 	}
 }
 
@@ -101,8 +113,8 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, chan bool,
 			}
 		}
 
-		// Different error, don't send reset.
-		return nil, nil, false
+		log.Verbosef("[wireguard] failed to connect to %s: %v", net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), err)
+		return nil, nil, true
 	}
 
 	// Start "catch" timer to make sure connection is actually used.

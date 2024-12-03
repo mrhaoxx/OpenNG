@@ -31,7 +31,7 @@ func ConnSync(conn net.Conn, oconn net.Conn) {
 	case <-c1:
 	case <-c2:
 	}
-	_ = oconn.Close()
+	oconn.Close()
 	//log.Println("[ConnSync]", (*conn).RemoteAddr(), " !!! ", oconn.RemoteAddr())
 }
 

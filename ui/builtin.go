@@ -808,7 +808,7 @@ var _builtin_refs_assertions = map[string]Assert{
 						Sub: AssertMap{
 							"CatchTimeout": {
 								Type:    "duration",
-								Default: "1s",
+								Default: "600ms",
 							},
 							"ConnTimeout": {
 								Type:    "duration",
@@ -816,11 +816,11 @@ var _builtin_refs_assertions = map[string]Assert{
 							},
 							"KeepaliveIdle": {
 								Type:    "duration",
-								Default: "10s",
+								Default: "60s",
 							},
 							"KeepaliveInterval": {
 								Type:    "duration",
-								Default: "10s",
+								Default: "30s",
 							},
 							"KeepaliveCount": {
 								Type:    "int",
