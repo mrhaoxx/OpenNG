@@ -111,6 +111,8 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		return
 	}
 
+	remote_conn.(*net.TCPConn).SetKeepAlive(true)
+
 	remote, chans, reqs, err := ssh.NewClientConn(remote_conn, h.Addr, &cfg)
 
 	if err != nil {
@@ -199,7 +201,7 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 	}
 
 	wg := sync.WaitGroup{}
-	wg.Add(4)
+	wg.Add(2)
 
 	stdup := make(chan struct{})
 	stddown := make(chan struct{})
@@ -237,7 +239,7 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
 				"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
 		}
-		wg.Done()
+		_c.Close()
 	}()
 	go func() {
 		for a := range _r {
@@ -250,7 +252,7 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
 				"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
 		}
-		wg.Done()
+		c.Close()
 	}()
 
 	wg.Wait()
