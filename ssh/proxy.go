@@ -232,26 +232,20 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		for a := range r {
 			_1, _ := _c.SendRequest(a.Type, a.WantReply, a.Payload)
 			a.Reply(_1, nil)
-			if a.Type == "exit-status" || a.Type == "exit-signal" {
-				<-stddown
-				_c.Close()
-			}
 			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
 				"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
 		}
+		<-stddown
 		_c.Close()
 	}()
 	go func() {
 		for a := range _r {
 			_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
 			a.Reply(_1, nil)
-			if a.Type == "exit-status" || a.Type == "exit-signal" {
-				<-stdup
-				c.Close()
-			}
 			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
 				"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
 		}
+		<-stdup
 		c.Close()
 	}()
 
