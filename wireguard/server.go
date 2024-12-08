@@ -3,7 +3,6 @@ package wireguard
 import (
 	"net/netip"
 	"strconv"
-	"strings"
 	"sync"
 	"time"
 
@@ -133,9 +132,13 @@ func (wg *WireGuardServer) AddPeer(PublicKey string, AllowedIPs []string) error 
 		return err
 	}
 
-	allowedips := strings.Join(AllowedIPs, ",")
+	setStr := "public_key=" + publickey + "\n"
 
-	err = wg.wgDevice.IpcSet("public_key=" + publickey + "\nallowed_ip=" + allowedips)
+	for _, ip := range AllowedIPs {
+		setStr += "allowed_ip=" + ip + "\n"
+	}
+
+	err = wg.wgDevice.IpcSet(setStr)
 
 	if err != nil {
 		return err
