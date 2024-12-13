@@ -26,6 +26,8 @@ type Assert struct {
 	Sub      AssertMap
 
 	Default any
+
+	Desc string
 }
 
 func (node *ArgNode) Assert(assertions Assert) error {

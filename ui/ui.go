@@ -101,7 +101,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		ctx.Resp.Write(curcfg)
-
+	case "/api/v1/cfg/scheme":
+		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		ctx.Resp.Write(GenerateJsonScheme())
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)
 		hashed, _ := utils.HashPassword(string(b))

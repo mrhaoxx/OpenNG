@@ -26,6 +26,7 @@ var _builtin_refs_assertions = map[string]Assert{
 		Type: "map",
 		Sub: AssertMap{
 			"Services": {
+				Desc: "service functions which will be called at startup",
 				Type: "list",
 				Sub: AssertMap{
 					"_": {
@@ -39,29 +40,35 @@ var _builtin_refs_assertions = map[string]Assert{
 				},
 			},
 			"version": {
+				Desc:     "config version",
 				Type:     "int",
 				Required: true,
 				Default:  5,
 			},
 			"Config": {
+				Desc: "global configurations",
 				Type: "map",
 				Sub: AssertMap{
 					"Logger": {
 						Type: "map",
 						Sub: AssertMap{
 							"TimeZone": {
+								Desc:    "time zone for logger",
 								Type:    "string",
 								Default: "Local",
 							},
 							"Verbose": {
+								Desc:    "verbose level",
 								Type:    "bool",
 								Default: false,
 							},
 							"EnableSSELogger": {
+								Desc:    "enable server sent event logger for webui",
 								Type:    "bool",
 								Default: false,
 							},
 							"EnableConsoleLogger": {
+								Desc:    "enable console logger",
 								Type:    "bool",
 								Default: true,
 							},
