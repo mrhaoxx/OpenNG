@@ -1,7 +1,7 @@
 package ui
 
 import (
-	_ "embed"
+	"embed"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,26 +19,14 @@ import (
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
-//go:embed html/ace.js
-var acejs string
-
-//go:embed html/yaml.js
-var yamljs string
-
-//go:embed html/index.html
-var html_index string
+//go:embed html/dist
+var index embed.FS
 
 //go:embed html/connections.html
 var html_connection string
 
 //go:embed html/requests.html
 var html_requests string
-
-//go:embed html/config.html
-var html_config string
-
-//go:embed html/cards.js
-var js_cards string
 
 type Reporter interface {
 	Report() map[uint64]interface{}
@@ -56,26 +44,10 @@ func (*UI) Hosts() utils.GroupRegexp {
 }
 func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	switch ctx.Req.URL.Path {
-	case "/ace.js":
-		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
-		ctx.Resp.Header().Add("Cache-Control", "public")
-		ctx.WriteString(acejs)
-	case "/yaml.js":
-		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
-		ctx.Resp.Header().Add("Cache-Control", "public")
-		ctx.WriteString(yamljs)
-	case "/cards.js":
-		ctx.Resp.Header().Add("Content-Type", "text/javascript; charset=utf-8")
-		// ctx.Resp.Header().Add("Cache-Control", "public")
-		bytes, _ := os.ReadFile("ui/html/cards.js")
-		ctx.Resp.Write(bytes)
+
 	case "/":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		ctx.WriteString(html_index)
-	case "/config":
-		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		bytes, _ := os.ReadFile("ui/html/config.html")
-		ctx.Resp.Write(bytes)
+		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/index.html")
 	case "/connections":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		ctx.WriteString(html_connection)
@@ -86,29 +58,37 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
 		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
-	case "/cfg/apply":
+
+	case "/api/v1/cfg/apply":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		LoadCfg(b)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
-	case "/cfg/save":
+	case "/api/v1/cfg/save":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		os.WriteFile(ConfigFile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
-
-	case "/cfg/get":
+	case "/api/v1/cfg/get":
+		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		b, _ := os.ReadFile(ConfigFile)
+		ctx.Resp.Write(b)
+	case "/api/v1/cfg/getcur":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		ctx.Resp.Write(curcfg)
-	case "/api/v1/cfg/scheme":
+
+	case "/api/v1/cfg/schema":
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		ctx.Resp.Write(GenerateJsonScheme())
+		ctx.Resp.Write(GenerateJsonSchema())
+
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)
 		hashed, _ := utils.HashPassword(string(b))
 		ctx.Resp.Write([]byte(hashed))
+
 	case "/sys":
 		var m runtime.MemStats
 		runtime.ReadMemStats(&m)
@@ -120,6 +100,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			"cpus: ", runtime.NumCPU(), "\n",
 			"ccalls: ", runtime.NumCgoCall(), "\n",
 		))
+
 	case "/shutdown":
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 		go func() {
@@ -127,8 +108,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			time.Sleep(1 * time.Second)
 			os.Exit(0)
 		}()
+
 	case "/204":
 		ctx.Resp.WriteHeader(204)
+
 	case "/api/v1/tcp/connections": //GET json output
 		if ctx.Req.Method == "GET" {
 			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
@@ -144,27 +127,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		} else {
 			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
-	// case "/api/v1/tcp/connection/kill": //POST FORM: cid uint64 (ConnectionID)
-	// 	if ctx.Req.Method == "POST" {
-	// 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-	// 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 
-	// 		id, err := strconv.ParseUint(ctx.Req.PostFormValue("cid"), 10, 64)
-	// 		if err != nil {
-	// 			ctx.Resp.WriteHeader(http.StatusBadRequest)
-	// 			ctx.Resp.Write([]byte(err.Error()))
-	// 		} else {
-	// 			err = u.TcpController.KillConnection(id)
-	// 			if err != nil {
-	// 				ctx.Resp.WriteHeader(http.StatusBadRequest)
-	// 				ctx.Resp.Write([]byte(err.Error()))
-	// 			} else {
-	// 				ctx.Resp.WriteHeader(http.StatusOK)
-	// 			}
-	// 		}
-	// 	} else {
-	// 		ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-	// 	}
 	case "/api/v1/http/requests": //GET json output
 		if ctx.Req.Method == "GET" {
 			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
@@ -180,78 +143,12 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		} else {
 			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
 		}
-	// case "/api/v1/http/request/kill":
-	// 	if ctx.Req.Method == "POST" {
-	// 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-	// 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 
-	// 		id, err := strconv.ParseUint(ctx.Req.PostFormValue("rid"), 10, 64)
-	// 		if err != nil {
-	// 			ctx.Resp.WriteHeader(http.StatusBadRequest)
-	// 			ctx.Resp.Write([]byte(err.Error()))
-	// 		} else {
-	// 			err = HttpMidware.KillRequest(id)
-	// 			if err != nil {
-	// 				ctx.Resp.WriteHeader(http.StatusBadRequest)
-	// 				ctx.Resp.Write([]byte(err.Error()))
-	// 			} else {
-	// 				ctx.Resp.WriteHeader(http.StatusOK)
-	// 			}
-	// 		}
-	// 	} else {
-	// 		ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-	// 	}
-	// 	// case "/api/v1/auth/sessions":
-	// 	// 	if ctx.Req.Method == "GET" {
-	// 	// 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-	// 	// 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-	// 	// 		res := Auth.ReportActiveSessions()
-	// 	// 		byt, err := json.Marshal(res)
-	// 	// 		if err != nil {
-	// 	// 			ctx.Resp.WriteHeader(http.StatusInternalServerError)
-	// 	// 			ctx.Resp.Write([]byte(err.Error()))
-	// 	// 		} else {
-	// 	// 			ctx.Resp.Write(byt)
-	// 	// 		}
-	// 	// 	} else {
-	// 	// 		ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-	// 	// 	}
-	// 	// case "/api/v1/auth/users":
-	// 	// 	if ctx.Req.Method == "GET" {
-	// 	// 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-	// 	// 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-	// 	// 		res := Auth.ReportUsers()
-	// 	// 		byt, err := json.Marshal(res)
-	// 	// 		if err != nil {
-	// 	// 			ctx.Resp.WriteHeader(http.StatusInternalServerError)
-	// 	// 			ctx.Resp.Write([]byte(err.Error()))
-	// 	// 		} else {
-	// 	// 			ctx.Resp.Write(byt)
-	// 	// 		}
-	// 	// 	} else {
-	// 	// 		ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-	// 	// 	}
-	// 	// case "/api/v1/auth/policies":
-	// 	// 	if ctx.Req.Method == "GET" {
-	// 	// 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-	// 	// 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-	// 	// 		res := Auth.ReportPolicies()
-	// 	// 		byt, err := json.Marshal(res)
-	// 	// 		if err != nil {
-	// 	// 			ctx.Resp.WriteHeader(http.StatusInternalServerError)
-	// 	// 			ctx.Resp.Write([]byte(err.Error()))
-	// 	// 		} else {
-	// 	// 			ctx.Resp.Write(byt)
-	// 	// 		}
-	// 	// 	} else {
-	// 	// 		ctx.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-	// 	// 	}
 	default:
 		if strings.HasPrefix(ctx.Req.URL.Path, "/debug/pprof") {
 			stdhttp.DefaultServeMux.ServeHTTP(ctx.Resp, ctx.Req)
-
 		} else {
-			ctx.Resp.ErrorPage(http.StatusNotFound, "Not Found")
+			stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist"+ctx.Req.URL.Path)
 		}
 	}
 	return http.RequestEnd

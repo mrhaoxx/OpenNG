@@ -84,7 +84,7 @@ func (m Assert) ToScheme() any {
 	return map[string]any{}
 }
 
-func GenerateJsonScheme() []byte {
+func GenerateJsonSchema() []byte {
 
 	root := _builtin_refs_assertions["_"].ToScheme().(map[string]any)
 
