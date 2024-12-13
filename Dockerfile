@@ -1,8 +1,15 @@
+FROM node:latest AS web
+
+RUN git clone https://github.com/mrhaoxx/netgateui
+
+RUN cd netgateui && npm install && npm run build
+
 FROM golang:bookworm AS build
 
 RUN apt-get update && apt-get install -y build-essential git
 
 COPY . /go/src/github.com/mrhaoxx/OpenNG
+COPY --from=web /netgateui/dist /go/src/github.com/mrhaoxx/OpenNG/ui/html/dist
 
 RUN cd /go/src/github.com/mrhaoxx/OpenNG && ./build.sh -o /NetGATE
 
