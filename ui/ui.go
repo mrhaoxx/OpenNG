@@ -59,11 +59,15 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/restart":
 		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
 
-	case "/api/v1/cfg/apply":
+	case "/api/v1/cfg/reload":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		b, _ := io.ReadAll(ctx.Req.Body)
-		LoadCfg(b)
-		ctx.Resp.WriteHeader(http.StatusAccepted)
+		err := Reload()
+		if err != nil {
+			ctx.Resp.WriteHeader(http.StatusBadRequest)
+			ctx.WriteString(err.Error())
+		} else {
+			ctx.Resp.WriteHeader(http.StatusAccepted)
+		}
 	case "/api/v1/cfg/save":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
@@ -164,3 +168,18 @@ func (*UI) PathsInternal() []*regexp2.Regexp {
 var curcfg []byte
 
 var Sselogger = utils.NewTextStreamLogger()
+
+func Reload() error {
+	r, err := os.ReadFile(ConfigFile)
+
+	if err != nil {
+		fmt.Println(err.Error())
+		return err
+	}
+
+	if err := LoadCfg(r, true); err != nil {
+		return err
+	}
+
+	return nil
+}

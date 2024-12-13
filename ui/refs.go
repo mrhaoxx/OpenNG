@@ -17,7 +17,9 @@ type Space struct {
 	Services map[string]any
 }
 
-func (space *Space) Apply(root *ArgNode) error {
+func (space *Space) Apply(root *ArgNode, reload bool) error {
+
+	reload_errors := []error{}
 
 	srvs := root.MustGet("Services")
 
@@ -51,13 +53,31 @@ func (space *Space) Apply(root *ArgNode) error {
 		err = space.Deptr(spec)
 
 		if err != nil {
-			return fmt.Errorf("%s: deptr failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
+			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
+
+			log.Errorf("%s", ret_err)
+
+			if !reload {
+				return ret_err
+			} else {
+				reload_errors = append(reload_errors, ret_err)
+				continue
+			}
 		}
 
 		inst, err := ref(spec)
 
 		if err != nil {
-			return fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
+			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
+
+			log.Errorf("%s", ret_err)
+
+			if !reload {
+				return ret_err
+			} else {
+				reload_errors = append(reload_errors, ret_err)
+				continue
+			}
 		}
 
 		space.Services[to] = inst
@@ -71,6 +91,15 @@ func (space *Space) Apply(root *ArgNode) error {
 		}
 
 	}
+
+	if reload && len(reload_errors) > 0 {
+		var errstr string
+		for _, e := range reload_errors {
+			errstr += e.Error() + "\n"
+		}
+		return fmt.Errorf("Reload Failed:\n%s", errstr)
+	}
+
 	return nil
 
 }
@@ -111,7 +140,7 @@ func (space *Space) Deptr(root *ArgNode) error {
 	return walk(root)
 }
 
-func LoadCfg(cfgs []byte) error {
+func LoadCfg(cfgs []byte, reload bool) error {
 	var cfg any
 	err := yaml.Unmarshal(cfgs, &cfg)
 	if err != nil {
@@ -137,10 +166,12 @@ func LoadCfg(cfgs []byte) error {
 		return err
 	}
 
-	err = GlobalCfg(nodes.MustGet("Config"))
+	if !reload {
+		err = GlobalCfg(nodes.MustGet("Config"))
 
-	if err != nil {
-		return err
+		if err != nil {
+			return err
+		}
 	}
 
 	space := Space{
@@ -150,7 +181,7 @@ func LoadCfg(cfgs []byte) error {
 
 	space.Services["@"] = space
 
-	err = space.Apply(nodes)
+	err = space.Apply(nodes, reload)
 
 	return err
 }

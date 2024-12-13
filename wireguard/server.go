@@ -80,7 +80,7 @@ func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
 	err = wgDevice.IpcSet("private_key=" + privatekey + "\nlisten_port=" + strconv.Itoa(cfg.ListenPort))
 
 	if err != nil {
-		tunDevice.Close()
+		wgDevice.Close()
 		return nil, err
 	}
 

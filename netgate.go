@@ -54,7 +54,7 @@ config: %s
 
 	_start := time.Now()
 
-	if err := ui.LoadCfg(r); err != nil {
+	if err := ui.LoadCfg(r, false); err != nil {
 		log.Println(err)
 		os.Exit(-1)
 	}

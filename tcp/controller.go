@@ -97,11 +97,26 @@ _restart:
 
 }
 
+var listeners map[string]net.Listener = make(map[string]net.Listener)
+var listenerlock sync.Mutex
+
 func (ctl *controller) Listen(addr string) error {
+	listenerlock.Lock()
+	if lc, ok := listeners[addr]; ok {
+		log.Verbosef("rebind tcp listen %s", addr)
+		lc.Close()
+	}
+
 	lc, err := net.Listen("tcp", addr)
 	if err != nil {
+		listenerlock.Unlock()
 		return err
 	}
+
+	listeners[addr] = lc
+
+	listenerlock.Unlock()
+
 	ctl.listeners = append(ctl.listeners, &lc)
 	go func() {
 		defer func() {
@@ -112,10 +127,8 @@ func (ctl *controller) Listen(addr string) error {
 		for {
 			socket, err := lc.Accept()
 			if err != nil {
-				if err == net.ErrClosed {
-					break
-				}
-				panic(err)
+				log.Errorf("%v", err)
+				break
 			}
 			go func() {
 				i := head(socket)
