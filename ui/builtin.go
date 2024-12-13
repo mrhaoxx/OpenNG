@@ -21,6 +21,8 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
+const DescHostnameFormat = "supported hostname format:\nexample.com\na.example.com\n*.example.com\n*"
+
 var _builtin_refs_assertions = map[string]Assert{
 	"_": {
 		Type: "map",
@@ -53,9 +55,11 @@ var _builtin_refs_assertions = map[string]Assert{
 						Type: "map",
 						Sub: AssertMap{
 							"TimeZone": {
-								Desc:    "time zone for logger",
-								Type:    "string",
-								Default: "Local",
+								Desc:         "time zone for logger",
+								Type:         "string",
+								Default:      "Local",
+								Enum:         []any{"Local", "UTC", "Asia/Shanghai"},
+								AllowNonEnum: true,
 							},
 							"Verbose": {
 								Desc:    "verbose level",
@@ -102,6 +106,7 @@ var _builtin_refs_assertions = map[string]Assert{
 		Sub: AssertMap{
 			"hosts": {
 				Type: "list",
+				Desc: "http reverse proxy hosts",
 				Sub: AssertMap{
 					"_": {
 						Type: "map",
@@ -114,20 +119,24 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type:     "list",
 								Required: true,
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
+								Desc: "matching Host header",
 							},
 							"backend": {
 								Type:     "string",
 								Required: true,
+								Desc:     "backend address",
 							},
 							"MaxConnsPerHost": {
 								Type:    "int",
 								Default: 0,
+								Desc:    "max connections per host",
 							},
 							"TlsSkipVerify": {
 								Type:    "bool",
 								Default: false,
+								Desc:    "Skip tls verify (Know what you are doing!!)",
 							},
 						},
 					},
@@ -137,8 +146,9 @@ var _builtin_refs_assertions = map[string]Assert{
 				Type:    "list",
 				Default: []*ArgNode{{Type: "string", Value: "*"}},
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "string", Desc: DescHostnameFormat},
 				},
+				Desc: "requests matched hosts will be handled by this reverse proxy",
 			},
 		},
 	},
@@ -154,10 +164,12 @@ var _builtin_refs_assertions = map[string]Assert{
 						Sub: AssertMap{
 							"CertFile": {
 								Type:     "string",
+								Desc:     "path to certificate file",
 								Required: true,
 							},
 							"KeyFile": {
 								Type:     "string",
+								Desc:     "path to key file",
 								Required: true,
 							},
 						},
@@ -176,19 +188,21 @@ var _builtin_refs_assertions = map[string]Assert{
 					"_": {
 						Type: "map",
 						Sub: AssertMap{
+							"name": {
+								Type:     "string",
+								Required: true,
+							},
 							"logi": {
 								Type:     "ptr",
+								Desc:     "pointer to service function",
 								Required: true,
 							},
 							"hosts": {
 								Type: "list",
+
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: DescHostnameFormat},
 								},
-							},
-							"name": {
-								Type:     "string",
-								Required: true,
 							},
 						},
 					},
@@ -234,7 +248,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type:    "list",
 								Default: []*ArgNode{{Type: "string", Value: "*"}},
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
 							},
 						},
@@ -252,15 +266,18 @@ var _builtin_refs_assertions = map[string]Assert{
 				Sub: AssertMap{
 					"_": {
 						Type: "string",
+						Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol"},
 					},
 				},
 			},
 			"timeout": {
-				Type:    "int",
-				Default: 0,
+				Type:    "string",
+				Default: "0s",
+				Desc:    "timeout for detection, 0 means no timeout",
 			},
 			"timeoutprotocol": {
 				Type:    "string",
+				Desc:    "protocol to assume when timeout",
 				Default: "UNKNOWN",
 			},
 		},
@@ -304,8 +321,9 @@ var _builtin_refs_assertions = map[string]Assert{
 		Sub: AssertMap{
 			"AddressBindings": {
 				Type: "list",
+				Desc: "tcp listen address",
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "string", Enum: []any{"0.0.0.0:443", "0.0.0.0:80", "0.0.0.0:22"}, AllowNonEnum: true},
 				},
 			},
 			"ptr": {
@@ -387,20 +405,24 @@ var _builtin_refs_assertions = map[string]Assert{
 							"name": {
 								Type:     "string",
 								Required: true,
+								Desc:     "Username",
 							},
 							"PasswordHash": {
 								Type:    "string",
 								Default: "",
+								Desc:    "Password hash using bcrypt",
 							},
 							"AllowForwardProxy": {
 								Type:    "bool",
 								Default: false,
+								Desc:    "Allow user to use forward proxy",
 							},
 							"SSHAuthorizedKeys": {
 								Type: "list",
 								Sub: AssertMap{
 									"_": {Type: "string"},
 								},
+								Desc: "SSH authorized keys",
 							},
 						},
 					},
@@ -430,18 +452,21 @@ var _builtin_refs_assertions = map[string]Assert{
 							"Allowance": {Type: "bool", Required: true},
 							"Users": {
 								Type: "list",
+								Desc: "matching users,empty STRING means ALL, empty LIST means NONE",
 								Sub: AssertMap{
 									"_": {Type: "string"},
 								},
 							},
 							"Hosts": {
 								Type: "list",
+								Desc: "matching Hosts, empty means none",
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
 							},
 							"Paths": {
 								Type: "list",
+								Desc: "matching Paths, empty means all",
 								Sub: AssertMap{
 									"_": {Type: "string"},
 								},
@@ -462,8 +487,8 @@ var _builtin_refs_assertions = map[string]Assert{
 		Type: "map",
 		Sub: AssertMap{
 			"timeout": {
-				Type:    "int",
-				Default: 300,
+				Type:    "string",
+				Default: "3s",
 			},
 		},
 	},
@@ -623,6 +648,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			"banner": {
 				Type:    "string",
 				Default: "Welcome to OpenNG SSH Server\n",
+				Desc:    "Dynamic Strings:\n%t: time\n%h: remote ip\n%u: username\n",
 			},
 			"quotes": {
 				Type: "list",
@@ -678,8 +704,9 @@ var _builtin_refs_assertions = map[string]Assert{
 							},
 							"AllowedUsers": {
 								Type: "list",
+								Desc: "empty means all, when set, only matched users are allowed",
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
 								},
 							},
 						},
@@ -814,19 +841,19 @@ var _builtin_refs_assertions = map[string]Assert{
 						Default: map[string]*ArgNode{},
 						Sub: AssertMap{
 							"CatchTimeout": {
-								Type:    "duration",
+								Type:    "string",
 								Default: "600ms",
 							},
 							"ConnTimeout": {
-								Type:    "duration",
+								Type:    "string",
 								Default: "3s",
 							},
 							"KeepaliveIdle": {
-								Type:    "duration",
+								Type:    "string",
 								Default: "60s",
 							},
 							"KeepaliveInterval": {
-								Type:    "duration",
+								Type:    "string",
 								Default: "30s",
 							},
 							"KeepaliveCount": {
@@ -998,9 +1025,7 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::tcp::det": func(spec *ArgNode) (any, error) {
 		protocols := spec.MustGet("protocols").ToStringList()
-		timeout := spec.MustGet("timeout").ToInt()
-		_t := time.Duration(timeout)
-
+		timeout := spec.MustGet("timeout").ToDuration()
 		timeoutprotocol := spec.MustGet("timeoutprotocol").ToString()
 
 		var dets []tcp.Detector
@@ -1023,9 +1048,9 @@ var _builtin_refs = map[string]Inst{
 			}
 		}
 
-		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%d(%s) timeoutprotocol=%s", protocols, timeout, _t.String(), timeoutprotocol))
+		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%d(%s) timeoutprotocol=%s", protocols, timeout, timeout.String(), timeoutprotocol))
 
-		return &tcp.Detect{Dets: dets, Timeout: _t, TimeoutProtocol: timeoutprotocol}, nil
+		return &tcp.Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutprotocol}, nil
 	},
 	"builtin::tcp::controller": func(spec *ArgNode) (any, error) {
 		services := spec.MustGet("services").ToMap()
@@ -1197,7 +1222,7 @@ var _builtin_refs = map[string]Inst{
 		return policyd, nil
 	},
 	"builtin::auth::knocked": func(spec *ArgNode) (any, error) {
-		timeout := spec.MustGet("timeout").ToInt()
+		timeout := spec.MustGet("timeout").ToDuration()
 
 		if timeout != 0 {
 			panic("not implemented")

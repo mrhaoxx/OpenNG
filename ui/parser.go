@@ -27,7 +27,9 @@ type Assert struct {
 
 	Default any
 
-	Desc string
+	Enum         []any
+	AllowNonEnum bool
+	Desc         string
 }
 
 func (node *ArgNode) Assert(assertions Assert) error {
@@ -291,7 +293,7 @@ func (node *ArgNode) ToDuration() time.Duration {
 	if node == nil {
 		panic("nil node")
 	}
-	if node.Type != "duration" {
+	if node.Type != "string" {
 		return 0
 	}
 

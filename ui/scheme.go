@@ -15,7 +15,28 @@ func (m Assert) ToScheme() any {
 			res["default"] = m.Default
 		}
 
+		if len(m.Enum) > 0 {
+			if m.AllowNonEnum {
+				res["anyOf"] = []any{
+					map[string]any{
+						"type": "integer",
+					},
+					map[string]any{
+						"enum": m.Enum,
+					},
+				}
+			} else {
+				res["enum"] = m.Enum
+			}
+		}
+
 		return res
+	case "ptr":
+		return map[string]any{
+			"type":        "string",
+			"description": "(ptr) " + m.Desc,
+		}
+
 	case "string":
 		res := map[string]any{
 			"type":        "string",
@@ -23,6 +44,21 @@ func (m Assert) ToScheme() any {
 		}
 		if m.Default != nil {
 			res["default"] = m.Default
+		}
+
+		if len(m.Enum) > 0 {
+			if m.AllowNonEnum {
+				res["anyOf"] = []any{
+					map[string]any{
+						"type": "string",
+					},
+					map[string]any{
+						"enum": m.Enum,
+					},
+				}
+			} else {
+				res["enum"] = m.Enum
+			}
 		}
 
 		return res
@@ -44,11 +80,20 @@ func (m Assert) ToScheme() any {
 			"description": m.Desc,
 		}
 
+		if sub, ok := m.Sub["_"]; !ok {
+			result["additionalProperties"] = false
+		} else {
+			result["additionalProperties"] = sub.ToScheme()
+		}
+
 		props := map[string]any{}
 
 		requried := []string{}
 
 		for key, value := range m.Sub {
+			if key == "_" {
+				continue
+			}
 			props[key] = value.ToScheme()
 			if value.Required {
 				requried = append(requried, key)
