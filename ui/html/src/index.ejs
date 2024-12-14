@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="/ng-cgi/logo" />
+  <title>NetGATE Config Editor</title>
+  <meta name="theme-color" content="#42e3ff" />
+</head>
+
+
+<body>
+
+  <div class="button-container">
+    <button onclick="location.href = '/connections';" id="myButton" class="float-left submit-button">Connections</button>
+    <button onclick="location.href = '/requests';" id="myButton" class="float-left submit-button">Requests</button>
+    <button onclick="location.href = '/logs';" id="myButton" class="float-left submit-button">Stream Logging</button>
+    <br><br>
+    <button id="update">Load</button>
+    <button id="save">Save</button>
+    <button id="reload">Save and Reload</button>
+    <button id="shutdown">Shutdown</button>
+    <input id="hasky" placeholder="Text to Hash"><button id="Hash">Hash</button>
+  </div>
+
+  <br>
+
+  <div id="status" style="font-family: monospace;">Loading Editor</div>
+  <br>
+  <div id="editor"></div>
+  <div id="problems"></div>
+</body>
+</html>
+
