@@ -49,7 +49,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 		}
 	} else {
 		if assertions.Type != "any" && node.Type != assertions.Type {
-			return fmt.Errorf("type mismatch: %s != %s", node.Type, assertions.Type)
+			return fmt.Errorf("type mismatch: %s != %s (%v)", node.Type, assertions.Type, node.Value)
 		}
 		if assertions.Required && assertions.Default != nil {
 			if !reflect.DeepEqual(node.Value, assertions.Default) {
@@ -164,11 +164,18 @@ func ParseFromAny(raw any) (*ArgNode, error) {
 					Value: raw[len("$ptr{") : len(raw)-1],
 				}, nil
 			}
+		default:
+			if _, err := time.ParseDuration(raw); err == nil {
+				return &ArgNode{
+					Type:  "duration",
+					Value: raw,
+				}, nil
+			}
+			return &ArgNode{
+				Type:  "string",
+				Value: raw,
+			}, nil
 		}
-		return &ArgNode{
-			Type:  "string",
-			Value: raw,
-		}, nil
 	case int:
 		return &ArgNode{
 			Type:  "int",
@@ -293,7 +300,7 @@ func (node *ArgNode) ToDuration() time.Duration {
 	if node == nil {
 		panic("nil node")
 	}
-	if node.Type != "string" {
+	if node.Type != "duration" {
 		return 0
 	}
 

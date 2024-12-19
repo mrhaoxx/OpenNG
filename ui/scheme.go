@@ -33,8 +33,10 @@ func (m Assert) ToScheme() any {
 		return res
 	case "ptr":
 		return map[string]any{
-			"type":        "string",
-			"description": "(ptr) " + m.Desc,
+			"type":         "string",
+			"description":  "(ptr) " + m.Desc,
+			"pattern":      "^\\$ptr\\{(.+)\\}$",
+			"errorMessage": "Pointer must be in format $ptr{service_name}",
 		}
 
 	case "string":
@@ -124,6 +126,18 @@ func (m Assert) ToScheme() any {
 		}
 
 		return result
+
+	case "duration":
+		res := map[string]any{
+			"type":         "string",
+			"description":  m.Desc,
+			"pattern":      "^-?(?:\\d+(?:\\.\\d+)?(?:ns|us|µs|ms|s|m|h))+$",
+			"errorMessage": "Duration must be in format like '300ms', '-1.5h', '2h45m'. Valid units: ns, us (or µs), ms, s, m, h",
+		}
+		if m.Default != nil {
+			res["default"] = m.Default
+		}
+		return res
 	}
 
 	return map[string]any{}
@@ -157,6 +171,7 @@ func GenerateJsonSchema() []byte {
 				"properties": map[string]any{
 					"spec": v.ToScheme(),
 				},
+				"description": v.Desc,
 			},
 		})
 	}

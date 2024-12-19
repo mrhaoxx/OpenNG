@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/auth"
@@ -103,10 +102,11 @@ var _builtin_refs_assertions = map[string]Assert{
 	"builtin::http::reverseproxier": {
 		Type:     "map",
 		Required: true,
+		Desc:     "HTTP reverse proxy configuration",
 		Sub: AssertMap{
 			"hosts": {
 				Type: "list",
-				Desc: "http reverse proxy hosts",
+				Desc: "reverse proxy host configurations",
 				Sub: AssertMap{
 					"_": {
 						Type: "map",
@@ -114,29 +114,30 @@ var _builtin_refs_assertions = map[string]Assert{
 							"name": {
 								Type:     "string",
 								Required: true,
+								Desc:     "name of the proxy configuration",
 							},
 							"hosts": {
 								Type:     "list",
 								Required: true,
+								Desc:     "hostnames to match for this proxy",
 								Sub: AssertMap{
 									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
-								Desc: "matching Host header",
 							},
 							"backend": {
 								Type:     "string",
 								Required: true,
-								Desc:     "backend address",
+								Desc:     "backend URL to proxy requests to",
 							},
 							"MaxConnsPerHost": {
 								Type:    "int",
 								Default: 0,
-								Desc:    "max connections per host",
+								Desc:    "maximum concurrent connections per backend host",
 							},
 							"TlsSkipVerify": {
 								Type:    "bool",
 								Default: false,
-								Desc:    "Skip tls verify (Know what you are doing!!)",
+								Desc:    "skip TLS certificate verification for backend",
 							},
 						},
 					},
@@ -145,10 +146,10 @@ var _builtin_refs_assertions = map[string]Assert{
 			"allowhosts": {
 				Type:    "list",
 				Default: []*ArgNode{{Type: "string", Value: "*"}},
+				Desc:    "hostnames that this proxy will handle",
 				Sub: AssertMap{
 					"_": {Type: "string", Desc: DescHostnameFormat},
 				},
-				Desc: "requests matched hosts will be handled by this reverse proxy",
 			},
 		},
 	},
@@ -199,9 +200,9 @@ var _builtin_refs_assertions = map[string]Assert{
 							},
 							"hosts": {
 								Type: "list",
-
+								Desc: "hostnames this service handles",
 								Sub: AssertMap{
-									"_": {Type: DescHostnameFormat},
+									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
 							},
 						},
@@ -211,6 +212,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			"cgis": {
 				Type:    "list",
 				Default: []*ArgNode{},
+				Desc:    "CGI handlers for /ng-cgi/* paths",
 				Sub: AssertMap{
 					"_": {
 						Type: "map",
@@ -218,9 +220,11 @@ var _builtin_refs_assertions = map[string]Assert{
 							"logi": {
 								Type:     "ptr",
 								Required: true,
+								Desc:     "pointer to CGI handler implementation",
 							},
 							"paths": {
 								Type: "list",
+								Desc: "URL paths this CGI handles",
 								Sub: AssertMap{
 									"_": {Type: "string"},
 								},
@@ -232,6 +236,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			"forward": {
 				Type:    "list",
 				Default: []*ArgNode{},
+				Desc:    "forward proxy handlers",
 				Sub: AssertMap{
 					"_": {
 						Type: "map",
@@ -239,14 +244,17 @@ var _builtin_refs_assertions = map[string]Assert{
 							"name": {
 								Type:     "string",
 								Required: true,
+								Desc:     "name of the forward proxy handler",
 							},
 							"logi": {
 								Type:     "ptr",
 								Required: true,
+								Desc:     "pointer to forward proxy implementation",
 							},
 							"hosts": {
 								Type:    "list",
 								Default: []*ArgNode{{Type: "string", Value: "*"}},
+								Desc:    "hostnames this forward proxy handles",
 								Sub: AssertMap{
 									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
@@ -271,7 +279,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				},
 			},
 			"timeout": {
-				Type:    "string",
+				Type:    "duration",
 				Default: "0s",
 				Desc:    "timeout for detection, 0 means no timeout",
 			},
@@ -285,12 +293,15 @@ var _builtin_refs_assertions = map[string]Assert{
 	"builtin::tcp::controller": {
 		Type:     "map",
 		Required: true,
+		Desc:     "TCP connection controller that manages protocol detection and service routing",
 		Sub: AssertMap{
 			"services": {
 				Type: "map",
+				Desc: "protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)",
 				Sub: AssertMap{
 					"_": {
 						Type: "list",
+						Desc: "ordered list of service handlers for each protocol",
 						Sub: AssertMap{
 							"_": {
 								Type: "map",
@@ -298,10 +309,12 @@ var _builtin_refs_assertions = map[string]Assert{
 									"name": {
 										Type:     "string",
 										Required: true,
+										Desc:     "name of the service handler (used in connection logs)",
 									},
 									"logi": {
 										Type:     "ptr",
 										Required: true,
+										Desc:     "pointer to service handler implementation (must implement tcp.ServiceHandler)",
 									},
 								},
 							},
@@ -487,20 +500,23 @@ var _builtin_refs_assertions = map[string]Assert{
 		Type: "map",
 		Sub: AssertMap{
 			"timeout": {
-				Type:    "string",
+				Type:    "duration",
 				Default: "3s",
 			},
 		},
 	},
 	"builtin::http::midware::addservice": {
 		Type: "map",
+		Desc: "adds additional HTTP services to an existing HTTP middleware",
 		Sub: AssertMap{
 			"midware": {
 				Type:     "ptr",
 				Required: true,
+				Desc:     "pointer to the target HTTP middleware to add services to",
 			},
 			"services": {
 				Type: "list",
+				Desc: "list of HTTP services to add",
 				Sub: AssertMap{
 					"_": {
 						Type: "map",
@@ -508,16 +524,19 @@ var _builtin_refs_assertions = map[string]Assert{
 							"logi": {
 								Type:     "ptr",
 								Required: true,
+								Desc:     "pointer to service handler implementation",
 							},
 							"hosts": {
 								Type: "list",
+								Desc: "hostnames this service handles",
 								Sub: AssertMap{
-									"_": {Type: "string"},
+									"_": {Type: "string", Desc: DescHostnameFormat},
 								},
 							},
 							"name": {
 								Type:     "string",
 								Required: true,
+								Desc:     "name of the service (used in logs and monitoring)",
 							},
 						},
 					},
@@ -607,6 +626,7 @@ var _builtin_refs_assertions = map[string]Assert{
 	// },
 	"builtin::http::forwardproxier": {
 		Type: "null",
+		Desc: "HTTP forward proxy implementation (no configuration needed)",
 	},
 
 	"builtin::http::acme::fileprovider": {
@@ -729,22 +749,26 @@ var _builtin_refs_assertions = map[string]Assert{
 	"builtin::ipfilter": {
 		Type:     "map",
 		Required: true,
+		Desc:     "filter connections based on source IP CIDR ranges",
 		Sub: AssertMap{
 			"blockedcidrs": {
 				Type: "list",
+				Desc: "list of CIDR ranges to block",
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 				},
 			},
 			"allowedcidrs": {
 				Type: "list",
+				Desc: "list of CIDR ranges to allow",
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 				},
 			},
 			"next": {
 				Type:    "ptr",
 				Default: nil,
+				Desc:    "next service handler if no CIDR match is found",
 			},
 		},
 	},
@@ -752,16 +776,19 @@ var _builtin_refs_assertions = map[string]Assert{
 	"builtin::hostfilter": {
 		Type:     "map",
 		Required: true,
+		Desc:     "filter connections based on HTTP Host header or TLS SNI",
 		Sub: AssertMap{
 			"allowedhosts": {
 				Type: "list",
+				Desc: "list of allowed hostnames",
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "string", Desc: "hostname to allow"},
 				},
 			},
 			"next": {
 				Type:    "ptr",
 				Default: nil,
+				Desc:    "next service handler if hostname is not allowed",
 			},
 		},
 	},
@@ -773,7 +800,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Required: true,
 			},
 			"cache_ttl": {
-				Type:    "string",
+				Type:    "duration",
 				Default: "10s",
 			},
 			"matchusernames": {
@@ -841,19 +868,19 @@ var _builtin_refs_assertions = map[string]Assert{
 						Default: map[string]*ArgNode{},
 						Sub: AssertMap{
 							"CatchTimeout": {
-								Type:    "string",
+								Type:    "duration",
 								Default: "600ms",
 							},
 							"ConnTimeout": {
-								Type:    "string",
+								Type:    "duration",
 								Default: "3s",
 							},
 							"KeepaliveIdle": {
-								Type:    "string",
+								Type:    "duration",
 								Default: "60s",
 							},
 							"KeepaliveInterval": {
-								Type:    "string",
+								Type:    "duration",
 								Default: "30s",
 							},
 							"KeepaliveCount": {
@@ -1048,7 +1075,7 @@ var _builtin_refs = map[string]Inst{
 			}
 		}
 
-		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%d(%s) timeoutprotocol=%s", protocols, timeout, timeout.String(), timeoutprotocol))
+		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%s timeoutprotocol=%s", protocols, timeout.String(), timeoutprotocol))
 
 		return &tcp.Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutprotocol}, nil
 	},
@@ -1471,19 +1498,14 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::gitlabauth": func(spec *ArgNode) (any, error) {
 		gitlaburl := spec.MustGet("gitlab_url").ToString()
-		cachettl := spec.MustGet("cache_ttl").ToString()
+		cachettl := spec.MustGet("cache_ttl").ToDuration()
 		matchusernames := spec.MustGet("matchusernames").ToStringList()
 		prefix := spec.MustGet("prefix").ToString()
 		next := spec.MustGet("next")
 
-		ttl, err := time.ParseDuration(cachettl)
-		if err != nil {
-			return nil, err
-		}
-
 		var f = &GitlabEnhancedPolicydBackend{
 			gitlabUrl:     gitlaburl,
-			ttl:           ttl,
+			ttl:           cachettl,
 			matchUsername: utils.MustCompileRegexp(matchusernames),
 			cache:         make(map[string]*SSHKeyCache),
 			prefix:        prefix,
