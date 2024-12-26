@@ -47,7 +47,7 @@ var sourceMap = make(map[netip.AddrPort]dialerCount)
 var sourceMapLock = sync.RWMutex{}
 
 // source and destination -> dialer
-var connMap = make(map[udpConn](chan stack.PacketBufferPtr))
+var connMap = make(map[udpConn](chan *stack.PacketBuffer))
 var connMapLock = sync.RWMutex{}
 
 type Config struct {
@@ -57,12 +57,17 @@ type Config struct {
 
 // Handler handles UDP packets. Returns function that returns true if packet is handled, or false if ICMP Destination Unreachable should be sent.
 // TODO: Clean this up. Can't use UDPForwarder because it doesn't offer a way to return false, which is required to send Unreachables.
-func Handler(c Config) func(stack.TransportEndpointID, stack.PacketBufferPtr) bool {
-	return func(teid stack.TransportEndpointID, pkb stack.PacketBufferPtr) bool {
+func Handler(c Config) func(stack.TransportEndpointID, *stack.PacketBuffer) bool {
+	return func(teid stack.TransportEndpointID, pkb *stack.PacketBuffer) bool {
 		// log.Printf("wg %s UDP -> %s", net.JoinHostPort(teid.RemoteAddress.String(), fmt.Sprint(teid.RemotePort)), net.JoinHostPort(teid.LocalAddress.String(), fmt.Sprint(teid.LocalPort)))
 
 		packetClone := pkb.Clone()
 		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Println("[debug][panic] Recovered in udp.Handler", r)
+				}
+			}()
 			newPacket(packetClone, c.Tnet.Stack())
 			packetClone.DecRef()
 		}()
@@ -105,7 +110,7 @@ func sourceMapDecrement(n netip.AddrPort) {
 	sourceMapLock.Unlock()
 }
 
-func connMapWrite(c udpConn, pktChan chan stack.PacketBufferPtr) {
+func connMapWrite(c udpConn, pktChan chan *stack.PacketBuffer) {
 	connMapLock.Lock()
 	connMap[c] = pktChan
 	connMapLock.Unlock()
@@ -117,7 +122,7 @@ func connMapDelete(c udpConn) {
 	connMapLock.Unlock()
 }
 
-func connMapLookup(c udpConn) (chan stack.PacketBufferPtr, bool) {
+func connMapLookup(c udpConn) (chan *stack.PacketBuffer, bool) {
 	connMapLock.RLock()
 	pktChan, ok := connMap[c]
 	connMapLock.RUnlock()
@@ -125,21 +130,21 @@ func connMapLookup(c udpConn) (chan stack.PacketBufferPtr, bool) {
 	return pktChan, ok
 }
 
-func getDataFromPacket(packet stack.PacketBufferPtr) []byte {
+func getDataFromPacket(packet *stack.PacketBuffer) []byte {
 	netHeader := packet.Network()
 	transHeader := header.UDP(netHeader.Payload())
 	return transHeader.Payload()
 }
 
 // NewPacket handles every new packet and sending it to the proper UDP dialer.
-func newPacket(packet stack.PacketBufferPtr, s *stack.Stack) {
+func newPacket(packet *stack.PacketBuffer, s *stack.Stack) {
 	netHeader := packet.Network()
 	transHeader := header.UDP(netHeader.Payload())
 
 	source := netip.MustParseAddrPort(net.JoinHostPort(netHeader.SourceAddress().String(), fmt.Sprint(transHeader.SourcePort())))
 	dest := netip.MustParseAddrPort(net.JoinHostPort(netHeader.DestinationAddress().String(), fmt.Sprint(transHeader.DestinationPort())))
 
-	var pktChan chan stack.PacketBufferPtr
+	var pktChan chan *stack.PacketBuffer
 	var ok bool
 
 	conn := udpConn{Source: source, Dest: dest}
@@ -160,7 +165,7 @@ func newPacket(packet stack.PacketBufferPtr, s *stack.Stack) {
 
 	log.Printf("wg %s UDP -> %s", source.String(), dest.String())
 	// New packet channel and dialer need to be created.
-	pktChan = make(chan stack.PacketBufferPtr, 1)
+	pktChan = make(chan *stack.PacketBuffer, 1)
 	connMapWrite(conn, pktChan)
 
 	go handleConn(conn, port, s)
@@ -174,7 +179,7 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 		connMapDelete(conn)
 	}()
 
-	var mostRecentPacket stack.PacketBufferPtr
+	var mostRecentPacket *stack.PacketBuffer
 
 	// New dialer from source to destination.
 	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
@@ -348,7 +353,11 @@ func sendResponse(conn udpConn, data []byte, s *stack.Stack) {
 
 // sendUnreachable sends an ICMP Port Unreachable packet to peer as if from
 // the original destination of the packet.
-func sendUnreachable(packet stack.PacketBufferPtr, s *stack.Stack) {
+func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
+	if packet == nil {
+		return
+	}
+
 	var err error
 	var ipv4Layer *layers.IPv4
 	var ipv6Layer *layers.IPv6

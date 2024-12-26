@@ -1,8 +1,8 @@
 module github.com/mrhaoxx/OpenNG
 
-go 1.22.0
+go 1.23.1
 
-toolchain go1.23.2
+toolchain go1.23.4
 
 require (
 	github.com/andybalholm/brotli v1.1.1
@@ -15,13 +15,13 @@ require (
 	golang.org/x/net v0.33.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	gopkg.in/yaml.v3 v3.0.1
-	gvisor.dev/gvisor v0.0.0-20230927004350-cbd86285d259
+	gvisor.dev/gvisor v0.0.0-20241220022509-4690b2e35d70
 )
 
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
 	github.com/go-asn1-ber/asn1-ber v1.5.7 // indirect
-	github.com/google/btree v1.0.1 // indirect
+	github.com/google/btree v1.1.2 // indirect
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/libp2p/go-reuseport v0.4.0
@@ -30,7 +30,7 @@ require (
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/sys v0.28.0 // indirect
 	golang.org/x/text v0.21.0 // indirect
-	golang.org/x/time v0.0.0-20220210224613-90d013bbcef8 // indirect
+	golang.org/x/time v0.7.0 // indirect
 	golang.org/x/tools v0.27.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
