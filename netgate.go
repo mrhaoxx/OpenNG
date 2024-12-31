@@ -12,6 +12,9 @@ import (
 	"github.com/mrhaoxx/OpenNG/ui"
 )
 
+var gitver = "dev"
+var buildstamp = "dev-built"
+
 var configfile = flag.String("config", "config.yaml", "the config file to load")
 var printversion = flag.Bool("version", false, "print version and exit")
 var helpmessage = flag.Bool("help", false, "print help message")
