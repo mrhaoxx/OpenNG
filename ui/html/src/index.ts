@@ -194,6 +194,33 @@ document.getElementById('update')?.addEventListener('click', update);
 document.getElementById('save')?.addEventListener('click', save);
 document.getElementById('reload')?.addEventListener('click', reload);
 
+// Add uptime update functionality
+async function updateUptime() {
+  fetch('/api/v1/uptime', { redirect: 'error' })
+    .then(response => {
+      if (!response.ok) throw new Error('Network response was not ok');
+      return response.text();
+    })
+    .then(text => {
+      const uptimeDiv = document.getElementById('uptime');
+      if (uptimeDiv) {
+        uptimeDiv.textContent = text;
+        uptimeDiv.classList.remove('disconnected');
+      }
+    })
+    .catch(() => {
+      const uptimeDiv = document.getElementById('uptime');
+      if (uptimeDiv) {
+        uptimeDiv.textContent = 'Disconnected';
+        uptimeDiv.classList.add('disconnected');
+      }
+    });
+}
+
+// Add this at the end of the file
+updateUptime();
+setInterval(updateUptime, 1000);
+
 gstatus.textContent = 'Updating Config...';
 
 update();

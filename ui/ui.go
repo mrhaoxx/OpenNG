@@ -34,6 +34,10 @@ type Reporter interface {
 
 var ConfigFile string
 
+var Uptime time.Time = time.Now()
+var ReloadTime time.Time = time.Now()
+var ReloadCount int = 0
+
 type UI struct {
 	TcpController Reporter
 	HttpMidware   Reporter
@@ -92,6 +96,12 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		b, _ := io.ReadAll(ctx.Req.Body)
 		hashed, _ := utils.HashPassword(string(b))
 		ctx.Resp.Write([]byte(hashed))
+	case "/api/v1/uptime":
+		ctx.WriteString(fmt.Sprint(
+			"uptime: ", time.Since(Uptime), "\n",
+			"reloadtime: ", time.Since(ReloadTime), "\n",
+			"reloadcount: ", ReloadCount, "\n",
+		))
 
 	case "/sys":
 		var m runtime.MemStats
@@ -170,6 +180,10 @@ var curcfg []byte
 var Sselogger = utils.NewTextStreamLogger()
 
 func Reload() error {
+
+	ReloadTime = time.Now()
+	ReloadCount++
+
 	r, err := os.ReadFile(ConfigFile)
 
 	if err != nil {
