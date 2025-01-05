@@ -45,6 +45,10 @@ main {
   color: var(--foreground-color);
 }
 
+#uptime {
+  color: var(--foreground-color);
+}
+
 #editor {
   flex: 1 1 auto;
 }

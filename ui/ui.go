@@ -98,9 +98,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Write([]byte(hashed))
 	case "/api/v1/uptime":
 		ctx.WriteString(fmt.Sprint(
-			"uptime: ", time.Since(Uptime), "\n",
-			"reloadtime: ", time.Since(ReloadTime), "\n",
-			"reloadcount: ", ReloadCount, "\n",
+			"uptime: ", time.Since(Uptime).Round(time.Second), "\n",
 		))
 
 	case "/sys":
