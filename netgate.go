@@ -8,6 +8,7 @@ import (
 	"time"
 
 	_ "github.com/mrhaoxx/OpenNG/auth"
+	_ "github.com/mrhaoxx/OpenNG/init"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/ui"
 )
