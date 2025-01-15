@@ -160,3 +160,15 @@ func DetectSOCKS5(r io.Reader, _ *Conn) string {
 	}
 	return ""
 }
+
+func DetectMinecraft(r io.Reader, _ *Conn) string {
+	var buf = make([]byte, 1)
+	_, err := r.Read(buf)
+	if err != nil {
+		return ""
+	}
+	if reflect.DeepEqual(buf[:1], []byte("\x10")) {
+		return "MINECRAFT"
+	}
+	return ""
+}

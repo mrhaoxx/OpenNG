@@ -274,7 +274,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Sub: AssertMap{
 					"_": {
 						Type: "string",
-						Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol"},
+						Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft"},
 					},
 				},
 			},
@@ -1070,6 +1070,8 @@ var _builtin_refs = map[string]Inst{
 				dets = append(dets, tcp.DetectHTTP)
 			case "socks5":
 				dets = append(dets, tcp.DetectSOCKS5)
+			case "minecraft":
+				dets = append(dets, tcp.DetectMinecraft)
 			default:
 				return nil, errors.New("unknown protocol: " + p)
 			}
