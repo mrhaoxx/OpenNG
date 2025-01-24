@@ -19,6 +19,7 @@ var buildstamp = "dev-built"
 var configfile = flag.String("config", "config.yaml", "the config file to load")
 var printversion = flag.Bool("version", false, "print version and exit")
 var helpmessage = flag.Bool("help", false, "print help message")
+var printjsonschema = flag.Bool("jsonschema", false, "print json schema to stdout")
 
 func main() {
 	fmt.Fprintf(os.Stderr, "NetGATE - A Inbound Gateway\n")
@@ -44,7 +45,11 @@ config: %s
 `,
 		gitver, buildstamp, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler, *configfile)
 
-	if *printversion {
+	switch {
+	case *printjsonschema:
+		os.Stdout.Write(ui.GenerateJsonSchema())
+		return
+	case *printversion:
 		return
 	}
 	r, err := os.ReadFile(*configfile)

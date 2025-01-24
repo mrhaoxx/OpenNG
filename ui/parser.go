@@ -387,22 +387,20 @@ type _dref struct {
 }
 
 func Dedref(nodes *ArgNode) error {
-	reqtree := map[string]_dref{}
-
-	var walk func(node *ArgNode, path string)
-	walk = func(node *ArgNode, path string) {
+	var walk func(reqtree map[string]_dref, node *ArgNode, path string)
+	walk = func(reqtree map[string]_dref, node *ArgNode, path string) {
 		switch node.Type {
 		case "map":
 			for k, v := range node.ToMap() {
 				if path != "" {
-					walk(v, path+"."+k)
+					walk(reqtree, v, path+"."+k)
 				} else {
-					walk(v, k)
+					walk(reqtree, v, k)
 				}
 			}
 		case "list":
 			for i, v := range node.ToList() {
-				walk(v, path+"["+fmt.Sprint(i)+"]")
+				walk(reqtree, v, path+"["+fmt.Sprint(i)+"]")
 			}
 		case "dref":
 			reqtree[path] = _dref{path: node.Value.(string), exp: false}
@@ -415,7 +413,9 @@ func Dedref(nodes *ArgNode) error {
 
 _regen:
 
-	walk(nodes, "") // find all dref nodes
+	reqtree := map[string]_dref{}
+
+	walk(reqtree, nodes, "") // find all dref nodes
 
 	for k, v := range reqtree {
 		var err error
@@ -464,8 +464,13 @@ _regen:
 					if n.Type != "list" {
 						return fmt.Errorf("expected list got %s", n.Type)
 					}
+
 					regen = true // here makes copies, so we need regen the dref table
-					parent.Value = append(parent.ToList()[:index], append(n.ToList(), parent.ToList()[index+1:]...)...)
+					if index == len(parent.ToList()) {
+						parent.Value = append(parent.ToList(), n.ToList()...)
+					} else {
+						parent.Value = append(parent.ToList()[:index], append(n.ToList(), parent.ToList()[index+1:]...)...)
+					}
 				} else {
 					parent.ToList()[index] = n
 				}
