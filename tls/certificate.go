@@ -13,19 +13,21 @@ import (
 type Cert struct {
 	*tls.Certificate
 	dnsnames utils.GroupRegexp
+
 	certfile string
+	keyfile  string
 }
 
-type tlsMgr struct {
+type TlsMgr struct {
 	certs  map[string]Cert
 	lookup *utils.BufferedLookup
 
 	muCerts sync.RWMutex
 }
 
-func NewTlsMgr() *tlsMgr {
+func NewTlsMgr() *TlsMgr {
 
-	var mgr = tlsMgr{
+	var mgr = TlsMgr{
 		certs: make(map[string]Cert),
 	}
 
@@ -44,7 +46,7 @@ func NewTlsMgr() *tlsMgr {
 	return &mgr
 }
 
-func (m *tlsMgr) getCertificate(dnsname string) *tls.Certificate {
+func (m *TlsMgr) getCertificate(dnsname string) *tls.Certificate {
 	if cert := m.lookup.Lookup(dnsname); cert != nil {
 		return cert.(*tls.Certificate)
 	} else {
@@ -52,7 +54,7 @@ func (m *tlsMgr) getCertificate(dnsname string) *tls.Certificate {
 	}
 }
 
-func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
+func (m *TlsMgr) LoadCertificate(certfile, keyfile string) error {
 	c, e := tls.LoadX509KeyPair(certfile, keyfile)
 	if e != nil {
 		return e
@@ -67,6 +69,7 @@ func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 			Certificate: &c,
 			dnsnames:    utils.MustCompileRegexp(dns.Dnsnames2Regexps(c.Leaf.DNSNames)),
 			certfile:    certfile,
+			keyfile:     keyfile,
 		}
 		m.muCerts.Unlock()
 
@@ -74,14 +77,14 @@ func (m *tlsMgr) LoadCertificate(certfile, keyfile string) error {
 	}
 }
 
-func (m *tlsMgr) ResetCertificates() {
+func (m *TlsMgr) ResetCertificates() {
 	m.muCerts.Lock()
 	m.lookup.Refresh()
 	m.certs = make(map[string]Cert)
 	m.muCerts.Unlock()
 }
 
-func (mgr *tlsMgr) GetActiveCertificates() []Cert {
+func (mgr *TlsMgr) GetActiveCertificates() []Cert {
 	mgr.muCerts.RLock()
 	defer mgr.muCerts.RUnlock()
 	var certs []Cert
@@ -89,4 +92,26 @@ func (mgr *tlsMgr) GetActiveCertificates() []Cert {
 		certs = append(certs, v)
 	}
 	return certs
+}
+
+func (m *TlsMgr) Reload() error {
+	m.muCerts.Lock()
+	defer m.muCerts.Unlock()
+
+	for _, v := range m.certs {
+		cert, err := tls.LoadX509KeyPair(v.certfile, v.keyfile)
+		if err != nil {
+			return err
+		}
+		cert.Leaf, _ = x509.ParseCertificate(cert.Certificate[0])
+		v.Certificate = &cert
+
+		v.dnsnames = utils.MustCompileRegexp(dns.Dnsnames2Regexps(cert.Leaf.DNSNames))
+
+		m.certs[v.certfile] = v
+
+	}
+
+	m.lookup.Refresh()
+	return nil
 }

@@ -324,7 +324,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-	"builtin::tls::watch": {
+	"builtin::tls::reload": {
 		Type:     "ptr",
 		Required: true,
 	},
@@ -830,6 +830,10 @@ var _builtin_refs_assertions = map[string]Assert{
 				Type:     "ptr",
 				Required: true,
 			},
+			"tls": {
+				Type:     "ptr",
+				Required: false,
+			},
 		},
 	},
 	"builtin::wireguard::server": {
@@ -1110,8 +1114,13 @@ var _builtin_refs = map[string]Inst{
 
 		return controller, nil
 	},
-	"builtin::tls::watch": func(spec *ArgNode) (any, error) {
-		panic("not implemented")
+	"builtin::tls::reload": func(spec *ArgNode) (any, error) {
+		tls, err := spec.Value.(*tls.TlsMgr)
+		if !err {
+			return nil, errors.New("ptr is not a tls.TlsMgr")
+		}
+
+		return nil, tls.Reload()
 	},
 
 	"builtin::tcp::listen": func(spec *ArgNode) (any, error) {
@@ -1337,7 +1346,19 @@ var _builtin_refs = map[string]Inst{
 			return nil, errors.New("http midware ptr is not a Reporter")
 		}
 
-		return &UI{tcpcontroller, httpmidware}, nil
+		var webui = &UI{tcpcontroller, httpmidware, nil}
+
+		tlsptr, exists := spec.Get("tls")
+
+		if exists == nil {
+			tlsmgr, ok := tlsptr.Value.(*tls.TlsMgr)
+			if !ok {
+				return nil, errors.New("tls ptr is not a tls.TlsMgr")
+			}
+			webui.TlsMgr = tlsmgr
+		}
+
+		return webui, nil
 	},
 	"builtin::ssh::midware": func(spec *ArgNode) (any, error) {
 		services := spec.MustGet("services").ToList()

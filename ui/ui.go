@@ -16,6 +16,7 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 )
 
@@ -41,6 +42,8 @@ var ReloadCount int = 0
 type UI struct {
 	TcpController Reporter
 	HttpMidware   Reporter
+
+	TlsMgr *tls.TlsMgr
 }
 
 func (*UI) Hosts() utils.GroupRegexp {
@@ -62,6 +65,21 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
 		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
+
+	case "/api/v1/tls/reload":
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		if u.TlsMgr != nil {
+			err := u.TlsMgr.Reload()
+			if err != nil {
+				ctx.Resp.WriteHeader(http.StatusBadRequest)
+				ctx.WriteString(err.Error())
+			} else {
+				ctx.Resp.WriteHeader(http.StatusAccepted)
+			}
+		} else {
+			ctx.Resp.WriteHeader(http.StatusFailedDependency)
+			ctx.WriteString("TlsMgr not set")
+		}
 
 	case "/api/v1/cfg/reload":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
