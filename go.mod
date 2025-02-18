@@ -9,7 +9,7 @@ require (
 	github.com/dlclark/regexp2 v1.11.4
 	github.com/go-ldap/ldap/v3 v3.4.10
 	github.com/gorilla/websocket v1.5.3
-	github.com/miekg/dns v1.1.62
+	github.com/miekg/dns v1.1.63
 	github.com/pires/go-proxyproto v0.8.0
 	golang.org/x/crypto v0.33.0
 	golang.org/x/net v0.35.0
