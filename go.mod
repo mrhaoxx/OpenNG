@@ -6,7 +6,7 @@ toolchain go1.23.4
 
 require (
 	github.com/andybalholm/brotli v1.1.1
-	github.com/dlclark/regexp2 v1.11.4
+	github.com/dlclark/regexp2 v1.11.5
 	github.com/go-ldap/ldap/v3 v3.4.10
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.62
