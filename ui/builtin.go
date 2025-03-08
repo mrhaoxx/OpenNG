@@ -3,6 +3,7 @@ package ui
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 
@@ -628,7 +629,15 @@ var _builtin_refs_assertions = map[string]Assert{
 		Type: "null",
 		Desc: "HTTP forward proxy implementation (no configuration needed)",
 	},
-
+	"builtin::http::fwdforwardproxier": {
+		Type: "map",
+		Sub: AssertMap{
+			"ProxyURL": {
+				Type:     "string",
+				Required: true,
+			},
+		},
+	},
 	"builtin::http::acme::fileprovider": {
 		Type: "map",
 		Sub: AssertMap{
@@ -1324,6 +1333,15 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
 		return http.StdForwardProxy{}, nil
+	},
+	"builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
+		proxyurl := spec.MustGet("ProxyURL").ToString()
+		_url, err := url.Parse(proxyurl)
+		if err != nil {
+			return nil, err
+		}
+
+		return &http.FwdForwardProxy{Proxy: _url}, nil
 	},
 	"builtin::http::acme::fileprovider": func(spec *ArgNode) (any, error) {
 		host := spec.MustGet("Hosts").ToStringList()

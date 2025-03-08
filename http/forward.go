@@ -6,7 +6,10 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"sync"
+
+	goproxy "golang.org/x/net/proxy"
 
 	"github.com/mrhaoxx/OpenNG/utils"
 )
@@ -190,4 +193,76 @@ func copyHeader(dst, src http.Header) {
 			dst.Add(k, v)
 		}
 	}
+}
+
+type FwdForwardProxy struct {
+	Proxy *url.URL
+}
+
+func (*FwdForwardProxy) HostsForward() utils.GroupRegexp {
+	return nil
+}
+
+func (f *FwdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
+	delHopHeaders(ctx.Req.Header)
+
+	if ctx.Req.Method == "CONNECT" {
+		dialer, err := goproxy.FromURL(f.Proxy, &net.Dialer{})
+		if err != nil {
+			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Dialer: %v", err))
+			return RequestEnd
+		}
+
+		server, err := dialer.Dial("tcp", ctx.Req.RequestURI)
+		if err != nil {
+			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Dial: %v", err))
+			return RequestEnd
+		}
+		defer server.Close()
+
+		if ctx.Req.ProtoMajor == 0 || ctx.Req.ProtoMajor == 1 {
+			localconn, _, err := ctx.Resp.Hijack()
+			if err != nil {
+				ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Hijack: %v", err))
+				return RequestEnd
+			}
+
+			defer localconn.Close()
+			fmt.Fprintf(localconn, "HTTP/%d.%d 200 OK\r\n\r\n", ctx.Req.ProtoMajor, ctx.Req.ProtoMinor)
+
+			proxy(ctx.Req.Context(), localconn, server)
+		} else if ctx.Req.ProtoMajor == 2 {
+			ctx.Resp.Header()["Date"] = nil
+			ctx.Resp.WriteHeader(http.StatusOK)
+
+			ctx.Resp.Flush()
+			proxyh2(ctx.Req.Context(), ctx.Req.Body, ctx.Resp, server)
+		}
+	} else {
+		ctx.Req.RequestURI = ""
+		if ctx.Req.ProtoMajor == 2 {
+			ctx.Req.URL.Scheme = "http"
+			ctx.Req.URL.Host = ctx.Req.Host
+		}
+
+		tp := &http.Transport{
+			Proxy: func(req *http.Request) (*url.URL, error) {
+				return f.Proxy, nil
+			},
+		}
+
+		resp, err := tp.RoundTrip(ctx.Req)
+
+		if err != nil {
+			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: %v", err))
+			return RequestEnd
+		}
+		defer resp.Body.Close()
+
+		copyHeader(ctx.Resp.Header(), resp.Header)
+		ctx.Resp.WriteHeader(resp.StatusCode)
+		flush(ctx.Resp)
+		copyBody(ctx.Resp, resp.Body)
+	}
+	return RequestEnd
 }
