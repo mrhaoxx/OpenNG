@@ -151,8 +151,13 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			ctx.initUserAlt()
 
 			if ctl.PublicKeyCallback(&ctx, key) {
+				log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", string(ssh.MarshalAuthorizedKey(key)))
 				return &ssh.Permissions{}, nil
 			}
+
+			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", string(ssh.MarshalAuthorizedKey(key)))
 			return nil, errors.New("public key rejected")
 		}
 	}
