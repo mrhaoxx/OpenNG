@@ -53,7 +53,7 @@ type policy struct {
 
 // 0 -> next;1 -> refuse;2 -> accept
 func (p *policy) check(username string, path string) uint8 {
-	if p.users[""] || p.users[username] {
+	if p.users[""] || p.users[username] || (p.users["*"] && username != "") {
 		if p.paths == nil || p.paths.MatchString(path) {
 			if p.allowance {
 				return 2
