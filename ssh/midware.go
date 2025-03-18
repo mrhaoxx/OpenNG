@@ -1,6 +1,8 @@
 package ssh
 
 import (
+	"bytes"
+	"encoding/base64"
 	"errors"
 	"strconv"
 	"strings"
@@ -137,8 +139,13 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			ctx.initUserAlt()
 
 			if ctl.PasswordCallback(&ctx, password) {
+				log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", "ssh-pwd", "******")
 				return &ssh.Permissions{}, nil
 			}
+
+			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", "ssh-pwd", strconv.Quote(string(password)))
 			return nil, errors.New("password rejected")
 		}
 	}
@@ -152,12 +159,12 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 
 			if ctl.PublicKeyCallback(&ctx, key) {
 				log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", string(ssh.MarshalAuthorizedKey(key)))
+					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", string(MarshalAuthorizedKey(key)))
 				return &ssh.Permissions{}, nil
 			}
 
 			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", string(ssh.MarshalAuthorizedKey(key)))
+				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", string(MarshalAuthorizedKey(key)))
 			return nil, errors.New("public key rejected")
 		}
 	}
@@ -207,4 +214,14 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 		return nil
 	})
 	return &Midware
+}
+
+func MarshalAuthorizedKey(key ssh.PublicKey) []byte {
+	b := &bytes.Buffer{}
+	b.WriteString(key.Type())
+	b.WriteByte(' ')
+	e := base64.NewEncoder(base64.StdEncoding, b)
+	e.Write(key.Marshal())
+	e.Close()
+	return b.Bytes()
 }

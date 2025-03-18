@@ -695,6 +695,10 @@ var _builtin_refs_assertions = map[string]Assert{
 				Type:     "ptr",
 				Required: true,
 			},
+			"logpassword": {
+				Type:    "bool",
+				Default: false,
+			},
 		},
 	},
 
@@ -1384,6 +1388,8 @@ var _builtin_refs = map[string]Inst{
 		quotes := spec.MustGet("quotes").ToStringList()
 		privatekeys := spec.MustGet("privatekeys").ToStringList()
 
+		logpassword := spec.MustGet("logpassword").ToBool()
+
 		policyd := spec.MustGet("policyd").Value.(interface {
 			CheckSSHKey(ctx *ssh.Ctx, key gossh.PublicKey) bool
 		}).CheckSSHKey
@@ -1406,7 +1412,14 @@ var _builtin_refs = map[string]Inst{
 
 		log.Verboseln("got", len(_quotes), "quotes")
 
-		midware := ssh.NewSSHController(prik, banner, _quotes, nil, policyd)
+		var pwd ssh.PasswordCbFn = nil
+		if logpassword {
+			pwd = func(ctx *ssh.Ctx, password []byte) bool {
+				return false
+			}
+		}
+
+		midware := ssh.NewSSHController(prik, banner, _quotes, pwd, policyd)
 
 		for _, srv := range services {
 			name := srv.MustGet("name").ToString()

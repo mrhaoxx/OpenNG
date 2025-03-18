@@ -44,9 +44,10 @@ func println(loggers loggers, msgs ...any) {
 	buf = append(buf, '.')
 	itoa(&buf, t.Nanosecond()/1e3, 6)
 	buf = append(buf, ' ')
+	data := fmt.Appendln(buf, msgs...)
 
 	for _, logger := range loggers.Loggers {
-		logger.Write(fmt.Appendln(buf, msgs...))
+		logger.Write(data)
 	}
 }
 
