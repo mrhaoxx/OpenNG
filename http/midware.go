@@ -174,7 +174,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 	{
 		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host).([]*ServiceStruct)
-		for i := 0; i < len(ServicesToExecute); i++ {
+		for i := range ServicesToExecute {
 
 			RequestPath += ServicesToExecute[i].Id + " " // record the executed service
 			switch ServicesToExecute[i].ServiceHandler(RequestCtx) {

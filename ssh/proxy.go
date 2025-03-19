@@ -60,7 +60,7 @@ func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
 	return p
 }
 
-func (p *proxier) HandleConn(ctx *Ctx) {
+func (p *proxier) HandleConn(ctx *Ctx) Ret {
 	HostName := ctx.Alt
 
 	h, ok := p.Hosts[HostName]
@@ -68,11 +68,11 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 
 		ctx.Error("* Unknown host " + strconv.Quote(ctx.Alt) + "\r\n")
 
-		return
+		return Close
 	}
 
 	if h.AllowedUsers != nil && !h.AllowedUsers.MatchString(ctx.User) {
-		return
+		return Close
 	}
 
 	var auth_method []ssh.AuthMethod
@@ -108,7 +108,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 
 	if err != nil {
 		ctx.Error("* Failed to connect to remote host: " + err.Error() + "\r\n")
-		return
+		return Close
 	}
 
 	remote_conn.(*net.TCPConn).SetKeepAlive(true)
@@ -120,7 +120,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		// "* If this is an authentication issue, please add one of these public keys\r\n" +
 		// p.keyBanner +
 		// "* to user " + ctx.User + " authorized_keys file in the remote host.\r\n")
-		return
+		return Close
 	}
 
 	defer remote.Close()
@@ -178,6 +178,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 	log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
 		"c"+strconv.FormatUint(ctx.conn.Id, 10), "-", ctx.sshconn.Wait())
 
+	return Close
 }
 func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 

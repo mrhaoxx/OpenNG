@@ -31,7 +31,7 @@ type Ctx struct {
 	User string
 	Alt  string
 
-	sshconn *ssh.ServerConn
+	sshconn ssh.Conn
 
 	conn *tcp.Conn
 
@@ -65,14 +65,22 @@ func (ctx *Ctx) Error(err_msg string) {
 	ctx.sshconn.Close()
 }
 
+type Ret bool
+
+const (
+	Close    Ret = false
+	Continue Ret = true
+)
+
 type PasswordCbFn func(ctx *Ctx, password []byte) bool
 type PublicKeyCbFn func(ctx *Ctx, key ssh.PublicKey) bool
 type ConnHandler interface {
-	HandleConn(*Ctx)
+	HandleConn(*Ctx) Ret
 }
 
 type srv struct {
 	hdr      ConnHandler
+	name     string
 	matchalt utils.GroupRegexp
 }
 
@@ -178,17 +186,25 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 
 	path += "+" + ctx.User + " "
 
-	f := ctl.bufferedLookup.Lookup(ctx.Alt)
+	f := ctl.bufferedLookup.Lookup(ctx.Alt).([]srv)
 
-	if f == nil {
+	if len(f) == 0 {
 		path += "#"
 		return tcp.Close
 	}
 
-	path += "."
+	for _, v := range f {
+		path += v.name + " "
+		switch v.hdr.HandleConn(&ctx) {
+		case Close:
+			goto closing
+		case Continue:
+			continue
+		}
+	}
 
-	f.(ConnHandler).HandleConn(&ctx)
-
+closing:
+	path += "-"
 	return tcp.Close
 }
 
@@ -206,12 +222,14 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 	}
 
 	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) interface{} {
+		var hdrs []srv
 		for _, t := range Midware.current {
 			if t.matchalt.MatchString(s) {
-				return t.hdr
+				hdrs = append(hdrs, t)
 			}
 		}
-		return nil
+
+		return hdrs
 	})
 	return &Midware
 }

@@ -1421,6 +1421,7 @@ var _builtin_refs = map[string]Inst{
 
 		midware := ssh.NewSSHController(prik, banner, _quotes, pwd, policyd)
 
+		midware.AddHandler(ssh.SSHLogger{}, utils.MustCompileRegexp([]string{"^.*$"}))
 		for _, srv := range services {
 			name := srv.MustGet("name").ToString()
 			logi := srv.MustGet("logi")
