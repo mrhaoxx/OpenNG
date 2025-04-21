@@ -7,7 +7,7 @@ toolchain go1.23.4
 require (
 	github.com/andybalholm/brotli v1.1.1
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/go-ldap/ldap/v3 v3.4.10
+	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.65
 	github.com/pires/go-proxyproto v0.8.0
@@ -20,7 +20,7 @@ require (
 
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
-	github.com/go-asn1-ber/asn1-ber v1.5.7 // indirect
+	github.com/go-asn1-ber/asn1-ber v1.5.8-0.20250403174932-29230038a667 // indirect
 	github.com/google/btree v1.1.3 // indirect
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0 // indirect
