@@ -9,10 +9,10 @@ require (
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/go-ldap/ldap/v3 v3.4.10
 	github.com/gorilla/websocket v1.5.3
-	github.com/miekg/dns v1.1.63
+	github.com/miekg/dns v1.1.65
 	github.com/pires/go-proxyproto v0.8.0
-	golang.org/x/crypto v0.36.0
-	golang.org/x/net v0.37.0
+	golang.org/x/crypto v0.37.0
+	golang.org/x/net v0.39.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20241220022509-4690b2e35d70
@@ -27,9 +27,9 @@ require (
 	github.com/libp2p/go-reuseport v0.4.0
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/mod v0.24.0 // indirect
-	golang.org/x/sync v0.12.0 // indirect
-	golang.org/x/sys v0.31.0 // indirect
-	golang.org/x/text v0.23.0 // indirect
+	golang.org/x/sync v0.13.0 // indirect
+	golang.org/x/sys v0.32.0 // indirect
+	golang.org/x/text v0.24.0 // indirect
 	golang.org/x/time v0.11.0 // indirect
 	golang.org/x/tools v0.31.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
