@@ -3,6 +3,7 @@ package utils
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
 )
@@ -16,7 +17,7 @@ type TextStreamLogger struct {
 
 func NewTextStreamLogger() (broker *TextStreamLogger) {
 	broker = &TextStreamLogger{
-		notifier:       make(chan []byte, 1),
+		notifier:       make(chan []byte, 128),
 		newClients:     make(chan chan []byte),
 		closingClients: make(chan chan []byte),
 		clients:        make(map[chan []byte]bool),
@@ -36,8 +37,10 @@ func (broker *TextStreamLogger) ServeHTTP(rw http.ResponseWriter, req *http.Requ
 	rw.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
 	rw.Header().Set("Cache-Control", "no-cache")
 	rw.Write([]byte("# OpenNG Log Streaming \n\n"))
-	messageChan := make(chan []byte)
+	messageChan := make(chan []byte, 128)
 	broker.newClients <- messageChan
+	flushtick := time.NewTicker(200 * time.Millisecond)
+	defer flushtick.Stop()
 	for {
 		select {
 		case <-req.Context().Done():
@@ -46,6 +49,7 @@ func (broker *TextStreamLogger) ServeHTTP(rw http.ResponseWriter, req *http.Requ
 			goto exit
 		case msg := <-messageChan:
 			rw.Write(msg)
+		case <-flushtick.C:
 			flusher.Flush()
 		}
 	}
