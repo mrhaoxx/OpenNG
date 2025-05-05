@@ -1,8 +1,7 @@
 module github.com/mrhaoxx/OpenNG
 
 go 1.23.1
-
-toolchain go1.23.4
+toolchain go1.24.1
 
 require (
 	github.com/andybalholm/brotli v1.1.1
@@ -10,7 +9,7 @@ require (
 	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.65
-	github.com/pires/go-proxyproto v0.8.0
+	github.com/pires/go-proxyproto v0.8.1
 	golang.org/x/crypto v0.37.0
 	golang.org/x/net v0.39.0
 	golang.zx2c4.com/wireguard v0.0.0-20231211153847-12269c276173
