@@ -1,0 +1,91 @@
+name: Build Binary
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-ui:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    # Setup Node.js for UI build
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+        cache-dependency-path: ui/html/package.json
+
+    # Build the UI
+    - name: Build UI
+      run: |
+        cd ui/html
+        npm ci
+        npm run build
+    
+    # Upload the built UI as an artifact for other jobs
+    - name: Upload UI Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: ui-build
+        path: ui/html/dist
+        retention-days: 1
+
+  build-binary:
+    needs: build-ui
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin, windows]
+        goarch: [amd64, arm64]
+    steps:
+    - uses: actions/checkout@v4
+    
+    # Download UI build artifacts
+    - name: Download UI Build
+      uses: actions/download-artifact@v4
+      with:
+        name: ui-build
+        path: ui/html/dist
+
+    # Setup Go for building the application
+    - name: Setup Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24'
+        cache: true
+
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential
+  
+
+    # Build the Go application with proper naming
+    - name: Build Go Application
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+      run: |
+        BINARY_NAME="NetGATE"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          BINARY_NAME="${BINARY_NAME}.exe"
+        fi
+        OUTPUT_NAME="${BINARY_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          go build -v -o "${OUTPUT_NAME}"
+        else
+          go build -v -o "${OUTPUT_NAME}"
+        fi
+
+    # Upload the built binary as an artifact
+    - name: Upload Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
