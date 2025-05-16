@@ -72,13 +72,9 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
-        BINARY_NAME="NetGATE"
+        OUTPUT_NAME="NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}"
         if [ "${{ matrix.goos }}" = "windows" ]; then
-          BINARY_NAME="${BINARY_NAME}.exe"
-        fi
-        OUTPUT_NAME="${BINARY_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
-        if [ "${{ matrix.goos }}" = "windows" ]; then
-          go build -v -o "${OUTPUT_NAME}"
+          go build -v -o "${OUTPUT_NAME}.exe"
         else
           go build -v -o "${OUTPUT_NAME}"
         fi
