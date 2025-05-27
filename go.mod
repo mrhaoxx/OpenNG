@@ -13,7 +13,7 @@ require (
 	github.com/pires/go-proxyproto v0.8.1
 	golang.org/x/crypto v0.38.0
 	golang.org/x/net v0.40.0
-	golang.zx2c4.com/wireguard v0.0.0-20250515145403-1571e0fbae8e
+	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20250503011706-39ed1f5ac29c
 )
