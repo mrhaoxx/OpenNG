@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"net/url"
@@ -1698,6 +1700,10 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::trojan::server": func(spec *ArgNode) (any, error) {
 		passwords := spec.MustGet("passwords").ToStringList()
+		for i, password := range passwords {
+			sum := sha256.Sum224([]byte(password))
+			passwords[i] = hex.EncodeToString(sum[:])
+		}
 		return &trojan.Server{
 			Passwords: passwords,
 		}, nil

@@ -237,7 +237,11 @@ func (node *ArgNode) ToStringList() []string {
 	var ret []string
 	for _, v := range node.ToList() {
 		if v.Type == "string" {
-			ret = append(ret, v.Value.(string))
+			if v.Value == nil {
+				ret = append(ret, "")
+			} else {
+				ret = append(ret, v.Value.(string))
+			}
 		}
 	}
 	return ret
