@@ -172,3 +172,16 @@ func DetectMinecraft(r io.Reader, _ *Conn) string {
 	}
 	return ""
 }
+
+func DetectTROJAN(r io.Reader, conn *Conn) string {
+	var buf = make([]byte, 58)
+	n, err := r.Read(buf)
+	if err != nil || n != 58 {
+		return ""
+	}
+
+	if reflect.DeepEqual(buf[56:58], []byte("\r\n")) {
+		return "TROJAN"
+	}
+	return ""
+}

@@ -16,6 +16,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
+	"github.com/mrhaoxx/OpenNG/trojan"
 	"github.com/mrhaoxx/OpenNG/utils"
 	"github.com/mrhaoxx/OpenNG/wireguard"
 	gossh "golang.org/x/crypto/ssh"
@@ -275,7 +276,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Sub: AssertMap{
 					"_": {
 						Type: "string",
-						Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft"},
+						Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
 					},
 				},
 			},
@@ -939,6 +940,17 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::trojan::server": {
+		Type: "map",
+		Sub: AssertMap{
+			"passwords": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+		},
+	},
 }
 
 var _builtin_refs = map[string]Inst{
@@ -1089,6 +1101,8 @@ var _builtin_refs = map[string]Inst{
 				dets = append(dets, tcp.DetectSOCKS5)
 			case "minecraft":
 				dets = append(dets, tcp.DetectMinecraft)
+			case "trojan":
+				dets = append(dets, tcp.DetectTROJAN)
 			default:
 				return nil, errors.New("unknown protocol: " + p)
 			}
@@ -1681,5 +1695,11 @@ var _builtin_refs = map[string]Inst{
 		}
 
 		return nil, nil
+	},
+	"builtin::trojan::server": func(spec *ArgNode) (any, error) {
+		passwords := spec.MustGet("passwords").ToStringList()
+		return &trojan.Server{
+			Passwords: passwords,
+		}, nil
 	},
 }
