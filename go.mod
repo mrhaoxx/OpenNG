@@ -5,7 +5,7 @@ go 1.24
 toolchain go1.24.3
 
 require (
-	github.com/andybalholm/brotli v1.1.1
+	github.com/andybalholm/brotli v1.2.0
 	github.com/dlclark/regexp2 v1.11.5
 	github.com/go-ldap/ldap/v3 v3.4.11
 	github.com/gorilla/websocket v1.5.3
