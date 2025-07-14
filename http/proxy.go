@@ -145,9 +145,14 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 		Director: func(r *http.Request) {
 			r.URL.Scheme = u.Scheme
 			r.URL.Host = u.Host
-		},
-		Rewrite: func(pr *httputil.ProxyRequest) {
-			pr.SetXForwarded()
+
+			delete(r.Header, "X-Forwarded-For")
+			r.Header.Add("X-Forwarded-Host", r.Host)
+			if r.TLS == nil {
+				r.Header.Set("X-Forwarded-Proto", "http")
+			} else {
+				r.Header.Set("X-Forwarded-Proto", "https")
+			}
 		},
 		FlushInterval: -1,
 	}
