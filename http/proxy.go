@@ -146,6 +146,9 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 			r.URL.Scheme = u.Scheme
 			r.URL.Host = u.Host
 		},
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetXForwarded()
+		},
 		FlushInterval: -1,
 	}
 
