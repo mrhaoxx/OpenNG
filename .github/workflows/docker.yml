@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
     
 jobs:
-  build:
+  build-amd64:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v3
@@ -16,5 +16,36 @@ jobs:
         password: ${{ secrets.DOCKER_PASSWORD }}
     - name: Docker Setup Buildx
       uses: docker/setup-buildx-action@v3.3.0
-    - name: Build the Docker image
-      run: docker buildx build --platform linux/amd64,linux/arm64 -t mrhaoxx/ng:main -f Dockerfile . --push
+    - name: Build and push AMD64 image
+      run: docker buildx build --platform linux/amd64 -t mrhaoxx/ng:main-amd64 -f Dockerfile . --push
+
+  build-arm64:
+    runs-on: ubuntu-latest-arm
+    steps:
+    - uses: actions/checkout@v3
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3.1.0
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.3.0
+    - name: Build and push ARM64 image
+      run: docker buildx build --platform linux/arm64 -t mrhaoxx/ng:main-arm64 -f Dockerfile . --push
+
+  create-manifest:
+    runs-on: ubuntu-latest
+    needs: [build-amd64, build-arm64]
+    steps:
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3.1.0
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+    - name: Docker Setup Buildx
+      uses: docker/setup-buildx-action@v3.3.0
+    - name: Create and push multi-arch manifest
+      run: |
+        docker buildx imagetools create -t mrhaoxx/ng:main \
+          mrhaoxx/ng:main-amd64 \
+          mrhaoxx/ng:main-arm64
