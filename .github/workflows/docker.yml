@@ -20,7 +20,7 @@ jobs:
       run: docker buildx build --platform linux/amd64 -t mrhaoxx/ng:main-amd64 -f Dockerfile . --push
 
   build-arm64:
-    runs-on: ubuntu-latest-arm
+    runs-on: ubuntu-24.04-arm
     steps:
     - uses: actions/checkout@v3
     - name: Log in to Docker Hub
