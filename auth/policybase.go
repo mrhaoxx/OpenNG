@@ -2,6 +2,7 @@ package auth
 
 import (
 	"encoding/base64"
+	"math/rand"
 	"strconv"
 	"strings"
 	"sync"
@@ -331,7 +332,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 					// directly move to the truepath without checking whether the user has permission,
 					// if it doesn't, the server would move it back
 				} else {
-					time.Sleep(200 * time.Millisecond) // Sleep 200ms to avoid being cracked
+					time.Sleep(time.Duration(200+rand.Intn(100)) * time.Millisecond) // Sleep 200ms to avoid being cracked
 					ctx.Resp.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 3)
 
 					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
