@@ -1351,7 +1351,7 @@ var _builtin_refs = map[string]Inst{
 		return Dns, nil
 	},
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
-		return http.StdForwardProxy{}, nil
+		return &http.StdForwardProxy{}, nil
 	},
 	// "builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
 	// 	proxyurl := spec.MustGet("ProxyURL").ToString()
