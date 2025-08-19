@@ -7,13 +7,14 @@ import (
 	"net"
 	"slices"
 	"strconv"
+	"sync"
 
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
 )
 
-const MaxPacketSize = 1500
+const MaxPacketSize = 65507
 
 type UDPPacket struct {
 	Payload []byte
@@ -21,12 +22,15 @@ type UDPPacket struct {
 }
 
 type Server struct {
-	Passwords []string
+	PasswordHashes []string
 }
 
 func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	buf := make([]byte, 58)
-	n, err := conn.TopConn().Read(buf)
+
+	var r = conn.TopConn()
+
+	n, err := r.Read(buf)
 	if err != nil {
 		return tcp.Close
 	}
@@ -36,18 +40,20 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 	hashes := buf[0:56]
 
-	if !slices.Contains(s.Passwords, string(hashes)) {
+	if !slices.Contains(s.PasswordHashes, string(hashes)) {
 		return tcp.Close
 	}
 
 	var metadata Metadata
-	err = metadata.ReadFrom(conn.TopConn())
+	err = metadata.ReadFrom(r)
 	if err != nil {
 		return tcp.Close
 	}
 
-	conn.TopConn().Read(make([]byte, 2))
-
+	var crlf [2]byte
+	if _, err := io.ReadFull(r, crlf[:]); err != nil || crlf != [2]byte{0x0d, 0x0a} {
+		return tcp.Close
+	}
 	switch metadata.Command {
 	case 0x1: // Connect
 		var target net.Conn
@@ -74,7 +80,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 			return tcp.Close
 		}
 
-		utils.ConnSync(conn.TopConn(), target)
+		utils.ConnSync(r, target)
 		return tcp.Close
 
 	case 0x3: // Associate
@@ -85,6 +91,8 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 		// Channel to signal when forwarding should stop
 		done := make(chan struct{}, 2)
+
+		var muWrite sync.Mutex
 
 		// Target to client forwarding
 		go func() {
@@ -101,9 +109,10 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 					// Start goroutine to read from this specific connection
 					go func(udpConn *net.UDPConn) {
-						buf := make([]byte, 1024)
+						buf := make([]byte, MaxPacketSize)
 						for {
 							n, addr, err := udpConn.ReadFromUDP(buf)
+
 							if err != nil {
 								log.Verboseln("[TROJAN]", "ReadFromUDP failed", err)
 								delete(activeConns, udpConn)
@@ -141,7 +150,12 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 							w.Write(crlf[:])
 							w.Write(payload)
 
+							// log.Verboseln("[TROJAN]", "UDP packet forwarded from", addr.String(), "size", length)
+
+							muWrite.Lock()
 							_, err = conn.TopConn().Write(w.Bytes())
+							muWrite.Unlock()
+
 							if err != nil {
 								log.Verboseln("[TROJAN]", "Write to client failed", err)
 								return
@@ -168,14 +182,13 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 					NetworkType: "udp",
 				}
 				if err := addr.ReadFrom(conn.TopConn()); err != nil {
-					log.Verboseln("[TROJAN]", "failed to parse udp packet addr", err)
+					// log.Verboseln("[TROJAN]", "failed to parse udp packet addr", err)
 					break
 				}
 
 				// Read length
 				lengthBuf := [2]byte{}
 				if _, err := io.ReadFull(conn.TopConn(), lengthBuf[:]); err != nil {
-					log.Verboseln("[TROJAN]", "failed to read length", err)
 					break
 				}
 				length := int(binary.BigEndian.Uint16(lengthBuf[:]))
@@ -183,7 +196,6 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 				// Read CRLF
 				crlf := [2]byte{}
 				if _, err := io.ReadFull(conn.TopConn(), crlf[:]); err != nil {
-					log.Verboseln("[TROJAN]", "failed to read crlf", err)
 					break
 				}
 
@@ -197,7 +209,6 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 				// Read payload
 				payload := make([]byte, length)
 				if _, err := io.ReadFull(conn.TopConn(), payload); err != nil {
-					log.Verboseln("[TROJAN]", "failed to read payload", err)
 					break
 				}
 
@@ -262,7 +273,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 					continue
 				}
 
-				log.Verboseln("[TROJAN]", "UDP packet forwarded to", targetAddr.String(), "size", length)
+				// log.Verboseln("[TROJAN]", "UDP packet forwarded to", targetAddr.String(), "size", length)
 			}
 		}()
 

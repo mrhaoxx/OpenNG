@@ -57,6 +57,7 @@ func NewHTTPProxier(allowedhosts []string) *httpproxy {
 	hpx := &httpproxy{
 		hosts:      make([]*HttpHost, 0),
 		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
+		underlying: net.DefaultRouteTable,
 	}
 
 	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {

@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"net/url"
 	"strconv"
 	"strings"
 
@@ -18,9 +17,9 @@ import (
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
-	"github.com/mrhaoxx/OpenNG/trojan"
+	"github.com/mrhaoxx/OpenNG/tunnels/trojan"
+	"github.com/mrhaoxx/OpenNG/tunnels/wireguard"
 	"github.com/mrhaoxx/OpenNG/utils"
-	"github.com/mrhaoxx/OpenNG/wireguard"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -1354,15 +1353,15 @@ var _builtin_refs = map[string]Inst{
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
 		return http.StdForwardProxy{}, nil
 	},
-	"builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
-		proxyurl := spec.MustGet("ProxyURL").ToString()
-		_url, err := url.Parse(proxyurl)
-		if err != nil {
-			return nil, err
-		}
+	// "builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
+	// 	proxyurl := spec.MustGet("ProxyURL").ToString()
+	// 	_url, err := url.Parse(proxyurl)
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		return &http.FwdForwardProxy{Proxy: _url}, nil
-	},
+	// 	return &http.FwdForwardProxy{Proxy: _url}, nil
+	// },
 	"builtin::http::acme::fileprovider": func(spec *ArgNode) (any, error) {
 		host := spec.MustGet("Hosts").ToStringList()
 		wwwroot := spec.MustGet("WWWRoot").ToString()
@@ -1705,7 +1704,7 @@ var _builtin_refs = map[string]Inst{
 			passwords[i] = hex.EncodeToString(sum[:])
 		}
 		return &trojan.Server{
-			Passwords: passwords,
+			PasswordHashes: passwords,
 		}, nil
 	},
 }

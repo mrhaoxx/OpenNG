@@ -8,9 +8,9 @@
 package tcp
 
 import (
+	"context"
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"sync"
 	"syscall"
@@ -18,9 +18,13 @@ import (
 
 	"net/netip"
 
+	gnet "net"
+
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/net"
+
+	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/utils"
-	"github.com/mrhaoxx/OpenNG/wireguard/netstack"
 
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/adapters/gonet"
@@ -47,7 +51,7 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		s := req.ID()
 
 		now := time.Now()
-		path := fmt.Sprintf("wg %s TCP -> %s", net.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
+		path := fmt.Sprintf("wg %s TCP -> %s", gnet.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
 		// Add address to stack.
 		addr, _ := netip.AddrFromSlice(s.LocalAddress.AsSlice())
@@ -103,11 +107,14 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 // a channel for the caller to populate when the connection is used,
 // and whether or not to send RST to source.
 func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
-	c, err := net.DialTimeout("tcp", net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), config.ConnTimeout)
+
+	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout)
+	defer cancel()
+	c, err := net.DefaultRouteTable.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
 	if err != nil {
 		// If connection refused, we can send a reset to let peer know.
-		if oerr, ok := err.(*net.OpError); ok {
+		if oerr, ok := err.(*gnet.OpError); ok {
 			if syserr, ok := oerr.Err.(*os.SyscallError); ok {
 				if syserr.Err == syscall.ECONNREFUSED {
 					return nil, true
@@ -115,7 +122,7 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 			}
 		}
 
-		log.Verbosef("[wireguard] failed to connect to %s: %v", net.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), err)
+		log.Verbosef("[wireguard] failed to connect to %s: %v", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), err)
 		return nil, true
 	}
 

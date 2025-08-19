@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
-	"github.com/mrhaoxx/OpenNG/wireguard/netstack"
-	"github.com/mrhaoxx/OpenNG/wireguard/tcp"
-	"github.com/mrhaoxx/OpenNG/wireguard/udp"
+	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/netstack"
+	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/tcp"
+	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/udp"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
