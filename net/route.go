@@ -89,7 +89,7 @@ var DefaultRouteTable = &RouteTable{
 		{
 			IPNet: net.IPNet{
 				IP:   net.IPv4zero,
-				Mask: net.CIDRMask(0, 0),
+				Mask: net.CIDRMask(0, 32),
 			},
 			Interface: &SysInterface{},
 		},
