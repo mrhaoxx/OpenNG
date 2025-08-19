@@ -4,7 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
-	"net"
+	gonet "net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -15,6 +15,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/utils"
 )
 
@@ -32,6 +33,8 @@ type httpproxy struct {
 	buf   *utils.BufferedLookup
 
 	allowhosts utils.GroupRegexp
+
+	underlying net.Interface
 }
 
 func (h *httpproxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
@@ -119,12 +122,8 @@ func (hpx *httpproxy) Insert(index int, id string, hosts []string, backend strin
 	u, _ := url.Parse(backend)
 	hostport, _ := hostPortNoPort(u)
 
-	dialer := func(ctx context.Context, network, addr string) (net.Conn, error) {
-		dialer := &net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}
-		return dialer.DialContext(ctx, network, hostport)
+	dialer := func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+		return hpx.underlying.DialContext(ctx, network, hostport)
 	}
 
 	buf.proxy = &httputil.ReverseProxy{

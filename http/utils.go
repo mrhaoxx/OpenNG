@@ -2,6 +2,9 @@ package http
 
 import (
 	"crypto/tls"
+	"io"
+	"net/http"
+	"net/url"
 	"strings"
 
 	"github.com/dlclark/regexp2"
@@ -63,3 +66,47 @@ var _my_cipher_suit = []uint16{
 }
 
 var regexpforproxy = []*regexp2.Regexp{regexp2.MustCompile("^/proxy/trace$", 0)}
+
+func flush(flusher interface{}) bool {
+	f, ok := flusher.(http.Flusher)
+	if !ok {
+		return false
+	}
+	f.Flush()
+	return true
+}
+
+func copyHeader(dst, src http.Header) {
+	for k, vv := range src {
+		for _, v := range vv {
+			dst.Add(k, v)
+		}
+	}
+}
+
+func copyResponse(rw http.ResponseWriter, resp *http.Response) error {
+	copyHeader(rw.Header(), resp.Header)
+	rw.WriteHeader(resp.StatusCode)
+	defer resp.Body.Close()
+
+	_, err := io.Copy(rw, resp.Body)
+	return err
+}
+
+func hostPortNoPort(u *url.URL) (hostPort, hostNoPort string) {
+	hostPort = u.Host
+	hostNoPort = u.Host
+	if i := strings.LastIndex(u.Host, ":"); i > strings.LastIndex(u.Host, "]") {
+		hostNoPort = hostNoPort[:i]
+	} else {
+		switch u.Scheme {
+		case "wss":
+			hostPort += ":443"
+		case "https":
+			hostPort += ":443"
+		default:
+			hostPort += ":80"
+		}
+	}
+	return hostPort, hostNoPort
+}

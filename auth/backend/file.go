@@ -13,6 +13,7 @@ import (
 type user struct {
 	name                string
 	passwordHash        string
+	webAuthn            []string
 	allow_forward_proxy bool
 	sshkeys             []gossh.PublicKey
 	allowsshpwd         bool

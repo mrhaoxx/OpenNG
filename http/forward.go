@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"sync"
+	"time"
 
-	goproxy "golang.org/x/net/proxy"
+	gonet "net"
 
+	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/utils"
 )
 
@@ -31,20 +31,44 @@ func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
 
 }
 
-type StdForwardProxy struct{}
+type StdForwardProxy struct {
+	Underlying net.Interface
 
-func (StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
+	transport http.RoundTripper
+	init      sync.Once
+}
+
+func (h *StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
+
+	h.init.Do(func() {
+		if h.Underlying == nil {
+			h.Underlying = net.DefaultRouteTable
+		}
+
+		h.transport = &http.Transport{
+			DialContext: func(ctx context.Context, network, addr string) (gonet.Conn, error) {
+				return h.Underlying.Dial(network, addr)
+			},
+			ForceAttemptHTTP2:     true,
+			MaxIdleConns:          100,
+			IdleConnTimeout:       90 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+		}
+	})
+
 	delHopHeaders(ctx.Req.Header)
 
 	if ctx.Req.Method == "CONNECT" {
-		server, err := net.Dial("tcp", ctx.Req.RequestURI)
+		server, err := h.Underlying.Dial("tcp", ctx.Req.RequestURI)
 		if err != nil {
 			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Dial: %v", err))
 			return RequestEnd
 		}
 		defer server.Close()
 
-		if ctx.Req.ProtoMajor == 0 || ctx.Req.ProtoMajor == 1 {
+		switch ctx.Req.ProtoMajor {
+		case 0, 1:
 			localconn, _, err := ctx.Resp.Hijack()
 			if err != nil {
 				ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Hijack: %v", err))
@@ -55,7 +79,7 @@ func (StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
 			fmt.Fprintf(localconn, "HTTP/%d.%d 200 OK\r\n\r\n", ctx.Req.ProtoMajor, ctx.Req.ProtoMinor)
 
 			proxy(ctx.Req.Context(), localconn, server)
-		} else if ctx.Req.ProtoMajor == 2 {
+		case 2:
 			ctx.Resp.Header()["Date"] = nil
 			ctx.Resp.WriteHeader(http.StatusOK)
 
@@ -64,11 +88,12 @@ func (StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
 		}
 	} else {
 		ctx.Req.RequestURI = ""
+
 		if ctx.Req.ProtoMajor == 2 {
 			ctx.Req.URL.Scheme = "http"
 			ctx.Req.URL.Host = ctx.Req.Host
 		}
-		resp, err := http.DefaultTransport.RoundTrip(ctx.Req)
+		resp, err := h.transport.RoundTrip(ctx.Req)
 
 		if err != nil {
 			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: %v", err))
@@ -85,7 +110,7 @@ func (StdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
 	return RequestEnd
 }
 
-func (StdForwardProxy) HostsForward() utils.GroupRegexp {
+func (*StdForwardProxy) HostsForward() utils.GroupRegexp {
 	return nil
 }
 
@@ -176,93 +201,4 @@ func copyBody(wr io.Writer, body io.Reader) {
 			break
 		}
 	}
-}
-
-func flush(flusher interface{}) bool {
-	f, ok := flusher.(http.Flusher)
-	if !ok {
-		return false
-	}
-	f.Flush()
-	return true
-}
-
-func copyHeader(dst, src http.Header) {
-	for k, vv := range src {
-		for _, v := range vv {
-			dst.Add(k, v)
-		}
-	}
-}
-
-type FwdForwardProxy struct {
-	Proxy *url.URL
-}
-
-func (*FwdForwardProxy) HostsForward() utils.GroupRegexp {
-	return nil
-}
-
-func (f *FwdForwardProxy) HandleHTTPForward(ctx *HttpCtx) Ret {
-	delHopHeaders(ctx.Req.Header)
-
-	if ctx.Req.Method == "CONNECT" {
-		dialer, err := goproxy.FromURL(f.Proxy, &net.Dialer{})
-		if err != nil {
-			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Dialer: %v", err))
-			return RequestEnd
-		}
-
-		server, err := dialer.Dial("tcp", ctx.Req.RequestURI)
-		if err != nil {
-			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Dial: %v", err))
-			return RequestEnd
-		}
-		defer server.Close()
-
-		if ctx.Req.ProtoMajor == 0 || ctx.Req.ProtoMajor == 1 {
-			localconn, _, err := ctx.Resp.Hijack()
-			if err != nil {
-				ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: Hijack: %v", err))
-				return RequestEnd
-			}
-
-			defer localconn.Close()
-			fmt.Fprintf(localconn, "HTTP/%d.%d 200 OK\r\n\r\n", ctx.Req.ProtoMajor, ctx.Req.ProtoMinor)
-
-			proxy(ctx.Req.Context(), localconn, server)
-		} else if ctx.Req.ProtoMajor == 2 {
-			ctx.Resp.Header()["Date"] = nil
-			ctx.Resp.WriteHeader(http.StatusOK)
-
-			ctx.Resp.Flush()
-			proxyh2(ctx.Req.Context(), ctx.Req.Body, ctx.Resp, server)
-		}
-	} else {
-		ctx.Req.RequestURI = ""
-		if ctx.Req.ProtoMajor == 2 {
-			ctx.Req.URL.Scheme = "http"
-			ctx.Req.URL.Host = ctx.Req.Host
-		}
-
-		tp := &http.Transport{
-			Proxy: func(req *http.Request) (*url.URL, error) {
-				return f.Proxy, nil
-			},
-		}
-
-		resp, err := tp.RoundTrip(ctx.Req)
-
-		if err != nil {
-			ctx.Resp.ErrorPage(http.StatusBadRequest, fmt.Sprintf("Forward: %v", err))
-			return RequestEnd
-		}
-		defer resp.Body.Close()
-
-		copyHeader(ctx.Resp.Header(), resp.Header)
-		ctx.Resp.WriteHeader(resp.StatusCode)
-		flush(ctx.Resp)
-		copyBody(ctx.Resp, resp.Body)
-	}
-	return RequestEnd
 }

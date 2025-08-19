@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"net"
+	gonet "net"
 	"net/http"
 	"strconv"
 	"strings"
@@ -155,7 +155,7 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 
 	c, kill := context.WithCancel(r.Context())
 
-	ip, _, _ := net.SplitHostPort(r.RemoteAddr)
+	ip, _, _ := gonet.SplitHostPort(r.RemoteAddr)
 
 	ctx := &HttpCtx{
 		Req:       r.WithContext(c),
@@ -278,7 +278,7 @@ func (w *NgResponseWriter) Close() error {
 	return nil
 }
 
-func (w *NgResponseWriter) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (w *NgResponseWriter) Hijack() (gonet.Conn, *bufio.ReadWriter, error) {
 	if hj, ok := w.stdrw.(http.Hijacker); ok {
 		w.code = http.StatusSwitchingProtocols
 		return hj.Hijack()

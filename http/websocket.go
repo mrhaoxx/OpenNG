@@ -4,7 +4,6 @@ package http
 
 import (
 	"fmt"
-	"io"
 	"log"
 	"net"
 	"net/http"
@@ -227,31 +226,4 @@ func (w *WebsocketProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	if e, ok := err.(*websocket.CloseError); !ok || e.Code == websocket.CloseAbnormalClosure {
 		log.Printf(message, err)
 	}
-}
-
-func copyResponse(rw http.ResponseWriter, resp *http.Response) error {
-	copyHeader(rw.Header(), resp.Header)
-	rw.WriteHeader(resp.StatusCode)
-	defer resp.Body.Close()
-
-	_, err := io.Copy(rw, resp.Body)
-	return err
-}
-
-func hostPortNoPort(u *url.URL) (hostPort, hostNoPort string) {
-	hostPort = u.Host
-	hostNoPort = u.Host
-	if i := strings.LastIndex(u.Host, ":"); i > strings.LastIndex(u.Host, "]") {
-		hostNoPort = hostNoPort[:i]
-	} else {
-		switch u.Scheme {
-		case "wss":
-			hostPort += ":443"
-		case "https":
-			hostPort += ":443"
-		default:
-			hostPort += ":80"
-		}
-	}
-	return hostPort, hostNoPort
 }
