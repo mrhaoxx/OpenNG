@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="/ng-cgi/logo" />
+  <title>NetGATE Requests</title>
+  <style></style>
+</head>
+<body>
+  <div class="min-h-screen flex flex-col bg-gray-50 dark:bg-neutral-900">
+    <header class="border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur sticky top-0 z-10">
+      <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2">
+        <div class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">NetGATE</div>
+        <nav class="flex flex-wrap gap-2">
+          <a href="/" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Config</a>
+          <a href="/connections" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Connections</a>
+          <a href="/requests" class="px-3 py-1.5 rounded-md text-sm font-medium bg-sky-500 text-white">Requests</a>
+          <a href="/logs" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Logs</a>
+        </nav>
+        <div class="ml-auto text-xs text-neutral-500 dark:text-neutral-400" id="uptime">Connecting...</div>
+      </div>
+    </header>
+    <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-4">
+      <ul class="divide-y divide-neutral-200 dark:divide-neutral-800" id="request-list"></ul>
+    </main>
+  </div>
+
+  <div id="resultDialog" class="hidden fixed inset-0 z-20 items-center justify-center">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="relative bg-white dark:bg-neutral-800 text-neutral-900 dark:text-neutral-100 rounded-lg shadow-lg p-4 mx-4">
+      <p id="resultText" class="mb-3"></p>
+      <button id="closeButton" class="px-3 py-1.5 rounded-md bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900">Close</button>
+    </div>
+  </div>
+</body>
+</html>
+
+

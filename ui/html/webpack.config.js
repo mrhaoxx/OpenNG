@@ -4,8 +4,13 @@ import MiniCssExtractPlugin from 'mini-css-extract-plugin'
 import HtmlInlineScriptPlugin from 'html-inline-script-webpack-plugin';
 
 export default {
+  entry: {
+    index: './src/index.ts',
+    connections: './src/connections.ts',
+    requests: './src/requests.ts'
+  },
   output: {
-    filename: '[contenthash].js',
+    filename: '[name].[contenthash].js',
     clean: true,
   },
   devtool: false,
@@ -16,7 +21,7 @@ export default {
     rules: [
       {
         test: /\.css$/,
-        use: [MiniCssExtractPlugin.loader, 'css-loader']
+        use: [MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader']
       },
       {
         test: /\.ts$/,
@@ -30,16 +35,44 @@ export default {
     minimizer: ['...', new CssMinimizerPlugin()],
     usedExports: true,
   },
-  plugins: [new HtmlWebPackPlugin(
-    {
+  plugins: [
+    new HtmlWebPackPlugin({
+      template: './src/index.ejs',
+      filename: 'index.html',
+      chunks: ['index'],
       inject: 'body',
       minify: {
         collapseWhitespace: true,
         removeComments: true,
         removeRedundantAttributes: true,
-        useShortDoctype: true,
-      },
-    }
-  ), new MiniCssExtractPlugin({ filename: '[contenthash].css' })]
+        useShortDoctype: true
+      }
+    }),
+    new HtmlWebPackPlugin({
+      template: './src/connections.ejs',
+      filename: 'connections.html',
+      chunks: ['connections'],
+      inject: 'body',
+      minify: {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        useShortDoctype: true
+      }
+    }),
+    new HtmlWebPackPlugin({
+      template: './src/requests.ejs',
+      filename: 'requests.html',
+      chunks: ['requests'],
+      inject: 'body',
+      minify: {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        useShortDoctype: true
+      }
+    }),
+    new MiniCssExtractPlugin({ filename: '[contenthash].css' })
+  ]
 }
 

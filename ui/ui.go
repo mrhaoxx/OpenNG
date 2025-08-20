@@ -23,12 +23,6 @@ import (
 //go:embed html/dist
 var index embed.FS
 
-//go:embed html/connections.html
-var html_connection string
-
-//go:embed html/requests.html
-var html_requests string
-
 type Reporter interface {
 	Report() map[uint64]interface{}
 }
@@ -57,10 +51,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/index.html")
 	case "/connections":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		ctx.WriteString(html_connection)
+		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/connections.html")
 	case "/requests":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		ctx.WriteString(html_requests)
+		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/requests.html")
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
@@ -93,6 +87,12 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/save":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
+		errors := ValidateCfg(b)
+		if len(errors) > 0 {
+			ctx.Resp.WriteHeader(http.StatusNotAcceptable)
+			ctx.WriteString(strings.Join(errors, "\n"))
+			return http.RequestEnd
+		}
 		os.WriteFile(ConfigFile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 	case "/api/v1/cfg/validate":

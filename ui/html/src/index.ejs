@@ -8,45 +8,40 @@
   <title>NetGATE Config Editor</title>
   <meta name="theme-color" content="#42e3ff" />
   <style>
-    .button-container {
-      display: flex;
-      align-items: center;
-      flex-wrap: wrap;
-      gap: 8px;
-    }
-    .uptime-display {
-      margin-left: auto;
-      font-family: monospace;
-    }
-    .disconnected {
-      color: red;
-    }
+    .disconnected { color: red; }
   </style>
 </head>
 
 
-<body>
-
-  <div class="button-container">
-    <div style="width: 100%; margin-bottom: 8px;">
-      <button onclick="location.href = '/connections';" id="myButton" class="float-left submit-button">Connections</button>
-      <button onclick="location.href = '/requests';" id="myButton" class="float-left submit-button">Requests</button>
-      <button onclick="location.href = '/logs';" id="myButton" class="float-left submit-button">Stream Logging</button>
+<body class="min-h-screen flex flex-col bg-gray-50 dark:bg-neutral-900">
+  <div class="border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur sticky top-0 z-10">
+    <div class="max-w-6xl mx-auto px-4 py-2 flex items-center gap-2">
+      <div class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">NetGATE</div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="/" class="px-3 py-1.5 rounded-md text-sm font-medium bg-sky-500 text-white">Config</a>
+        <a href="/connections" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Connections</a>
+        <a href="/requests" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Requests</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Logs</a>
+      </nav>
+      <div class="ml-auto text-xs text-neutral-500 dark:text-neutral-400" id="uptime">Connecting...</div>
     </div>
-    <button id="update">Load</button>
-    <button id="save">Save</button>
-    <button id="reload">Save and Reload</button>
-    <button id="shutdown">Shutdown</button>
-    <input id="hasky" placeholder="Text to Hash"><button id="Hash">Hash</button>
-    <div id="uptime" class="uptime-display">Connecting...</div>
   </div>
 
-  <br>
-
-  <div id="status" style="font-family: monospace;">Loading Editor</div>
-  <br>
-  <div id="editor"></div>
-  <div id="problems"></div>
+  <main class="flex-1 max-w-6xl w-full mx-auto px-4 py-4 flex flex-col min-h-0">
+    <div id="status" class="font-mono text-sm text-neutral-600 dark:text-neutral-300 mb-2">Loading Editor</div>
+    <div id="editor" class="flex-1 min-h-0 border border-neutral-200 dark:border-neutral-800"></div>
+    <div id="problems" class="mt-3 max-h-40 overflow-auto"></div>
+    <div class="mt-3 flex gap-2 items-center flex-wrap">
+      <button id="update" class="px-3 py-1.5 rounded-md bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900">Load</button>
+      <button id="save" class="px-3 py-1.5 rounded-md bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900">Save</button>
+      <button id="reload" class="px-3 py-1.5 rounded-md bg-sky-600 text-white hover:bg-sky-700">Save and Reload</button>
+      <button id="shutdown" class="px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700">Shutdown</button>
+      <div class="flex items-center gap-2">
+        <input id="hasky" placeholder="Text to Hash" class="px-2 py-1 border border-neutral-300 dark:border-neutral-700 rounded-md bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100" />
+        <button id="Hash" class="px-3 py-1.5 rounded-md bg-neutral-800 text-white dark:bg-neutral-200 dark:text-neutral-900">Hash</button>
+      </div>
+    </div>
+  </main>
 </body>
 </html>
 

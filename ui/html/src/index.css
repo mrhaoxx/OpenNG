@@ -1,3 +1,7 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --background-color: hsl(0, 0%, 96%);
   --editor-background: hsl(60, 100%, 100%);
