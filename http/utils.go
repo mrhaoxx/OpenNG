@@ -2,12 +2,15 @@ package http
 
 import (
 	"crypto/tls"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/dlclark/regexp2"
+	"github.com/mrhaoxx/OpenNG/tcp"
+	"github.com/mrhaoxx/OpenNG/utils"
 )
 
 func IsDoubleTailDomainSuffix(domain string) bool {
@@ -42,6 +45,17 @@ func GetRootDomain(host string) string {
 	return Maindomain
 }
 
+type redirectTLS struct{}
+
+func (redirectTLS) Handle(conn *tcp.Conn) tcp.SerRet {
+	http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
+	}))
+	return tcp.Close
+}
+
+var Redirect2TLS = redirectTLS{}
+
 var _my_cipher_suit = []uint16{
 	tls.TLS_RSA_WITH_AES_128_CBC_SHA,
 	tls.TLS_RSA_WITH_AES_256_CBC_SHA,
@@ -66,15 +80,6 @@ var _my_cipher_suit = []uint16{
 }
 
 var regexpforproxy = []*regexp2.Regexp{regexp2.MustCompile("^/proxy/trace$", 0)}
-
-func flush(flusher interface{}) bool {
-	f, ok := flusher.(http.Flusher)
-	if !ok {
-		return false
-	}
-	f.Flush()
-	return true
-}
 
 func copyHeader(dst, src http.Header) {
 	for k, vv := range src {
@@ -109,4 +114,21 @@ func hostPortNoPort(u *url.URL) (hostPort, hostNoPort string) {
 		}
 	}
 	return hostPort, hostNoPort
+}
+
+func EchoVerbose(ctx *HttpCtx) Ret {
+	ctx.WriteString("Method: " + ctx.Req.Method + "\n")
+	ctx.WriteString("URL: " + ctx.Req.URL.String() + "\n")
+	ctx.WriteString("Proto: " + ctx.Req.Proto + "\n")
+	ctx.WriteString("Host: " + ctx.Req.Host + "\n")
+	ctx.WriteString("RemoteAddr: " + ctx.Req.RemoteAddr + "\n")
+	ctx.WriteString("RequestURI: " + ctx.Req.RequestURI + "\n")
+
+	for name, values := range ctx.Req.Header {
+		for _, value := range values {
+			fmt.Fprintf(ctx.Resp, "%v: %v\n", name, value)
+		}
+	}
+
+	return RequestEnd
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
+	thttp "github.com/mrhaoxx/OpenNG/tunnels/http"
 	"github.com/mrhaoxx/OpenNG/tunnels/trojan"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard"
 	"github.com/mrhaoxx/OpenNG/utils"
@@ -962,7 +963,7 @@ var _builtin_refs = map[string]Inst{
 
 		proxier := http.NewHTTPProxier(allowedhosts)
 
-		for _, host := range hosts {
+		for id, host := range hosts {
 			name := host.MustGet("name").ToString()
 			hosts := host.MustGet("hosts").ToStringList()
 
@@ -970,7 +971,7 @@ var _builtin_refs = map[string]Inst{
 			maxconns := host.MustGet("MaxConnsPerHost").ToInt()
 			tlsskip := host.MustGet("TlsSkipVerify").ToBool()
 
-			proxier.Insert(proxier.Len(), name, hosts, backend, maxconns, tlsskip)
+			proxier.Insert(id, name, hosts, backend, maxconns, tlsskip)
 
 			log.Verboseln(fmt.Sprintf("new http reverse host %#v: hosts=%#v backend=%#v maxconns=%d tlsskip=%v", name, hosts, backend, maxconns, tlsskip))
 		}
@@ -1351,7 +1352,7 @@ var _builtin_refs = map[string]Inst{
 		return Dns, nil
 	},
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
-		return &http.StdForwardProxy{}, nil
+		return &thttp.StdForwardProxy{}, nil
 	},
 	// "builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
 	// 	proxyurl := spec.MustGet("ProxyURL").ToString()

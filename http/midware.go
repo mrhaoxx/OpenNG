@@ -1,7 +1,6 @@
 package http
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -156,7 +155,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 	}()
 
 	// forward proxy handle
-	{
+	if len(h.currentForward) > 0 {
 		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
 		if ok || RequestCtx.Req.Method == http.MethodConnect {
 			RequestPath += "> "
@@ -273,27 +272,3 @@ func (ctl *Midware) Report() map[uint64]interface{} {
 	}
 	return ret
 }
-
-func (HMW *Midware) KillRequest(rid uint64) error {
-	HMW.muActiveRequest.RLock()
-	defer HMW.muActiveRequest.RUnlock()
-	ctx, ok := HMW.activeRequests[rid]
-	if !ok {
-		return errors.New("request not found")
-	}
-
-	ctx.kill()
-
-	return nil
-}
-
-type redirectTLS struct{}
-
-func (redirectTLS) Handle(conn *tcp.Conn) tcp.SerRet {
-	http.Serve(utils.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
-	}))
-	return tcp.Close
-}
-
-var Redirect2TLS = redirectTLS{}
