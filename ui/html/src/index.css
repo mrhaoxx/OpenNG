@@ -42,7 +42,7 @@ main {
   display: flex;
   flex: 1 1 auto;
   flex-flow: column;
-  margin: 1.5rem;
+  margin: 0;
 }
 
 #status {
