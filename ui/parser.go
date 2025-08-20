@@ -48,8 +48,8 @@ func (node *ArgNode) Assert(assertions Assert) error {
 			return fmt.Errorf("required field is null")
 		}
 	} else {
-		if assertions.Type != "any" && node.Type != assertions.Type {
-			return fmt.Errorf("type mismatch: %s != %s (%v)", node.Type, assertions.Type, node.Value)
+		if assertions.Type != "any" && !node.IfCompatibleAndConvert(assertions) {
+			return fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
 		}
 		if assertions.Required && assertions.Default != nil {
 			if !reflect.DeepEqual(node.Value, assertions.Default) {
@@ -135,6 +135,31 @@ func (node *ArgNode) Assert(assertions Assert) error {
 	return nil
 }
 
+func (node *ArgNode) IfCompatibleAndConvert(assertions Assert) bool {
+
+	if node.Type == assertions.Type {
+		return true
+	}
+
+	switch assertions.Type {
+	case "ptr":
+		if node.Type == "string" {
+			node.Type = "ptr"
+			return true
+		}
+	case "duration":
+		if node.Type == "string" {
+			if dur, err := time.ParseDuration(node.Value.(string)); err == nil {
+				node.Type = "duration"
+				node.Value = dur
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
 func ParseFromAny(raw any) (*ArgNode, error) {
 	switch raw := raw.(type) {
 	case nil:
@@ -157,20 +182,7 @@ func ParseFromAny(raw any) (*ArgNode, error) {
 					Value: raw[len("$dref{") : len(raw)-1],
 				}, nil
 			}
-		case strings.HasPrefix(raw, "$ptr{"):
-			{
-				return &ArgNode{
-					Type:  "ptr",
-					Value: raw[len("$ptr{") : len(raw)-1],
-				}, nil
-			}
 		default:
-			if _, err := time.ParseDuration(raw); err == nil {
-				return &ArgNode{
-					Type:  "duration",
-					Value: raw,
-				}, nil
-			}
 			return &ArgNode{
 				Type:  "string",
 				Value: raw,
@@ -308,12 +320,7 @@ func (node *ArgNode) ToDuration() time.Duration {
 		return 0
 	}
 
-	dur, err := time.ParseDuration(node.Value.(string))
-	if err != nil {
-		panic(err)
-	}
-
-	return dur
+	return node.Value.(time.Duration)
 }
 
 func (node *ArgNode) Get(path string) (*ArgNode, error) {

@@ -116,14 +116,14 @@ func (space *Space) Deptr(root *ArgNode) error {
 			for k, v := range node.ToMap() {
 				err := walk(v)
 				if err != nil {
-					return fmt.Errorf(".%s%w", k, err)
+					return fmt.Errorf(".%s: %w", k, err)
 				}
 			}
 		case "list":
 			for i, v := range node.ToList() {
 				err := walk(v)
 				if err != nil {
-					return fmt.Errorf("[%d]%w", i, err)
+					return fmt.Errorf("[%d]: %w", i, err)
 				}
 			}
 		case "ptr":

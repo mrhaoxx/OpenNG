@@ -2,6 +2,9 @@ package ui
 
 import (
 	"encoding/json"
+	"fmt"
+
+	"gopkg.in/yaml.v3"
 )
 
 func (m Assert) ToScheme() any {
@@ -35,8 +38,7 @@ func (m Assert) ToScheme() any {
 		return map[string]any{
 			"type":         "string",
 			"description":  "(ptr) " + m.Desc,
-			"pattern":      "^\\$ptr\\{(.+)\\}$",
-			"errorMessage": "Pointer must be in format $ptr{service_name}",
+			"errorMessage": "Pointer must be a string",
 		}
 
 	case "string":
@@ -183,4 +185,90 @@ func GenerateJsonSchema() []byte {
 	s, _ := json.Marshal(root)
 
 	return s
+}
+
+func ValidateConfig(root *ArgNode) []error {
+
+	errors := []error{}
+
+	srvs := root.MustGet("Services")
+
+	space := Space{
+		Services: map[string]any{},
+	}
+
+	for i, _srv := range srvs.Value.([]*ArgNode) {
+
+		_ref := _srv.MustGet("kind").ToString()
+		to := _srv.MustGet("name").ToString()
+
+		spec := _srv.MustGet("spec")
+
+		spec_assert, ok := _builtin_refs_assertions[_ref]
+		if !ok {
+			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
+			continue
+		}
+
+		err := spec.Assert(spec_assert)
+
+		if err != nil {
+			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
+			continue
+		}
+
+		err = space.Deptr(spec)
+
+		if err != nil {
+			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
+			continue
+		}
+
+		if to != "" && to != "_" {
+			space.Services[to] = true
+		}
+
+	}
+
+	return errors
+}
+
+func ValidateCfg(cfgs []byte) []string {
+	var cfg any
+	err := yaml.Unmarshal(cfgs, &cfg)
+	if err != nil {
+		return []string{err.Error()}
+	}
+
+	curcfg = cfgs
+
+	nodes, err := ParseFromAny(cfg)
+	if err != nil {
+		return []string{err.Error()}
+	}
+
+	err = Dedref(nodes)
+
+	if err != nil {
+		return []string{err.Error()}
+	}
+
+	err = nodes.Assert(_builtin_refs_assertions["_"])
+
+	if err != nil {
+		return []string{err.Error()}
+	}
+
+	errors := ValidateConfig(nodes)
+
+	errs := []string{}
+
+	if len(errors) > 0 {
+		for _, err := range errors {
+			errs = append(errs, err.Error())
+		}
+		return errs
+	}
+
+	return nil
 }

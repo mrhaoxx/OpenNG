@@ -95,6 +95,16 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		b, _ := io.ReadAll(ctx.Req.Body)
 		os.WriteFile(ConfigFile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
+	case "/api/v1/cfg/validate":
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		b, _ := io.ReadAll(ctx.Req.Body)
+		errors := ValidateCfg(b)
+		ctx.Resp.WriteHeader(http.StatusAccepted)
+		if len(errors) > 0 {
+			ctx.WriteString(strings.Join(errors, "\n"))
+		} else {
+			ctx.WriteString("ok")
+		}
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")

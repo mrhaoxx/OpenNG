@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/auth"
@@ -48,7 +49,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Desc:     "config version",
 				Type:     "int",
 				Required: true,
-				Default:  5,
+				Default:  6,
 			},
 			"Config": {
 				Desc: "global configurations",
@@ -284,7 +285,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 			"timeout": {
 				Type:    "duration",
-				Default: "0s",
+				Default: time.Duration(0),
 				Desc:    "timeout for detection, 0 means no timeout",
 			},
 			"timeoutprotocol": {
@@ -505,7 +506,7 @@ var _builtin_refs_assertions = map[string]Assert{
 		Sub: AssertMap{
 			"timeout": {
 				Type:    "duration",
-				Default: "3s",
+				Default: time.Duration(3 * time.Second),
 			},
 		},
 	},
@@ -817,7 +818,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 			"cache_ttl": {
 				Type:    "duration",
-				Default: "10s",
+				Default: time.Duration(10 * time.Second),
 			},
 			"matchusernames": {
 				Type: "list",
@@ -889,19 +890,19 @@ var _builtin_refs_assertions = map[string]Assert{
 						Sub: AssertMap{
 							"CatchTimeout": {
 								Type:    "duration",
-								Default: "600ms",
+								Default: time.Duration(600 * time.Millisecond),
 							},
 							"ConnTimeout": {
 								Type:    "duration",
-								Default: "3s",
+								Default: time.Duration(3 * time.Second),
 							},
 							"KeepaliveIdle": {
 								Type:    "duration",
-								Default: "60s",
+								Default: time.Duration(60 * time.Second),
 							},
 							"KeepaliveInterval": {
 								Type:    "duration",
-								Default: "30s",
+								Default: time.Duration(30 * time.Second),
 							},
 							"KeepaliveCount": {
 								Type:    "int",

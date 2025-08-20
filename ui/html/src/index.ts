@@ -194,6 +194,65 @@ document.getElementById('update')?.addEventListener('click', update);
 document.getElementById('save')?.addEventListener('click', save);
 document.getElementById('reload')?.addEventListener('click', reload);
 
+// Server-side config validation integration
+let validationTimer: number | undefined;
+let lastValidationRequestId = 0;
+
+async function runServerValidation(requestId: number) {
+  try {
+    const response = await fetch('/api/v1/cfg/validate', {
+      method: 'POST',
+      body: ed.getValue()
+    });
+    const text = (await response.text()).trim();
+    // Only apply the latest response
+    if (requestId !== lastValidationRequestId) return;
+
+    const model = ed.getModel();
+    if (!model) return;
+
+    if (text === 'ok') {
+      editor.setModelMarkers(model, 'server-validate', []);
+      return;
+    }
+
+    const lines = text.split('\n').filter(Boolean);
+    const markers: editor.IMarkerData[] = lines.map(msg => ({
+      severity: MarkerSeverity.Error,
+      message: msg,
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: 1,
+      endColumn: 1
+    }));
+    editor.setModelMarkers(model, 'server-validate', markers);
+  } catch (error) {
+    // Network or other error: surface as a single problem marker
+    const model = ed.getModel();
+    if (!model) return;
+    editor.setModelMarkers(model, 'server-validate', [{
+      severity: MarkerSeverity.Error,
+      message: (error as Error).message || 'Validation request failed',
+      startLineNumber: 1,
+      startColumn: 1,
+      endLineNumber: 1,
+      endColumn: 1
+    }]);
+  }
+}
+
+function scheduleValidation() {
+  if (validationTimer) window.clearTimeout(validationTimer);
+  validationTimer = window.setTimeout(() => {
+    lastValidationRequestId++;
+    runServerValidation(lastValidationRequestId);
+  }, 500);
+}
+
+ed.onDidChangeModelContent(() => {
+  scheduleValidation();
+});
+
 // Add uptime update functionality
 async function updateUptime() {
   fetch('/api/v1/uptime', { redirect: 'error' })
