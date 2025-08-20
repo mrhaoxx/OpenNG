@@ -5,6 +5,7 @@ import { ILanguageFeaturesService } from 'monaco-editor/esm/vs/editor/common/ser
 import { OutlineModel } from 'monaco-editor/esm/vs/editor/contrib/documentSymbols/browser/outlineModel.js'
 import { StandaloneServices } from 'monaco-editor/esm/vs/editor/standalone/browser/standaloneServices.js'
 import { configureMonacoYaml, type SchemasSettings } from 'monaco-yaml'
+import { parseDocument, LineCounter, isMap, isSeq } from 'yaml'
 
 import './index.css'
 
@@ -217,14 +218,35 @@ async function runServerValidation(requestId: number) {
     }
 
     const lines = text.split('\n').filter(Boolean);
-    const markers: editor.IMarkerData[] = lines.map(msg => ({
-      severity: MarkerSeverity.Error,
-      message: msg,
-      startLineNumber: 1,
-      startColumn: 1,
-      endLineNumber: 1,
-      endColumn: 1
-    }));
+
+    // Compute precise positions for Services items using YAML parser (not string heuristics)
+    const svcPositions = getServicesItemPositions(ed.getValue()); // 0-based indexed to match backend
+
+    const markers: editor.IMarkerData[] = lines.map(msg => {
+      const m = msg.match(/^\[(\d+)\]\s?/);
+      if (m) {
+        const idx = parseInt(m[1], 10);
+        const pos = svcPositions[idx];
+        if (pos) {
+          return {
+            severity: MarkerSeverity.Error,
+            message: msg,
+            startLineNumber: pos.line,
+            startColumn: pos.column,
+            endLineNumber: pos.line,
+            endColumn: pos.column + 1
+          } as editor.IMarkerData;
+        }
+      }
+      return {
+        severity: MarkerSeverity.Error,
+        message: msg,
+        startLineNumber: 1,
+        startColumn: 1,
+        endLineNumber: 1,
+        endColumn: 1
+      } as editor.IMarkerData;
+    });
     editor.setModelMarkers(model, 'server-validate', markers);
   } catch (error) {
     // Network or other error: surface as a single problem marker
@@ -252,6 +274,32 @@ function scheduleValidation() {
 ed.onDidChangeModelContent(() => {
   scheduleValidation();
 });
+
+function getServicesItemPositions(text: string): Array<{ line: number; column: number }> {
+  try {
+    const lc = new LineCounter();
+    const doc = parseDocument(text, { lineCounter: lc });
+    const root = doc.contents as any;
+    if (!root || !isMap(root)) return [];
+
+    // Find key 'Services'
+    const pair = root.items.find((it: any) => {
+      const k = it.key;
+      return k && k.value === 'Services';
+    });
+    if (!pair) return [];
+    const seq = pair.value as any;
+    if (!seq || !isSeq(seq) || !Array.isArray(seq.items)) return [];
+
+    return seq.items.map((node: any) => {
+      const startOffset = node?.range?.[0] ?? 0;
+      const pos = lc.linePos(startOffset);
+      return { line: pos.line, column: pos.col };
+    });
+  } catch {
+    return [];
+  }
+}
 
 // Add uptime update functionality
 async function updateUptime() {
