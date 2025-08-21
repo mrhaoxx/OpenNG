@@ -25,14 +25,13 @@ const (
 )
 
 type Address struct {
-	DomainName  string
-	Port        int
-	NetworkType string
+	DomainName string
+	Port       int
 	net.IP
 	AddressType
 }
 
-func (r *Metadata) ReadFrom(rr io.Reader) error {
+func (r *Metadata) unmarshal(rr io.Reader) error {
 	byteBuf := [1]byte{}
 	_, err := io.ReadFull(rr, byteBuf[:])
 	if err != nil {
@@ -40,14 +39,14 @@ func (r *Metadata) ReadFrom(rr io.Reader) error {
 	}
 	r.Command = Command(byteBuf[0])
 	r.Address = new(Address)
-	err = r.Address.ReadFrom(rr)
+	err = r.Address.unmarshal(rr)
 	if err != nil {
 		return errors.New("failed to parse address")
 	}
 	return nil
 }
 
-func (a *Address) ReadFrom(r io.Reader) error {
+func (a *Address) unmarshal(r io.Reader) error {
 	byteBuf := [1]byte{}
 	_, err := io.ReadFull(r, byteBuf[:])
 	if err != nil {
@@ -100,7 +99,7 @@ func (a *Address) ReadFrom(r io.Reader) error {
 	return nil
 }
 
-func (a *Address) WriteTo(w io.Writer) error {
+func (a *Address) marshal(w io.Writer) error {
 	_, err := w.Write([]byte{byte(a.AddressType)})
 	if err != nil {
 		return err

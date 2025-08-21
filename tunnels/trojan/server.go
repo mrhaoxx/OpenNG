@@ -42,10 +42,8 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	var r = conn.TopConn()
 
 	n, err := r.Read(buf)
-	if err != nil {
-		return tcp.Close
-	}
-	if n != 58 {
+
+	if err != nil || n != 58 {
 		return tcp.Close
 	}
 
@@ -56,7 +54,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	}
 
 	var metadata Metadata
-	err = metadata.ReadFrom(r)
+	err = metadata.unmarshal(r)
 	if err != nil {
 		return tcp.Close
 	}
@@ -69,12 +67,9 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	case 0x1: // Connect
 		var target net.Conn
 		switch metadata.Address.AddressType {
-		case IPv4:
+		case IPv4, IPv6:
 			target, err = s.underlying.Dial("tcp", gonet.JoinHostPort(metadata.Address.IP.String(), strconv.Itoa(metadata.Address.Port)))
-			log.Verboseln("[TROJAN]", "Dialed TCP4", metadata.Address.IP.String(), metadata.Address.Port)
-		case IPv6:
-			target, err = s.underlying.Dial("tcp6", gonet.JoinHostPort(metadata.Address.IP.String(), strconv.Itoa(metadata.Address.Port)))
-			log.Verboseln("[TROJAN]", "Dialed TCP6", metadata.Address.IP.String(), metadata.Address.Port)
+			log.Verboseln("[TROJAN]", "Dialed TCP", metadata.Address.IP.String(), metadata.Address.Port)
 		case DomainName:
 			target, err = s.underlying.Dial("tcp", gonet.JoinHostPort(metadata.Address.DomainName, strconv.Itoa(metadata.Address.Port)))
 			log.Verboseln("[TROJAN]", "Dialed TCP", metadata.Address.DomainName, metadata.Address.Port)
@@ -89,206 +84,139 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 		return tcp.Close
 
 	case 0x3: // Associate
-
-		// Connection table to manage target UDP connections
 		connTable := make(map[string]*gonet.UDPConn)
-		newConnChan := make(chan *gonet.UDPConn, 10)
-
-		// Channel to signal when forwarding should stop
-		done := make(chan struct{}, 2)
 
 		var muWrite sync.Mutex
 
-		// Target to client forwarding
-		go func() {
-			defer func() { done <- struct{}{} }()
+		var downlink = func(udpConn *gonet.UDPConn) {
+			defer udpConn.Close()
 
-			// Keep track of active connections for reading
-			activeConns := make(map[*gonet.UDPConn]bool)
+			buf := make([]byte, MaxPacketSize)
+			packet := make([]byte, 0, MaxPacketSize*2)
+			w := bytes.NewBuffer(packet)
 
 			for {
-				select {
-				case newConn := <-newConnChan:
-					// Add new connection to active connections
-					activeConns[newConn] = true
+				n, addr, err := udpConn.ReadFromUDP(buf)
 
-					// Start goroutine to read from this specific connection
-					go func(udpConn *gonet.UDPConn) {
-						buf := make([]byte, MaxPacketSize)
-						for {
-							n, addr, err := udpConn.ReadFromUDP(buf)
-
-							if err != nil {
-								log.Verboseln("[TROJAN]", "ReadFromUDP failed", err)
-								delete(activeConns, udpConn)
-								udpConn.Close()
-								return
-							}
-
-							// Create packet for forwarding
-							payload := buf[:n]
-							packet := make([]byte, 0, MaxPacketSize)
-							w := bytes.NewBuffer(packet)
-
-							// Create metadata for the source address
-							var addrMetadata Address
-							addrMetadata.IP = addr.IP
-							addrMetadata.Port = addr.Port
-							if addr.IP.To4() != nil {
-								addrMetadata.AddressType = IPv4
-							} else {
-								addrMetadata.AddressType = IPv6
-							}
-
-							// Write address metadata
-							if err := addrMetadata.WriteTo(w); err != nil {
-								log.Verboseln("[TROJAN]", "Failed to write address metadata", err)
-								continue
-							}
-
-							length := len(payload)
-							lengthBuf := [2]byte{}
-							crlf := [2]byte{0x0d, 0x0a}
-
-							binary.BigEndian.PutUint16(lengthBuf[:], uint16(length))
-							w.Write(lengthBuf[:])
-							w.Write(crlf[:])
-							w.Write(payload)
-
-							// log.Verboseln("[TROJAN]", "UDP packet forwarded from", addr.String(), "size", length)
-
-							muWrite.Lock()
-							_, err = conn.TopConn().Write(w.Bytes())
-							muWrite.Unlock()
-
-							if err != nil {
-								log.Verboseln("[TROJAN]", "Write to client failed", err)
-								return
-							}
-						}
-					}(newConn)
-
-				case <-done:
-					// Clean up all connections
-					for udpConn := range activeConns {
-						udpConn.Close()
-					}
+				if err != nil {
 					return
 				}
-			}
-		}()
 
-		// Client to target forwarding
-		go func() {
-			defer func() { done <- struct{}{} }()
-			for {
-				// Read address metadata from client
-				addr := &Address{
-					NetworkType: "udp",
-				}
-				if err := addr.ReadFrom(conn.TopConn()); err != nil {
-					// log.Verboseln("[TROJAN]", "failed to parse udp packet addr", err)
-					break
+				payload := buf[:n]
+
+				var addrMetadata = Address{
+					IP:   addr.IP,
+					Port: addr.Port,
 				}
 
-				// Read length
-				lengthBuf := [2]byte{}
-				if _, err := io.ReadFull(conn.TopConn(), lengthBuf[:]); err != nil {
-					break
-				}
-				length := int(binary.BigEndian.Uint16(lengthBuf[:]))
-
-				// Read CRLF
-				crlf := [2]byte{}
-				if _, err := io.ReadFull(conn.TopConn(), crlf[:]); err != nil {
-					break
+				if len(addr.IP) == gonet.IPv4len {
+					addrMetadata.AddressType = IPv4
+				} else {
+					addrMetadata.AddressType = IPv6
 				}
 
-				// Validate packet size
-				if length > MaxPacketSize {
-					log.Verboseln("[TROJAN]", "incoming packet size is too large", length)
-					io.CopyN(io.Discard, conn.TopConn(), int64(length)) // drain the rest of the packet
+				if err := addrMetadata.marshal(w); err != nil {
 					continue
 				}
 
-				// Read payload
-				payload := make([]byte, length)
-				if _, err := io.ReadFull(conn.TopConn(), payload); err != nil {
-					break
-				}
+				length := uint16(len(payload))
 
-				// Determine target address
-				var targetAddr *gonet.UDPAddr
-				var addrKey string
+				lengthcrlf := [4]byte{byte(length >> 8), byte(length), 0x0d, 0x0a}
 
-				switch addr.AddressType {
-				case IPv4, IPv6:
-					targetAddr = &gonet.UDPAddr{
-						IP:   addr.IP,
-						Port: addr.Port,
-					}
-					addrKey = targetAddr.String()
-				case DomainName:
-					// Resolve domain name
-					resolvedAddr, err := gonet.ResolveUDPAddr("udp", gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port)))
-					if err != nil {
-						log.Verboseln("[TROJAN]", "failed to resolve domain", addr.DomainName, err)
-						continue
-					}
-					targetAddr = resolvedAddr
-					addrKey = gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port))
-				}
+				w.Write(lengthcrlf[:])
+				w.Write(payload)
 
-				// Get or create UDP connection for this target
-				target, exists := connTable[addrKey]
-				if !exists {
-					var err error
-					var _target net.Conn
-					switch addr.AddressType {
-					case IPv4:
-						_target, err = s.underlying.Dial("udp4", gonet.JoinHostPort(targetAddr.IP.String(), strconv.Itoa(targetAddr.Port)))
-					case IPv6:
-						_target, err = s.underlying.Dial("udp6", gonet.JoinHostPort(targetAddr.IP.String(), strconv.Itoa(targetAddr.Port)))
-					case DomainName:
-						_target, err = s.underlying.Dial("udp", gonet.JoinHostPort(targetAddr.IP.String(), strconv.Itoa(targetAddr.Port)))
-					}
+				// log.Verboseln("[TROJAN]", "UDP packet forwarded from", addr.String(), "size", length)
 
-					if err != nil {
-						log.Verboseln("[TROJAN]", "DialUDP failed for", addrKey, err)
-						continue
-					}
+				muWrite.Lock()
+				_, err = r.Write(w.Bytes())
+				muWrite.Unlock()
 
-					target = _target.(*gonet.UDPConn)
-
-					connTable[addrKey] = target
-					log.Verboseln("[TROJAN]", "Created new UDP connection to", addrKey)
-
-					// Notify the target to client forwarding about the new connection
-					select {
-					case newConnChan <- target:
-					default:
-						log.Verboseln("[TROJAN]", "Failed to notify about new connection, channel full")
-					}
-				}
-
-				// Forward packet to target
-				_, err := target.Write(payload)
 				if err != nil {
-					log.Verboseln("[TROJAN]", "Write to UDP target failed for", addrKey, err)
-					// Remove failed connection from table
-					target.Close()
-					delete(connTable, addrKey)
+					return
+				}
+
+				w.Reset()
+			}
+		}
+
+		buf := make([]byte, MaxPacketSize)
+		for {
+			addr := &Address{}
+
+			if err := addr.unmarshal(r); err != nil {
+				break
+			}
+
+			lengthBuf := [4]byte{}
+			if _, err := io.ReadFull(r, lengthBuf[:]); err != nil {
+				break
+			}
+			length := int(binary.BigEndian.Uint16(lengthBuf[:]))
+
+			if length > MaxPacketSize {
+				io.CopyN(io.Discard, r, int64(length))
+				continue
+			}
+
+			// Determine target address
+			var targetAddr *gonet.UDPAddr
+			var addrKey string
+
+			switch addr.AddressType {
+			case IPv4, IPv6:
+				targetAddr = &gonet.UDPAddr{
+					IP:   addr.IP,
+					Port: addr.Port,
+				}
+				addrKey = targetAddr.String()
+			case DomainName:
+				// Resolve domain name
+				resolvedAddr, err := gonet.ResolveUDPAddr("udp", gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port)))
+				if err != nil {
+					log.Verboseln("[TROJAN]", "failed to resolve domain", addr.DomainName, err)
+					continue
+				}
+				targetAddr = resolvedAddr
+				addrKey = gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port))
+			}
+
+			// Get or create UDP connection for this target
+			target, exists := connTable[addrKey]
+			if !exists {
+				_target, err := s.underlying.Dial("udp", gonet.JoinHostPort(targetAddr.IP.String(), strconv.Itoa(targetAddr.Port)))
+
+				if err != nil {
+					log.Verboseln("[TROJAN]", "DialUDP failed for", addrKey, err)
 					continue
 				}
 
-				// log.Verboseln("[TROJAN]", "UDP packet forwarded to", targetAddr.String(), "size", length)
+				target = _target.(*gonet.UDPConn)
+
+				connTable[addrKey] = target
+				go downlink(target)
+
+				log.Verboseln("[TROJAN]", "Created new UDP connection to", addrKey)
 			}
-		}()
 
-		// Wait for one of the goroutines to finish (indicating an error or connection close)
-		<-done
+			n, err := io.ReadFull(r, buf[:length])
 
-		// Clean up all connections in the table
+			if err != nil {
+				log.Verboseln("[TROJAN]", "Read from client failed", err)
+				break
+			}
+
+			_, err = target.Write(buf[:n])
+
+			if err != nil {
+				target.Close()
+				delete(connTable, addrKey)
+				continue
+			}
+
+			// log.Verboseln("[TROJAN]", "UDP packet forwarded to", targetAddr.String(), "size", length)
+		}
+
 		for _, target := range connTable {
 			target.Close()
 		}

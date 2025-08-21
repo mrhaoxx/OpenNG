@@ -46,14 +46,6 @@ type Detect struct {
 	TimeoutProtocol string
 }
 
-// var detectors = []detector{
-// 	detecttls,
-// 	detectproxyproto,
-// 	detectssh,
-// 	detectrdp,
-// 	detecthttp,
-// }
-
 func (det *Detect) Handle(c *Conn) SerRet {
 	raw := c.TopConn()
 	buf := &BufferedReader{
@@ -119,7 +111,7 @@ func DetectSSH(r io.Reader, _ *Conn) string {
 	if err != nil {
 		return ""
 	}
-	if reflect.DeepEqual(buf[:3], []byte("\u0053\u0053\u0048")) {
+	if buf[0] == 0x53 && buf[1] == 0x53 && buf[2] == 0x48 {
 		return "SSH"
 	}
 	return ""
@@ -131,7 +123,7 @@ func DetectRDP(r io.Reader, _ *Conn) string {
 	if err != nil {
 		return ""
 	}
-	if reflect.DeepEqual(buf[:3], []byte("\u0003\u0000\u0000")) {
+	if buf[0] == 0x03 && buf[1] == 0x00 && buf[2] == 0x00 {
 		return "RDP"
 	}
 	return ""
@@ -155,7 +147,7 @@ func DetectSOCKS5(r io.Reader, _ *Conn) string {
 	if err != nil {
 		return ""
 	}
-	if reflect.DeepEqual(buf[:2], []byte("\u0005\u0001")) {
+	if buf[0] == 0x05 && buf[1] == 0x01 {
 		return "SOCKS5"
 	}
 	return ""
@@ -167,7 +159,7 @@ func DetectMinecraft(r io.Reader, _ *Conn) string {
 	if err != nil {
 		return ""
 	}
-	if reflect.DeepEqual(buf[:1], []byte("\x10")) {
+	if buf[0] == 0x10 {
 		return "MINECRAFT"
 	}
 	return ""
@@ -180,7 +172,7 @@ func DetectTROJAN(r io.Reader, conn *Conn) string {
 		return ""
 	}
 
-	if reflect.DeepEqual(buf[56:58], []byte("\r\n")) {
+	if buf[56] == 0x0d && buf[57] == 0x0a {
 		return "TROJAN"
 	}
 	return ""

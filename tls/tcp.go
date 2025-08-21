@@ -16,7 +16,10 @@ func (mgr *TlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 			ts := tls.Server(c.TopConn(), &tls.Config{
 				Certificates: []tls.Certificate{*cert},
 			})
-			ts.Handshake()
+			err := ts.Handshake()
+			if err != nil {
+				return tcp.Close
+			}
 			c.Upgrade(ts, "")
 			return tcp.Continue
 		} else {
