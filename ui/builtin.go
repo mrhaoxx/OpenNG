@@ -949,6 +949,15 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::http::proxy": {
+		Type: "map",
+		Sub: AssertMap{
+			"url": {
+				Type:     "url",
+				Required: true,
+			},
+		},
+	},
 	"builtin::net::interface::sys": {
 		Type: "null",
 		Desc: "use system default interface",
@@ -1731,6 +1740,10 @@ var _builtin_refs = map[string]Inst{
 			PasswordHashes: passwords,
 			Underlying:     underlying,
 		}, nil
+	},
+	"builtin::http::proxy": func(spec *ArgNode) (any, error) {
+		proxyurl := spec.MustGet("url").ToURL()
+		return &thttp.HttpProxyInterface{Proxyurl: proxyurl}, nil
 	},
 	"builtin::net::interface::sys": func(*ArgNode) (any, error) {
 		return &net.SysInterface{}, nil

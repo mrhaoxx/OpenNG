@@ -2,8 +2,10 @@ package http
 
 import (
 	"bufio"
+	"context"
 	"encoding/base64"
 	"fmt"
+	gonet "net"
 	"net/http"
 	"net/url"
 
@@ -11,16 +13,15 @@ import (
 )
 
 type HttpProxyInterface struct {
-	proxyurl   *url.URL
-	underlying net.Interface
+	Proxyurl *net.URL
 }
 
-func (s *HttpProxyInterface) Dial(network, addr string) (net.Conn, error) {
+func (s *HttpProxyInterface) DialContext(ctx context.Context, network, addr string) (gonet.Conn, error) {
 	if network != "tcp" {
 		return nil, net.ErrTCPOnly
 	}
 
-	c, err := s.underlying.Dial("tcp", s.proxyurl.Host)
+	c, err := s.Proxyurl.Underlying.DialContext(ctx, "tcp", s.Proxyurl.Host)
 	if err != nil {
 		return nil, err
 	}
@@ -39,8 +40,8 @@ func (s *HttpProxyInterface) Dial(network, addr string) (net.Conn, error) {
 	}
 
 	req.Close = false
-	if s.proxyurl.User != nil {
-		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(s.proxyurl.User.Username(), func() string { pwd, _ := s.proxyurl.User.Password(); return pwd }()))
+	if s.Proxyurl.User != nil {
+		req.Header.Set("Proxy-Authorization", "Basic "+basicAuth(s.Proxyurl.User.Username(), func() string { pwd, _ := s.Proxyurl.User.Password(); return pwd }()))
 	}
 
 	req.Header.Set("User-Agent", "OpenNG Proxy Forward")
@@ -66,7 +67,11 @@ func (s *HttpProxyInterface) Dial(network, addr string) (net.Conn, error) {
 	return c, nil
 }
 
-func (s *HttpProxyInterface) Listen(network, address string) (net.Listener, error) {
+func (s *HttpProxyInterface) Dial(network, addr string) (gonet.Conn, error) {
+	return s.DialContext(context.Background(), network, addr)
+}
+
+func (s *HttpProxyInterface) Listen(network, address string) (gonet.Listener, error) {
 	return nil, net.ErrListenNotSupport
 }
 

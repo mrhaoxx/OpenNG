@@ -17,6 +17,7 @@ import (
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
 
+	"gvisor.dev/gvisor/pkg/tcpip"
 	gtcp "gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	gudp "gvisor.dev/gvisor/pkg/tcpip/transport/udp"
 )
@@ -98,6 +99,7 @@ func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
 			KeepaliveInterval: cfg.TcpKeepaliveInterval,
 			KeepaliveCount:    cfg.TcpKeepAliveCount,
 			Tnet:              tnet,
+			Addr:              tcpip.AddrFrom4(addr.As4()),
 			StackLock:         &lock,
 		}
 
