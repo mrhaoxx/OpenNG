@@ -1,6 +1,13 @@
 {
-  "files": [],
-  "references": [
-    { "path": "./tsconfig.build.json" },
-  ]
+  "compilerOptions": {
+    "strict": true,
+    "target": "es6",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
+  },
+  "include": ["src/**/*"],
+  "references": []
 }

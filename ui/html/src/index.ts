@@ -130,7 +130,7 @@ async function update() {
     ed.setValue(text);
     document.getElementById('status')!.textContent = 'Config Loaded ' + "Length " + text.length + " " + new Date().toISOString();
   } catch (error) {
-    alert(error.message);
+    alert((error as Error).message);
   }
 }
 
@@ -182,7 +182,7 @@ async function hash() {
     if (!response.ok) throw new Error(`Request failed: ${response.status}`);
     ha.value = await response.text();
   } catch (error) {
-    alert(error.message);
+    alert((error as Error).message);
   }
 }
 ed.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
