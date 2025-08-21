@@ -190,7 +190,7 @@ func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *n
 		Backend:            backend,
 		MaxConnsPerHost:    MaxConnsPerHost,
 		InsecureSkipVerify: InsecureSkipVerify,
-		Underlying:         hpx.underlying,
+		Underlying:         backend.Underlying,
 	}
 	buf.Init()
 

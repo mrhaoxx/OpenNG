@@ -1,12 +1,15 @@
 package wireguard
 
 import (
+	"context"
+	gnet "net"
 	"net/netip"
 	"strconv"
 	"sync"
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/tcp"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/udp"
@@ -149,4 +152,25 @@ func (wg *WireGuardServer) AddPeer(PublicKey string, AllowedIPs []string) error 
 
 func (wg *WireGuardServer) Up() error {
 	return wg.wgDevice.Up()
+}
+
+func (wg *WireGuardServer) Dial(network, address string) (gnet.Conn, error) {
+	return wg.DialContext(context.Background(), network, address)
+}
+
+func (wg *WireGuardServer) DialContext(ctx context.Context, network, address string) (gnet.Conn, error) {
+	return wg.tnet.DialContext(ctx, network, address)
+}
+
+func (wg *WireGuardServer) Listen(network, address string) (gnet.Listener, error) {
+	switch network {
+	case "tcp":
+		addr, err := gnet.ResolveTCPAddr(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return wg.tnet.ListenTCP(addr)
+	default:
+		return nil, net.ErrListenNotSupport
+	}
 }
