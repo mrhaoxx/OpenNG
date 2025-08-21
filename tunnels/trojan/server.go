@@ -25,15 +25,15 @@ type UDPPacket struct {
 
 type Server struct {
 	PasswordHashes []string
-	underlying     net.Interface
+	Underlying     net.Interface
 
 	initOnce sync.Once
 }
 
 func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	s.initOnce.Do(func() {
-		if s.underlying == nil {
-			s.underlying = net.DefaultRouteTable
+		if s.Underlying == nil {
+			s.Underlying = net.DefaultRouteTable
 		}
 	})
 
@@ -66,14 +66,16 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	switch metadata.Command {
 	case 0x1: // Connect
 		var target net.Conn
+		var address string
 		switch metadata.Address.AddressType {
 		case IPv4, IPv6:
-			target, err = s.underlying.Dial("tcp", gonet.JoinHostPort(metadata.Address.IP.String(), strconv.Itoa(metadata.Address.Port)))
-			log.Verboseln("[TROJAN]", "Dialed TCP", metadata.Address.IP.String(), metadata.Address.Port)
+			address = gonet.JoinHostPort(metadata.Address.IP.String(), strconv.Itoa(metadata.Address.Port))
 		case DomainName:
-			target, err = s.underlying.Dial("tcp", gonet.JoinHostPort(metadata.Address.DomainName, strconv.Itoa(metadata.Address.Port)))
-			log.Verboseln("[TROJAN]", "Dialed TCP", metadata.Address.DomainName, metadata.Address.Port)
+			address = gonet.JoinHostPort(metadata.Address.DomainName, strconv.Itoa(metadata.Address.Port))
 		}
+
+		target, err = s.Underlying.Dial("tcp", address)
+		log.Verboseln("[TROJAN]", "Dialed TCP", address)
 
 		if err != nil {
 			log.Verboseln("[TROJAN]", "Dial failed", err)
@@ -160,43 +162,30 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 			}
 
 			// Determine target address
-			var targetAddr *gonet.UDPAddr
-			var addrKey string
+			var address string
 
 			switch addr.AddressType {
 			case IPv4, IPv6:
-				targetAddr = &gonet.UDPAddr{
-					IP:   addr.IP,
-					Port: addr.Port,
-				}
-				addrKey = targetAddr.String()
+				address = gonet.JoinHostPort(addr.IP.String(), strconv.Itoa(addr.Port))
 			case DomainName:
-				// Resolve domain name
-				resolvedAddr, err := gonet.ResolveUDPAddr("udp", gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port)))
-				if err != nil {
-					log.Verboseln("[TROJAN]", "failed to resolve domain", addr.DomainName, err)
-					continue
-				}
-				targetAddr = resolvedAddr
-				addrKey = gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port))
+				address = gonet.JoinHostPort(addr.DomainName, strconv.Itoa(addr.Port))
 			}
 
-			// Get or create UDP connection for this target
-			target, exists := connTable[addrKey]
+			target, exists := connTable[address]
 			if !exists {
-				_target, err := s.underlying.Dial("udp", gonet.JoinHostPort(targetAddr.IP.String(), strconv.Itoa(targetAddr.Port)))
+				_target, err := s.Underlying.Dial("udp", address)
 
 				if err != nil {
-					log.Verboseln("[TROJAN]", "DialUDP failed for", addrKey, err)
+					log.Verboseln("[TROJAN]", "DialUDP failed for", address, err)
 					continue
 				}
 
 				target = _target.(*gonet.UDPConn)
 
-				connTable[addrKey] = target
+				connTable[address] = target
 				go downlink(target)
 
-				log.Verboseln("[TROJAN]", "Created new UDP connection to", addrKey)
+				log.Verboseln("[TROJAN]", "new UDP connection to", address)
 			}
 
 			n, err := io.ReadFull(r, buf[:length])
@@ -210,7 +199,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 			if err != nil {
 				target.Close()
-				delete(connTable, addrKey)
+				delete(connTable, address)
 				continue
 			}
 

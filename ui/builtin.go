@@ -943,6 +943,10 @@ var _builtin_refs_assertions = map[string]Assert{
 					"_": {Type: "string"},
 				},
 			},
+			"interface": {
+				Type:     "ptr",
+				Required: false,
+			},
 		},
 	},
 	"builtin::net::interface::sys": {
@@ -1712,12 +1716,20 @@ var _builtin_refs = map[string]Inst{
 	},
 	"builtin::trojan::server": func(spec *ArgNode) (any, error) {
 		passwords := spec.MustGet("passwords").ToStringList()
+		_interface := spec.MustGet("interface")
+		var underlying net.Interface
+
+		if _interface != nil {
+			underlying = _interface.Value.(net.Interface)
+		}
+
 		for i, password := range passwords {
 			sum := sha256.Sum224([]byte(password))
 			passwords[i] = hex.EncodeToString(sum[:])
 		}
 		return &trojan.Server{
 			PasswordHashes: passwords,
+			Underlying:     underlying,
 		}, nil
 	},
 	"builtin::net::interface::sys": func(*ArgNode) (any, error) {
