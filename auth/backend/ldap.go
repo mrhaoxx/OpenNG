@@ -7,6 +7,7 @@ import (
 	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
+	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -159,10 +160,10 @@ func (mgr *ldapBackend) AllowForwardProxy(username string) bool {
 	return false
 }
 
-func NewLDAPBackend(url, searchBase, bindDN, bindPW string) *ldapBackend {
+func NewLDAPBackend(url *net.URL, searchBase, bindDN, bindPW string) *ldapBackend {
 
 	back := &ldapBackend{
-		url:        url,
+		url:        url.String(),
 		searchBase: searchBase,
 		bindDN:     bindDN,
 		bindPW:     bindPW,

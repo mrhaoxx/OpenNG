@@ -268,7 +268,7 @@ function scheduleValidation() {
   validationTimer = window.setTimeout(() => {
     lastValidationRequestId++;
     runServerValidation(lastValidationRequestId);
-  }, 500);
+  }, 120);
 }
 
 ed.onDidChangeModelContent(() => {

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/tls"
@@ -126,11 +128,11 @@ var _builtin_refs_assertions = map[string]Assert{
 								Required: true,
 								Desc:     "hostnames to match for this proxy",
 								Sub: AssertMap{
-									"_": {Type: "string", Desc: DescHostnameFormat},
+									"_": {Type: "hostname", Desc: DescHostnameFormat},
 								},
 							},
 							"backend": {
-								Type:     "string",
+								Type:     "url",
 								Required: true,
 								Desc:     "backend URL to proxy requests to",
 							},
@@ -153,7 +155,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Default: []*ArgNode{{Type: "string", Value: "*"}},
 				Desc:    "hostnames that this proxy will handle",
 				Sub: AssertMap{
-					"_": {Type: "string", Desc: DescHostnameFormat},
+					"_": {Type: "hostname", Desc: DescHostnameFormat},
 				},
 			},
 		},
@@ -207,7 +209,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type: "list",
 								Desc: "hostnames this service handles",
 								Sub: AssertMap{
-									"_": {Type: "string", Desc: DescHostnameFormat},
+									"_": {Type: "hostname", Desc: DescHostnameFormat},
 								},
 							},
 						},
@@ -258,10 +260,10 @@ var _builtin_refs_assertions = map[string]Assert{
 							},
 							"hosts": {
 								Type:    "list",
-								Default: []*ArgNode{{Type: "string", Value: "*"}},
+								Default: []*ArgNode{{Type: "hostname", Value: "*"}},
 								Desc:    "hostnames this forward proxy handles",
 								Sub: AssertMap{
-									"_": {Type: "string", Desc: DescHostnameFormat},
+									"_": {Type: "hostname", Desc: DescHostnameFormat},
 								},
 							},
 						},
@@ -364,8 +366,9 @@ var _builtin_refs_assertions = map[string]Assert{
 								Required: true,
 							},
 							"backend": {
-								Type:     "string",
+								Type:     "url",
 								Required: true,
+								Default:  &net.URL{URL: url.URL{Scheme: "tcp"}},
 							},
 							"protocol": {
 								Type:     "string",
@@ -403,9 +406,9 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 			"allowhosts": {
 				Type:    "list",
-				Default: []*ArgNode{{Type: "string", Value: "*"}},
+				Default: []*ArgNode{{Type: "hostname", Value: "*"}},
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "hostname"},
 				},
 			},
 		},
@@ -451,7 +454,7 @@ var _builtin_refs_assertions = map[string]Assert{
 	"builtin::auth::backend::ldap": {
 		Type: "map",
 		Sub: AssertMap{
-			"Url":        {Type: "string", Required: true},
+			"Url":        {Type: "url", Required: true},
 			"SearchBase": {Type: "string", Required: true},
 			"BindDN":     {Type: "string", Required: true},
 			"BindPW":     {Type: "string", Required: true},
@@ -479,7 +482,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type: "list",
 								Desc: "matching Hosts, empty means none",
 								Sub: AssertMap{
-									"_": {Type: "string", Desc: DescHostnameFormat},
+									"_": {Type: "hostname", Desc: DescHostnameFormat},
 								},
 							},
 							"Paths": {
@@ -535,7 +538,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type: "list",
 								Desc: "hostnames this service handles",
 								Sub: AssertMap{
-									"_": {Type: "string", Desc: DescHostnameFormat},
+									"_": {Type: "hostname", Desc: DescHostnameFormat},
 								},
 							},
 							"name": {
@@ -626,21 +629,9 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
-	// "builtin::socks5::server": {
-	// 	Type: "any",
-	// },
 	"builtin::http::forwardproxier": {
 		Type: "null",
 		Desc: "HTTP forward proxy implementation (no configuration needed)",
-	},
-	"builtin::http::fwdforwardproxier": {
-		Type: "map",
-		Sub: AssertMap{
-			"ProxyURL": {
-				Type:     "string",
-				Required: true,
-			},
-		},
 	},
 	"builtin::http::acme::fileprovider": {
 		Type: "map",
@@ -648,7 +639,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			"Hosts": {
 				Type: "list",
 				Sub: AssertMap{
-					"_": {Type: "string"},
+					"_": {Type: "hostname"},
 				},
 			},
 			"WWWRoot": {
@@ -720,7 +711,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Required: true,
 							},
 							"HostName": {
-								Type:     "string",
+								Type:     "hostname",
 								Required: true,
 							},
 							"Port": {
@@ -813,7 +804,7 @@ var _builtin_refs_assertions = map[string]Assert{
 		Type: "map",
 		Sub: AssertMap{
 			"gitlab_url": {
-				Type:     "string",
+				Type:     "url",
 				Required: true,
 			},
 			"cache_ttl": {
@@ -954,6 +945,26 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::net::interface::sys": {
+		Type: "null",
+		Desc: "use system default interface",
+	},
+	"builtin::net::routetable::new": {
+		Type: "map",
+		Sub: AssertMap{
+			"routes": {
+				Type: "list",
+				Sub: AssertMap{
+					"_": {Type: "map",
+						Sub: AssertMap{
+							"cidr":      {Type: "string", Required: true},
+							"interface": {Type: "ptr", Required: true},
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
 var _builtin_refs = map[string]Inst{
@@ -968,7 +979,7 @@ var _builtin_refs = map[string]Inst{
 			name := host.MustGet("name").ToString()
 			hosts := host.MustGet("hosts").ToStringList()
 
-			backend := host.MustGet("backend").ToString()
+			backend := host.MustGet("backend").ToURL()
 			maxconns := host.MustGet("MaxConnsPerHost").ToInt()
 			tlsskip := host.MustGet("TlsSkipVerify").ToBool()
 
@@ -1175,10 +1186,10 @@ var _builtin_refs = map[string]Inst{
 
 		for _, host := range hosts {
 			name := host.MustGet("name").ToString()
-			backend := host.MustGet("backend").ToString()
+			backend := host.MustGet("backend").ToURL()
 			protocol := host.MustGet("protocol").ToString()
 
-			err := proxier.Add(name, backend, protocol)
+			err := proxier.Add(name, backend.Host, protocol)
 			if err != nil {
 				return nil, err
 			}
@@ -1244,7 +1255,7 @@ var _builtin_refs = map[string]Inst{
 		return backend, nil
 	},
 	"builtin::auth::backend::ldap": func(spec *ArgNode) (any, error) {
-		url := spec.MustGet("Url").ToString()
+		url := spec.MustGet("Url").ToURL()
 		searchbase := spec.MustGet("SearchBase").ToString()
 		binddn := spec.MustGet("BindDN").ToString()
 		bindpw := spec.MustGet("BindPW").ToString()
@@ -1568,14 +1579,14 @@ var _builtin_refs = map[string]Inst{
 		return f, nil
 	},
 	"builtin::gitlabauth": func(spec *ArgNode) (any, error) {
-		gitlaburl := spec.MustGet("gitlab_url").ToString()
+		gitlaburl := spec.MustGet("gitlab_url").ToURL()
 		cachettl := spec.MustGet("cache_ttl").ToDuration()
 		matchusernames := spec.MustGet("matchusernames").ToStringList()
 		prefix := spec.MustGet("prefix").ToString()
 		next := spec.MustGet("next")
 
 		var f = &GitlabEnhancedPolicydBackend{
-			gitlabUrl:     gitlaburl,
+			gitlabUrl:     gitlaburl.String(),
 			ttl:           cachettl,
 			matchUsername: utils.MustCompileRegexp(matchusernames),
 			cache:         make(map[string]*SSHKeyCache),
@@ -1708,5 +1719,8 @@ var _builtin_refs = map[string]Inst{
 		return &trojan.Server{
 			PasswordHashes: passwords,
 		}, nil
+	},
+	"builtin::net::interface::sys": func(*ArgNode) (any, error) {
+		return &net.SysInterface{}, nil
 	},
 }

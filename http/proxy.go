@@ -21,7 +21,7 @@ import (
 type HttpHost struct {
 	Id                 string
 	ServerName         utils.GroupRegexp
-	Backend            string
+	Backend            *net.URL
 	InsecureSkipVerify bool
 	MaxConnsPerHost    int
 	Underlying         net.Interface
@@ -48,10 +48,9 @@ func (h *HttpHost) Init() {
 		InsecureSkipVerify: h.InsecureSkipVerify,
 	}
 
-	u, _ := url.Parse(h.Backend)
-	hostport, _ := hostPortNoPort(u)
+	hostport, _ := hostPortNoPort(&h.Backend.URL)
 
-	var issecure = u.Scheme == "https"
+	var issecure = h.Backend.URL.Scheme == "https"
 
 	dialer := func(ctx context.Context, network, addr string) (gonet.Conn, error) {
 		return h.Underlying.DialContext(ctx, network, hostport)
@@ -73,8 +72,8 @@ func (h *HttpHost) Init() {
 			MaxConnsPerHost:       h.MaxConnsPerHost,
 		},
 		Director: func(r *http.Request) {
-			r.URL.Scheme = u.Scheme
-			r.URL.Host = u.Host
+			r.URL.Scheme = h.Backend.URL.Scheme
+			r.URL.Host = h.Backend.URL.Host
 
 			delete(r.Header, "X-Forwarded-For")
 			r.Header.Add("X-Forwarded-Host", r.Host)
@@ -184,7 +183,7 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 	return hpx.hosts
 }
 
-func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend string, MaxConnsPerHost int, InsecureSkipVerify bool) error {
+func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool) error {
 	buf := HttpHost{
 		Id:                 id,
 		ServerName:         utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),

@@ -2,10 +2,14 @@ package ui
 
 import (
 	"fmt"
+	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/dlclark/regexp2"
+	"github.com/mrhaoxx/OpenNG/net"
 )
 
 type TopLevelConfig struct {
@@ -51,7 +55,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 		if assertions.Type != "any" && !node.IfCompatibleAndConvert(assertions) {
 			return fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
 		}
-		if assertions.Required && assertions.Default != nil {
+		if assertions.Required && assertions.Default != nil && assertions.Type != "url" {
 			if !reflect.DeepEqual(node.Value, assertions.Default) {
 				return fmt.Errorf("required field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
 			}
@@ -130,6 +134,67 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				return fmt.Errorf("index %d: %w", i, err)
 			}
 		}
+	case "url":
+		if node.Value == nil {
+			node.Value = []*net.URL{}
+			return nil
+		}
+		realnode, ok := node.Value.(*net.URL)
+		if !ok {
+			return fmt.Errorf("expected url, got %T", node.Value)
+		}
+
+		if assertions.Default != nil {
+			assertnode := assertions.Default.(*net.URL)
+			if assertnode.Interface != "" {
+				if assertions.Required && realnode.Interface != assertnode.Interface {
+					return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
+				}
+				if realnode.Interface == "" {
+					realnode.Interface = assertnode.Interface
+				}
+			}
+			if assertnode.URL.Scheme != "" {
+				if assertions.Required && realnode.URL.Scheme != assertnode.URL.Scheme {
+					return fmt.Errorf("url scheme mismatch: %s != %s", realnode.URL.Scheme, assertnode.URL.Scheme)
+				}
+				if realnode.URL.Scheme == "" {
+					realnode.URL.Scheme = assertnode.URL.Scheme
+				}
+			}
+			if assertnode.URL.Host != "" {
+				if assertions.Required && realnode.URL.Host != assertnode.URL.Host {
+					return fmt.Errorf("url host mismatch: %s != %s", realnode.URL.Host, assertnode.URL.Host)
+				}
+				if realnode.URL.Host == "" {
+					realnode.URL.Host = assertnode.URL.Host
+				}
+			}
+			if assertnode.URL.Path != "" {
+				if assertions.Required && realnode.URL.Path != assertnode.URL.Path {
+					return fmt.Errorf("url path mismatch: %s != %s", realnode.URL.Path, assertnode.URL.Path)
+				}
+				if realnode.URL.Path == "" {
+					realnode.URL.Path = assertnode.URL.Path
+				}
+			}
+			if assertnode.URL.RawQuery != "" {
+				if assertions.Required && realnode.URL.RawQuery != assertnode.URL.RawQuery {
+					return fmt.Errorf("url query mismatch: %s != %s", realnode.URL.RawQuery, assertnode.URL.RawQuery)
+				}
+				if realnode.URL.RawQuery == "" {
+					realnode.URL.RawQuery = assertnode.URL.RawQuery
+				}
+			}
+			if assertnode.URL.RawFragment != "" {
+				if assertions.Required && realnode.URL.RawFragment != assertnode.URL.RawFragment {
+					return fmt.Errorf("url fragment mismatch: %s != %s", realnode.URL.RawFragment, assertnode.URL.RawFragment)
+				}
+				if realnode.URL.RawFragment == "" {
+					realnode.URL.RawFragment = assertnode.URL.RawFragment
+				}
+			}
+		}
 	}
 
 	return nil
@@ -152,6 +217,40 @@ func (node *ArgNode) IfCompatibleAndConvert(assertions Assert) bool {
 			if dur, err := time.ParseDuration(node.Value.(string)); err == nil {
 				node.Type = "duration"
 				node.Value = dur
+				return true
+			}
+		}
+	case "url": // iface%scheme://host:port/path?query#fragment
+		if node.Type == "string" {
+			str := node.Value.(string)
+			idx_percent := strings.Index(str, "%")
+			idx_colon := strings.Index(str, ":")
+			iface_ptr := ""
+
+			if idx_percent != -1 {
+				if idx_percent < idx_colon {
+					iface_ptr = str[:idx_percent]
+					str = str[idx_percent+1:]
+				}
+			}
+
+			_url, err := url.Parse(str)
+			if err != nil {
+				return false
+			}
+
+			node.Type = "url"
+			node.Value = &net.URL{
+				Interface: iface_ptr,
+				URL:       *_url,
+			}
+			return true
+		}
+	case "hostname": // should be a valid hostname, use regexp to check
+		if node.Type == "string" {
+			re := regexp2.MustCompile("^(?=.{1,259}$)(?=^[^:]{1,253}(?::|$))(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*))*)(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]?\\d{1,4}))?$", regexp2.RE2)
+			if ok, _ := re.MatchString(node.Value.(string)); ok {
+				node.Type = "hostname"
 				return true
 			}
 		}
@@ -248,12 +347,10 @@ func (node *ArgNode) ToStringList() []string {
 	}
 	var ret []string
 	for _, v := range node.ToList() {
-		if v.Type == "string" {
-			if v.Value == nil {
-				ret = append(ret, "")
-			} else {
-				ret = append(ret, v.Value.(string))
-			}
+		if v.Value == nil {
+			ret = append(ret, "")
+		} else {
+			ret = append(ret, v.Value.(string))
 		}
 	}
 	return ret
@@ -264,9 +361,6 @@ func (node *ArgNode) ToString() string {
 		return ""
 	}
 
-	if node.Type != "string" {
-		return ""
-	}
 	return node.Value.(string)
 }
 
@@ -323,6 +417,16 @@ func (node *ArgNode) ToDuration() time.Duration {
 	return node.Value.(time.Duration)
 }
 
+func (node *ArgNode) ToURL() *net.URL {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "url" {
+		return nil
+	}
+
+	return node.Value.(*net.URL)
+}
 func (node *ArgNode) Get(path string) (*ArgNode, error) {
 	if path == "" {
 		return node, nil

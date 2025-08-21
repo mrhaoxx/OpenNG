@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/net"
 	"gopkg.in/yaml.v3"
 )
 
@@ -50,7 +51,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
-		err = space.Deptr(spec)
+		err = space.Deptr(spec, false)
 
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
@@ -104,7 +105,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 }
 
-func (space *Space) Deptr(root *ArgNode) error {
+func (space *Space) Deptr(root *ArgNode, validate bool) error {
 	if root == nil {
 		return nil
 	}
@@ -124,6 +125,25 @@ func (space *Space) Deptr(root *ArgNode) error {
 				err := walk(v)
 				if err != nil {
 					return fmt.Errorf("[%d]: %w", i, err)
+				}
+			}
+		case "url":
+			if node.Value == nil {
+				node.Value = []*net.URL{}
+				return nil
+			}
+			realnode, ok := node.Value.(*net.URL)
+			if !ok {
+				return fmt.Errorf("expected url, got %T", node.Value)
+			}
+			if realnode.Interface != "" {
+				v, ok := space.Services[realnode.Interface]
+				if ok {
+					if !validate {
+						node.Value.(*net.URL).Underlying = v.(net.Interface)
+					}
+				} else {
+					return fmt.Errorf("url interface not found: %s", realnode.Interface)
 				}
 			}
 		case "ptr":

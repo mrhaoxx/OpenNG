@@ -140,6 +140,21 @@ func (m Assert) ToScheme() any {
 			res["default"] = m.Default
 		}
 		return res
+
+	case "url":
+		return map[string]any{
+			"type":         "string",
+			"description":  m.Desc,
+			"pattern":      "^(?:(?:(?:[A-Za-z][A-Za-z0-9._-]*%)?(?:[A-Za-z][A-Za-z0-9+.-]*)://))?(?:\\[(?:[A-Fa-f0-9:.]+)\\]|(?:[A-Za-z0-9-]+\\.)*[A-Za-z0-9-]+|\\d{1,3}(?:\\.\\d{1,3}){3})?(?::\\d{1,5})?(?:/[^\\s?#]*)?(?:\\?[^\\s#]*)?(?:#[^\\s]*)?$",
+			"errorMessage": "URL must be in format like 'iface%scheme://host:port/path?query#fragment'",
+		}
+	case "hostname":
+		return map[string]any{
+			"type":         "string",
+			"description":  m.Desc,
+			"pattern":      "^(?:\\$dref.*|(?=.{1,259}$)(?=^[^:]{1,253}(?::|$))(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*))*)(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]?\\d{1,4}))?)$",
+			"errorMessage": "Hostname must be in format like 'example.com', 'a.example.com', '*.example.com', '*'",
+		}
 	}
 
 	return map[string]any{}
@@ -217,7 +232,7 @@ func ValidateConfig(root *ArgNode) []error {
 			continue
 		}
 
-		err = space.Deptr(spec)
+		err = space.Deptr(spec, true)
 
 		if err != nil {
 			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
