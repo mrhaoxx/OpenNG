@@ -752,9 +752,10 @@ func (tnet *Net) exchange(ctx context.Context, server netip.Addr, q dnsmessage.Q
 		}
 		c.Close()
 		if err != nil {
-			if err == context.Canceled {
+			switch err {
+			case context.Canceled:
 				err = errCanceled
-			} else if err == context.DeadlineExceeded {
+			case context.DeadlineExceeded:
 				err = errTimeout
 			}
 			return dnsmessage.Parser{}, dnsmessage.Header{}, err
@@ -1070,9 +1071,10 @@ func (tnet *Net) DialContext(ctx context.Context, network, address string) (net.
 		select {
 		case <-ctx.Done():
 			err := ctx.Err()
-			if err == context.Canceled {
+			switch err {
+			case context.Canceled:
 				err = errCanceled
-			} else if err == context.DeadlineExceeded {
+			case context.DeadlineExceeded:
 				err = errTimeout
 			}
 			return nil, &net.OpError{Op: "dial", Err: err}
