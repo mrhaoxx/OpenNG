@@ -9,11 +9,10 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/tcp"
-
 	"github.com/mrhaoxx/OpenNG/utils"
+	zlog "github.com/rs/zerolog/log"
 )
 
 const MaxPacketSize = 65507
@@ -75,10 +74,19 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 		}
 
 		target, err = s.Underlying.Dial("tcp", address)
-		log.Verboseln("[TROJAN]", "Dialed TCP", address)
+		zlog.Info().
+			Str("type", "tunnels/trojan/dial").
+			Str("address", address).
+			Str("network", "tcp").
+			Msg("")
 
 		if err != nil {
-			log.Verboseln("[TROJAN]", "Dial failed", err)
+			zlog.Error().
+				Str("type", "tunnels/trojan/dial").
+				Str("address", address).
+				Str("network", "tcp").
+				Str("error", err.Error()).
+				Msg("dial failed")
 			return tcp.Close
 		}
 
@@ -176,7 +184,12 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 				_target, err := s.Underlying.Dial("udp", address)
 
 				if err != nil {
-					log.Verboseln("[TROJAN]", "DialUDP failed for", address, err)
+					zlog.Error().
+						Str("type", "tunnels/trojan/dial").
+						Str("address", address).
+						Str("network", "udp").
+						Str("error", err.Error()).
+						Msg("dial failed")
 					continue
 				}
 
@@ -185,13 +198,20 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 				connTable[address] = target
 				go downlink(target)
 
-				log.Verboseln("[TROJAN]", "new UDP connection to", address)
+				zlog.Info().
+					Str("type", "tunnels/trojan/dial").
+					Str("address", address).
+					Str("network", "udp").
+					Msg("new UDP connection")
 			}
 
 			n, err := io.ReadFull(r, buf[:length])
 
 			if err != nil {
-				log.Verboseln("[TROJAN]", "Read from client failed", err)
+				zlog.Error().
+					Str("type", "tunnels/trojan/read").
+					Str("error", err.Error()).
+					Msg("read failed")
 				break
 			}
 

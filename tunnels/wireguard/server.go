@@ -2,13 +2,13 @@ package wireguard
 
 import (
 	"context"
+	"fmt"
 	gnet "net"
 	"net/netip"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/tcp"
@@ -20,6 +20,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip"
 	gtcp "gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	gudp "gvisor.dev/gvisor/pkg/tcpip/transport/udp"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 type WireGuardServer struct {
@@ -72,9 +74,17 @@ func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
 
 	logger := device.Logger{
 		Verbosef: func(format string, args ...any) {
-			log.Verbosef("[wireguard] "+format, args...)
+			zlog.Info().
+				Str("type", "tunnels/wireguard/server").
+				Str("message", fmt.Sprintf(format, args...)).
+				Msg("")
 		},
-		Errorf: log.Errorf,
+		Errorf: func(format string, args ...any) {
+			zlog.Error().
+				Str("type", "tunnels/wireguard/server").
+				Str("message", fmt.Sprintf(format, args...)).
+				Msg("")
+		},
 	}
 
 	bind := conn.NewDefaultBind()

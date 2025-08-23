@@ -7,6 +7,8 @@ import (
 
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"gopkg.in/yaml.v3"
 )
 
@@ -56,7 +58,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 
-			log.Errorf("%s", ret_err)
+			zlog.Error().Caller().Str("err", ret_err.Error()).Msg("failed to deptr")
 
 			if !reload {
 				return ret_err
@@ -71,7 +73,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 
-			log.Errorf("%s", ret_err)
+			zlog.Error().Caller().Str("err", ret_err.Error()).Msg("failed to call ref")
 
 			if !reload {
 				return ret_err
@@ -83,13 +85,9 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 		space.Services[to] = inst
 
-		used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
+		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
 
-		if to != "_" {
-			log.Println(used_time, _ref, "->", to)
-		} else {
-			log.Println(used_time, _ref)
-		}
+		zlog.Info().Str("kind", _ref).Str("name", to).Dur("elapsed", time.Since(_time)).Int("index", i).Msg("service applied")
 
 	}
 
@@ -215,14 +213,16 @@ func GlobalCfg(config *ArgNode) error {
 			if err != nil {
 				return err
 			} else {
-				log.TZ = _tz
+				zerolog.TimestampFunc = func() time.Time {
+					return time.Now().In(_tz)
+				}
 			}
 
 			fmt.Fprintln(os.Stderr, "timezone:", tz)
 		}
 
 		if verb := logger.MustGet("Verbose").ToBool(); verb {
-			log.Verb = true
+			zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
 		}
 

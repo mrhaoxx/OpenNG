@@ -2,6 +2,7 @@ package tcp
 
 import (
 	"net"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -28,6 +29,8 @@ type Conn struct {
 
 	//sync(lock)
 	addr   net.Addr
+	ip     string
+	port   int
 	protos string
 	path   string
 
@@ -36,6 +39,13 @@ type Conn struct {
 
 func (c *Conn) Addr() net.Addr {
 	return c.addr
+}
+
+func (c *Conn) IP() string {
+	return c.ip
+}
+func (c *Conn) Port() int {
+	return c.port
 }
 
 func (c *Conn) TopConn() net.Conn {
@@ -56,6 +66,12 @@ func (c *Conn) unsync_genProtocols() {
 	if c.protos != "" {
 		c.protos = c.protos[:len(c.protos)-1]
 	}
+}
+
+func (c *Conn) unsync_genAddr() {
+	ip, port, _ := net.SplitHostPort(c.addr.String())
+	c.ip = ip
+	c.port, _ = strconv.Atoi(port)
 }
 
 func (c *Conn) Protocols() string {
@@ -79,12 +95,13 @@ func (c *Conn) AppendPath(n string) {
 func (c *Conn) Upgrade(nc net.Conn, protocol string) {
 	//async
 	c.head += 1
-	c.conn[c.head] = nc
-	c.proto[c.head] = protocol
+	c.conn = append(c.conn, nc)
+	c.proto = append(c.proto, protocol)
 
 	//sync
 	c.mu.Lock()
 	c.addr = nc.RemoteAddr()
+	c.unsync_genAddr()
 	c.unsync_genProtocols()
 	c.mu.Unlock()
 }
@@ -102,6 +119,7 @@ func (c *Conn) Reuse(conn net.Conn) {
 
 	c.mu.Lock()
 	c.addr = conn.RemoteAddr()
+	c.unsync_genAddr()
 	c.mu.Unlock()
 }
 
@@ -124,8 +142,8 @@ const InitProtocolLayer = 4
 func head(cn net.Conn) *Conn {
 	p := &Conn{
 		Id:      atomic.AddUint64(&cur, 1) - 1,
-		conn:    make([]net.Conn, InitProtocolLayer),
-		proto:   make([]string, InitProtocolLayer),
+		conn:    make([]net.Conn, 0, InitProtocolLayer),
+		proto:   make([]string, 0, InitProtocolLayer),
 		head:    -1,
 		start:   time.Now(),
 		bytesrx: 0,

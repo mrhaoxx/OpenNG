@@ -13,9 +13,10 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mrhaoxx/OpenNG/dns"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/utils"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 type HttpHost struct {
@@ -59,7 +60,12 @@ func (h *HttpHost) Init() {
 	h.proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
 			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(e.Error()))
-			log.Println("sys", "httpproxy", r.Host, "->", h.Id, e)
+			zlog.Error().
+				Str("type", "http/reverseproxy").
+				Str("host", r.Host).
+				Str("id", h.Id).
+				Str("error", e.Error()).
+				Msg("")
 		},
 		Transport: &http.Transport{
 			TLSClientConfig:       &HTTPTlsConfig,

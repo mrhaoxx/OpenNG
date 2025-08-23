@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"encoding/base64"
 	"errors"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
 	ssh "golang.org/x/crypto/ssh"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 type Ctx struct {
@@ -113,8 +113,17 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			ctx.sshconn.Close()
 		}
 
-		log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-			"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, path)
+		// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+		// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, path)
+		zlog.Info().
+			Str("type", "ssh/conn").
+			Uint64("id", ctx.Id).
+			Str("remote", ctx.conn.Addr().String()).
+			Dur("duration", time.Since(ctx.starttime)).
+			Str("username", ctx.username).
+			Uint64("conn", ctx.conn.Id).
+			Str("routine", path).
+			Msg("")
 	}()
 
 	if ctl.banner != "" {
@@ -139,13 +148,35 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			ctx.initUserAlt()
 
 			if ctl.PasswordCallback(&ctx, password) {
-				log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", "ssh-pwd", "******")
+				// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", "ssh-pwd", "******")
+				zlog.Info().
+					Str("type", "ssh/auth").
+					Uint64("id", ctx.Id).
+					Str("remote", ctx.conn.Addr().String()).
+					Dur("duration", time.Since(ctx.starttime)).
+					Str("username", ctx.username).
+					Uint64("conn", ctx.conn.Id).
+					Str("method", "ssh-pwd").
+					Str("status", "passed").
+					Msg("")
 				return &ssh.Permissions{}, nil
 			}
 
-			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", "ssh-pwd", strconv.Quote(string(password)))
+			// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", "ssh-pwd", strconv.Quote(string(password)))
+
+			zlog.Info().
+				Str("type", "ssh/auth").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Str("username", ctx.username).
+				Uint64("conn", ctx.conn.Id).
+				Str("method", "ssh-pwd").
+				Str("password", string(password)).
+				Str("status", "failed").
+				Msg("")
 			return nil, errors.New("password rejected")
 		}
 	}
@@ -158,13 +189,36 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			ctx.initUserAlt()
 
 			if ctl.PublicKeyCallback(&ctx, key) {
-				log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-					"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", string(MarshalAuthorizedKey(key)))
+				// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+				// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "+", string(MarshalAuthorizedKey(key)))
+				zlog.Info().
+					Str("type", "ssh/auth").
+					Uint64("id", ctx.Id).
+					Str("remote", ctx.conn.Addr().String()).
+					Dur("duration", time.Since(ctx.starttime)).
+					Str("username", ctx.username).
+					Uint64("conn", ctx.conn.Id).
+					Str("method", key.Type()).
+					Str("status", "passed").
+					Str("key", string(MarshalAuthorizedKey(key))).
+					Msg("")
 				return &ssh.Permissions{}, nil
 			}
 
-			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", string(MarshalAuthorizedKey(key)))
+			// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ctx.username, "-", string(MarshalAuthorizedKey(key)))
+			zlog.Info().
+				Str("type", "ssh/auth").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Str("username", ctx.username).
+				Uint64("conn", ctx.conn.Id).
+				Str("method", key.Type()).
+				Str("key", string(MarshalAuthorizedKey(key))).
+				Str("status", "failed").
+				Msg("")
+
 			return nil, errors.New("public key rejected")
 		}
 	}

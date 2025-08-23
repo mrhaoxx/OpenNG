@@ -15,9 +15,9 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/http"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tls"
 	utils "github.com/mrhaoxx/OpenNG/utils"
+	zlog "github.com/rs/zerolog/log"
 )
 
 //go:embed html/dist
@@ -144,7 +144,9 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/shutdown":
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 		go func() {
-			log.Println("sys", "the server is going down in 1 second")
+			zlog.Warn().
+				Str("type", "sys").
+				Msg("the server is going down in 1 second")
 			time.Sleep(1 * time.Second)
 			os.Exit(0)
 		}()

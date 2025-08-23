@@ -9,9 +9,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	zlog "github.com/rs/zerolog/log"
+
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/dns"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
@@ -134,10 +135,25 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 			RequestCtx.Req.URL.Path = "~"
 		}
 
-		log.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
-			"c"+strconv.FormatUint(RequestCtx.conn.Id, 10),
-			RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
-			RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)
+		// log.Println("r"+strconv.FormatUint(RequestCtx.Id, 10), RequestCtx.Req.RemoteAddr, time.Since(RequestCtx.starttime).Round(1*time.Microsecond),
+		// 	"c"+strconv.FormatUint(RequestCtx.conn.Id, 10),
+		// 	RequestCtx.Resp.code, RequestCtx.Resp.encoding.String(), RequestCtx.Resp.writtenBytes,
+		// 	RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)
+
+		zlog.Info().
+			Uint64("reqid", RequestCtx.Id).
+			Str("ip", RequestCtx.RemoteIP).
+			Int("port", RequestCtx.RemotePort).
+			Dur("duration", time.Since(RequestCtx.starttime)).
+			Uint64("conn", RequestCtx.conn.Id).
+			Int("code", RequestCtx.Resp.code).
+			Str("encoding", RequestCtx.Resp.encoding.String()).
+			Uint64("written", RequestCtx.Resp.writtenBytes).
+			Str("method", RequestCtx.Req.Method).
+			Str("host", RequestCtx.Req.Host).
+			Str("path", RequestCtx.Req.URL.Path).
+			Str("routine", RequestPath).
+			Str("type", "http/request").Msg("")
 	}()
 
 	defer func() {

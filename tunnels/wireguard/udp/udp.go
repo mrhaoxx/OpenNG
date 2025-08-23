@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
+	zlog "github.com/rs/zerolog/log"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -65,7 +65,10 @@ func Handler(c Config) func(stack.TransportEndpointID, *stack.PacketBuffer) bool
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					log.Println("[debug][panic] Recovered in udp.Handler", r)
+					zlog.Error().
+						Str("type", "tunnels/wireguard/udp").
+						Interface("panic", r).
+						Msg("recovered in udp.Handler")
 				}
 			}()
 			newPacket(packetClone, c.Tnet.Stack())
@@ -163,7 +166,11 @@ func newPacket(packet *stack.PacketBuffer, s *stack.Stack) {
 		port = 0
 	}
 
-	log.Printf("wg %s UDP -> %s", source.String(), dest.String())
+	zlog.Info().
+		Str("type", "tunnels/wireguard/udp").
+		Str("local", source.String()).
+		Str("remote", dest.String()).
+		Msg("")
 	// New packet channel and dialer need to be created.
 	pktChan = make(chan *stack.PacketBuffer, 1)
 	connMapWrite(conn, pktChan)
@@ -184,12 +191,18 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 	// New dialer from source to destination.
 	laddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf(":%d", port))
 	if err != nil {
-		log.Println("failed to parse laddr", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to parse laddr")
 		return
 	}
 	raddr, err := net.ResolveUDPAddr("udp", conn.Dest.String())
 	if err != nil {
-		log.Println("failed to parse raddr", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to parse raddr")
 		return
 	}
 
@@ -197,7 +210,10 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 	// Would like to use ListenUDP, but we don't get ICMP unreachable.
 	newConn, err := reuse.Dial("udp", laddr.String(), raddr.String())
 	if err != nil {
-		log.Println("failed new UDP bind", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed new UDP bind")
 		return
 	}
 	defer newConn.Close()
@@ -212,7 +228,10 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 
 	err = newConn.SetDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
-		log.Println("failed to set deadline", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to set deadline")
 	}
 
 	// Sends packet from peer to destination.
@@ -232,7 +251,10 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 			_, err := newConn.Write(data)
 			pkt.DecRef()
 			if err != nil {
-				log.Println("error sending packet:", err)
+				zlog.Error().
+					Str("type", "tunnels/wireguard/udp").
+					Str("error", err.Error()).
+					Msg("error sending packet")
 				newConn.Close()
 				return
 			}
@@ -240,7 +262,10 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 			// Reset timer, we got a packet.
 			err = newConn.SetDeadline(time.Now().Add(30 * time.Second))
 			if err != nil {
-				log.Println("failed to set deadline:", err)
+				zlog.Error().
+					Str("type", "tunnels/wireguard/udp").
+					Str("error", err.Error()).
+					Msg("failed to set deadline")
 			}
 		}
 	}()
@@ -271,7 +296,10 @@ func handleConn(conn udpConn, port int, s *stack.Stack) {
 		// Reset timer, we got a packet.
 		err = newConn.SetDeadline(time.Now().Add(30 * time.Second))
 		if err != nil {
-			log.Println("failed to set deadline:", err)
+			zlog.Error().
+				Str("type", "tunnels/wireguard/udp").
+				Str("error", err.Error()).
+				Msg("failed to set deadline")
 		}
 
 		// Write packet back to peer.
@@ -313,7 +341,10 @@ func sendResponse(conn udpConn, data []byte, s *stack.Stack) {
 		err = udpLayer.SetNetworkLayerForChecksum(ipv4Layer)
 	}
 	if err != nil {
-		log.Println("failed to marshal response:", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to marshal response")
 		return
 	}
 
@@ -340,13 +371,19 @@ func sendResponse(conn udpConn, data []byte, s *stack.Stack) {
 	}
 
 	if err != nil {
-		log.Println("failed to serialize layers:", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to serialize layers")
 		return
 	}
 
 	tcpipErr := transport.SendPacket(s, buf.Bytes(), &tcpip.FullAddress{NIC: 1, Addr: tcpip.AddrFromSlice(conn.Source.Addr().AsSlice())}, proto)
 	if tcpipErr != nil {
-		log.Println("failed to write:", tcpipErr)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", fmt.Sprint(tcpipErr)).
+			Msg("failed to write")
 		return
 	}
 }
@@ -375,7 +412,10 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		ipv6Layer = &layers.IPv6{}
 		ipv6Layer, err = transport.GetNetworkLayer[header.IPv6](netHeader, ipv6Layer)
 		if err != nil {
-			log.Println("could not decode Network header:", err)
+			zlog.Error().
+				Str("type", "tunnels/wireguard/udp").
+				Str("error", err.Error()).
+				Msg("could not decode Network header")
 			return
 		}
 		ipv6Layer = &layers.IPv6{
@@ -387,7 +427,9 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		}
 		ipv6Header, ok := netHeader.(header.IPv6)
 		if !ok {
-			log.Println("could not type assert IPv6 Network Header")
+			zlog.Error().
+				Str("type", "tunnels/wireguard/udp").
+				Msg("could not type assert IPv6 Network Header")
 			return
 		}
 		icmpLayer, err = (&neticmp.Message{
@@ -402,7 +444,10 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		ipv4Layer = &layers.IPv4{}
 		ipv4Layer, err = transport.GetNetworkLayer[header.IPv4](netHeader, ipv4Layer)
 		if err != nil {
-			log.Println("could not decode Network header:", err)
+			zlog.Error().
+				Str("type", "tunnels/wireguard/udp").
+				Str("error", err.Error()).
+				Msg("could not decode Network header")
 			return
 		}
 		ipv4Layer = &layers.IPv4{
@@ -415,7 +460,9 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		}
 		ipv4Header, ok := netHeader.(header.IPv4)
 		if !ok {
-			log.Println("could not type assert IPv6 Network Header")
+			zlog.Error().
+				Str("type", "tunnels/wireguard/udp").
+				Msg("could not type assert IPv6 Network Header")
 			return
 		}
 		icmpLayer, err = (&neticmp.Message{
@@ -428,7 +475,10 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		ipv4Layer.Length = uint16((int(ipv4Layer.IHL) * 4) + len(icmpLayer))
 	}
 	if err != nil {
-		log.Println("failed to marshal response:", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to marshal response")
 		return
 	}
 
@@ -449,7 +499,10 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 		)
 	}
 	if err != nil {
-		log.Println("failed to serialize layers:", err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", err.Error()).
+			Msg("failed to serialize layers")
 		return
 	}
 
@@ -457,7 +510,10 @@ func sendUnreachable(packet *stack.PacketBuffer, s *stack.Stack) {
 
 	tcpipErr := transport.SendPacket(s, response, &tcpip.FullAddress{NIC: 1, Addr: netHeader.SourceAddress()}, proto)
 	if tcpipErr != nil {
-		log.Println("failed to write:", tcpipErr)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/udp").
+			Str("error", fmt.Sprint(tcpipErr)).
+			Msg("failed to write")
 		return
 	}
 }

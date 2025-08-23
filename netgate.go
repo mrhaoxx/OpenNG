@@ -11,6 +11,8 @@ import (
 	_ "github.com/mrhaoxx/OpenNG/init"
 	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/ui"
+	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 )
 
 var gitver = "dev"
@@ -22,6 +24,13 @@ var helpmessage = flag.Bool("help", false, "print help message")
 var printjsonschema = flag.Bool("jsonschema", false, "print json schema to stdout")
 
 func main() {
+
+	zerolog.TimeFieldFormat = time.RFC3339Nano
+	zerolog.DurationFieldUnit = time.Second
+	zlog.Logger = zlog.Output(log.Loggers)
+
+	// zlog.Logger = zlog.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339Nano})
+
 	fmt.Fprintf(os.Stderr, "NetGATE - A Inbound Gateway\n")
 	flag.Parse()
 
@@ -64,7 +73,10 @@ config: %s
 	_start := time.Now()
 
 	if err := ui.LoadCfg(r, false); err != nil {
-		log.Println(err)
+		zlog.Error().
+			Str("type", "sys/config").
+			Str("error", err.Error()).
+			Msg("configuration load failed")
 		os.Exit(-1)
 	}
 

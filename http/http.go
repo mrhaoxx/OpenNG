@@ -28,7 +28,8 @@ type HttpCtx struct {
 	Id        uint64
 	starttime time.Time
 
-	RemoteIP string
+	RemoteIP   string
+	RemotePort int
 
 	Req  *http.Request
 	Resp *NgResponseWriter
@@ -155,17 +156,19 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 
 	c, kill := context.WithCancel(r.Context())
 
-	ip, _, _ := gonet.SplitHostPort(r.RemoteAddr)
+	ip, _port, _ := gonet.SplitHostPort(r.RemoteAddr)
+	port, _ := strconv.Atoi(_port)
 
 	ctx := &HttpCtx{
-		Req:       r.WithContext(c),
-		Resp:      ngrw,
-		Id:        (atomic.AddUint64(&curreq, 1)),
-		starttime: time.Now(),
-		kill:      kill,
-		closing:   make(chan struct{}),
-		conn:      conn,
-		RemoteIP:  ip,
+		Req:        r.WithContext(c),
+		Resp:       ngrw,
+		Id:         (atomic.AddUint64(&curreq, 1)),
+		starttime:  time.Now(),
+		kill:       kill,
+		closing:    make(chan struct{}),
+		conn:       conn,
+		RemoteIP:   ip,
+		RemotePort: port,
 	}
 
 	ngrw.ctx = ctx

@@ -13,11 +13,12 @@ import (
 
 	"github.com/mrhaoxx/OpenNG/dns"
 	http "github.com/mrhaoxx/OpenNG/http"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	utils "github.com/mrhaoxx/OpenNG/utils"
 
 	gossh "golang.org/x/crypto/ssh"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 type session struct {
@@ -328,14 +329,34 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 					})
 					ctx.Redirect(truepath, http.StatusFound)
 
-					log.Println("%", "^", userl, "+"+session, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+					// log.Println("%", "^", userl, "+"+session, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+
+					zlog.Info().
+						Str("type", "auth/login").
+						Str("status", "passed").
+						Str("user", userl).
+						Str("session", session).
+						Uint64("reqid", ctx.Id).
+						Str("ip", ctx.RemoteIP).
+						Int("port", ctx.RemotePort).
+						Msg("")
+
 					// directly move to the truepath without checking whether the user has permission,
 					// if it doesn't, the server would move it back
 				} else {
 					time.Sleep(time.Duration(200+rand.Intn(100)) * time.Millisecond) // Sleep 200ms to avoid being cracked
 					ctx.Resp.RefreshRedirectPage(http.StatusUnauthorized, "login?r="+r, "Username or password error", 3)
 
-					log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+					// log.Println("%", "!", userl, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+
+					zlog.Info().
+						Str("type", "auth/login").
+						Str("status", "failed").
+						Str("user", userl).
+						Uint64("reqid", ctx.Id).
+						Str("ip", ctx.RemoteIP).
+						Int("port", ctx.RemotePort).
+						Msg("")
 				}
 			} else {
 				ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "method not allowed")
@@ -374,7 +395,16 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 		})
 		if session != nil {
 			mgr.rmSession(token)
-			log.Println("%", "-", session.id(), "+"+token, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+			// log.Println("%", "-", session.id(), "+"+token, "r"+strconv.FormatUint(ctx.Id, 10), ctx.Req.RemoteAddr)
+			zlog.Info().
+				Str("type", "auth/logout").
+				Str("reason", "manual").
+				Str("user", session.username).
+				Str("session", token).
+				Uint64("reqid", ctx.Id).
+				Str("ip", ctx.RemoteIP).
+				Int("port", ctx.RemotePort).
+				Msg("")
 		}
 		ctx.Resp.RefreshRedirectPage(http.StatusOK, "login?r="+r, "Successfully logged out", 2)
 	default:
@@ -425,7 +455,13 @@ func (mgr *policyBaseAuth) Clean() {
 		session.muS.Lock()
 		if session.lastseen.Add(120 * time.Minute).Before(now) {
 			delete(mgr.sessions, key)
-			log.Println("%", "&-", session.id(), key)
+			// log.Println("%", "&-", session.id(), key)
+			zlog.Info().
+				Str("type", "auth/logout").
+				Str("reason", "inactive").
+				Str("user", session.username).
+				Str("session", key).
+				Msg("")
 		}
 		session.muS.Unlock()
 	}

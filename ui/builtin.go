@@ -15,7 +15,6 @@ import (
 	authbackends "github.com/mrhaoxx/OpenNG/auth/backend"
 	"github.com/mrhaoxx/OpenNG/dns"
 	"github.com/mrhaoxx/OpenNG/http"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
@@ -24,6 +23,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/tunnels/trojan"
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard"
 	"github.com/mrhaoxx/OpenNG/utils"
+	zlog "github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -998,7 +998,13 @@ var _builtin_refs = map[string]Inst{
 
 			proxier.Insert(id, name, hosts, backend, maxconns, tlsskip)
 
-			log.Verboseln(fmt.Sprintf("new http reverse host %#v: hosts=%#v backend=%#v maxconns=%d tlsskip=%v", name, hosts, backend, maxconns, tlsskip))
+			zlog.Debug().
+				Str("name", name).
+				Strs("hosts", hosts).
+				Str("backend", backend.String()).
+				Int("maxconns", maxconns).
+				Bool("tlsskip", tlsskip).
+				Msg("new http reverse host")
 		}
 
 		return proxier, nil
@@ -1018,7 +1024,10 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
-			log.Verboseln(fmt.Sprintf("new tls certificate: certfile=%#v keyfile=%#v", certfile, keyfile))
+			zlog.Debug().
+				Str("certfile", certfile).
+				Str("keyfile", keyfile).
+				Msg("new tls certificate")
 		}
 
 		return tls, nil
@@ -1061,7 +1070,11 @@ var _builtin_refs = map[string]Inst{
 				ServiceHandler: service.HandleHTTP,
 			})
 
-			log.Verboseln(fmt.Sprintf("new http service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
+			zlog.Debug().
+				Str("name", name).
+				Strs("hosts", hosts.String()).
+				Type("logi", logi.Value).
+				Msg("new http service")
 		}
 
 		for _, cgi := range cgis {
@@ -1076,7 +1089,9 @@ var _builtin_refs = map[string]Inst{
 				CgiHandler: service.HandleHTTPCgi,
 				CgiPaths:   service.CgiPaths(),
 			})
-			log.Verboseln(fmt.Sprintf("new http cgi: logi=%T", logi.Value))
+			zlog.Debug().
+				Type("logi", logi.Value).
+				Msg("new http cgi")
 		}
 
 		for _, fwd := range forwards {
@@ -1101,7 +1116,11 @@ var _builtin_refs = map[string]Inst{
 				Hosts:          hosts,
 				ServiceHandler: service.HandleHTTPForward,
 			})
-			log.Verboseln(fmt.Sprintf("new http forward service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
+			zlog.Debug().
+				Str("name", name).
+				Strs("hosts", hosts.String()).
+				Type("logi", logi.Value).
+				Msg("new http forward service")
 		}
 
 		return midware, nil
@@ -1135,7 +1154,11 @@ var _builtin_refs = map[string]Inst{
 			}
 		}
 
-		log.Verboseln(fmt.Sprintf("new tcp detector: protocols=%#v timeout=%s timeoutprotocol=%s", protocols, timeout.String(), timeoutprotocol))
+		zlog.Debug().
+			Strs("protocols", protocols).
+			Dur("timeout", timeout).
+			Str("timeoutprotocol", timeoutprotocol).
+			Msg("new tcp detector")
 
 		return &tcp.Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutprotocol}, nil
 	},
@@ -1159,7 +1182,12 @@ var _builtin_refs = map[string]Inst{
 					ServiceHandler: service,
 				})
 
-				log.Verboseln(fmt.Sprintf("on tcp %#v[%d]: name=%v logi=%T", name, i, _name, logi.Value))
+				zlog.Debug().
+					Str("protocol", name).
+					Int("index", i).
+					Str("name", _name).
+					Type("logi", logi.Value).
+					Msg("bind tcp service")
 
 			}
 
@@ -1188,7 +1216,9 @@ var _builtin_refs = map[string]Inst{
 			if err := ctl.Listen(addr); err != nil {
 				return nil, err
 			}
-			log.Verboseln(fmt.Sprintf("tcp listen on %v", addr))
+			zlog.Debug().
+				Str("addr", addr).
+				Msg("tcp listen")
 		}
 		return nil, nil
 	},
@@ -1206,14 +1236,18 @@ var _builtin_refs = map[string]Inst{
 			if err != nil {
 				return nil, err
 			}
-			log.Verboseln(fmt.Sprintf("new tcp proxy host %#v: backend=%#v protocol=%#v", name, backend, protocol))
+			zlog.Debug().
+				Str("name", name).
+				Str("backend", backend.String()).
+				Str("protocol", protocol).
+				Msg("new tcp proxy host")
 		}
 
 		return proxier, nil
 	},
 	"builtin::tcp::proxyprotocolhandler": func(spec *ArgNode) (any, error) {
 		allowedsrcs := spec.MustGet("allowedsrcs").ToStringList()
-		log.Verboseln(fmt.Sprintf("new tcp proxy protocol handler: allowedsrcs=%#v", allowedsrcs))
+		zlog.Debug().Strs("allowedsrcs", allowedsrcs).Msg("new tcp proxy protocol handler")
 		return tcp.NewTCPProxyProtocolHandler(allowedsrcs), nil
 	},
 	"builtin::tcp::securehttp": func(spec *ArgNode) (any, error) {
@@ -1233,7 +1267,7 @@ var _builtin_refs = map[string]Inst{
 			authmethods = append(authmethods, b)
 		}
 
-		log.Verboseln(fmt.Sprintf("new auth manager: backends=%#v", authmethods))
+		zlog.Debug().Int("backend_count", len(authmethods)).Msg("new auth manager")
 
 		manager := auth.NewAuthMgr(authmethods,
 			utils.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
@@ -1262,7 +1296,11 @@ var _builtin_refs = map[string]Inst{
 
 			backend.SetUser(name, pw, allowfp, _sshkeys, false)
 
-			log.Verboseln(fmt.Sprintf("new auth file user %#v: pwh=%#.11v... allowfp=%v sshkeys=%#.26v", name, pw, allowfp, sshkeys))
+			zlog.Debug().
+				Str("name", name).
+				Bool("allow_forward_proxy", allowfp).
+				Int("ssh_authorized_keys", len(sshkeys)).
+				Msg("new auth file user")
 		}
 
 		return backend, nil
@@ -1273,7 +1311,10 @@ var _builtin_refs = map[string]Inst{
 		binddn := spec.MustGet("BindDN").ToString()
 		bindpw := spec.MustGet("BindPW").ToString()
 
-		log.Verboseln(fmt.Sprintf("new auth ldap backend: url=... searchbase=%#v binddn=%#v bindpw=...", searchbase, binddn))
+		zlog.Debug().
+			Str("searchbase", searchbase).
+			Str("binddn", binddn).
+			Msg("new auth ldap backend")
 		return authbackends.NewLDAPBackend(url, searchbase, binddn, bindpw), nil
 	},
 	"builtin::auth::policyd": func(spec *ArgNode) (any, error) {
@@ -1294,7 +1335,13 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
-			log.Verboseln(fmt.Sprintf("new auth policy %#v: allowance=%v users=%#v hosts=%#v paths=%#v", name, allowance, users, hosts, paths))
+			zlog.Debug().
+				Str("name", name).
+				Bool("allowance", allowance).
+				Strs("users", users).
+				Strs("hosts", hosts).
+				Strs("paths", paths).
+				Msg("new auth policy")
 
 		}
 
@@ -1306,7 +1353,9 @@ var _builtin_refs = map[string]Inst{
 			}
 			b = append(b, _b)
 
-			log.Verboseln(fmt.Sprintf("new auth policy backend %T", backend.Value))
+			zlog.Debug().
+				Type("backend", backend.Value).
+				Msg("new auth policy backend")
 		}
 
 		policyd.AddBackends(b)
@@ -1341,7 +1390,12 @@ var _builtin_refs = map[string]Inst{
 
 			Dns.AddRecord(regexp2.MustCompile(dns.Dnsname2Regexp(name), 0), dns.DnsStringTypeToInt(typ), value, uint32(ttl))
 
-			log.Verboseln(fmt.Sprintf("new dns record: name=%#v type=%#v value=%#v ttl=%d", name, typ, value, ttl))
+			zlog.Debug().
+				Str("name", name).
+				Str("type", typ).
+				Str("value", value).
+				Int("ttl", ttl).
+				Msg("new dns record")
 		}
 
 		for _, filter := range filters {
@@ -1353,7 +1407,10 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
-			log.Verboseln(fmt.Sprintf("new dns filter: name=%#v allowance=%v", name, allowance))
+			zlog.Debug().
+				Str("name", name).
+				Bool("allowance", allowance).
+				Msg("new dns filter")
 		}
 
 		for _, bind := range binds {
@@ -1365,13 +1422,18 @@ var _builtin_refs = map[string]Inst{
 				return nil, err
 			}
 
-			log.Verboseln(fmt.Sprintf("new dns bind: name=%#v addr=%#v", name, addr))
+			zlog.Debug().
+				Str("name", name).
+				Str("addr", addr).
+				Msg("new dns bind")
 		}
 
 		for _, listen := range listens {
 			go Dns.Listen(listen)
 
-			log.Verboseln(fmt.Sprintf("dns listen: addr=%#v", listen))
+			zlog.Debug().
+				Str("addr", listen).
+				Msg("dns listen")
 		}
 
 		return Dns, nil
@@ -1396,7 +1458,10 @@ var _builtin_refs = map[string]Inst{
 			WWWRoot:      wwwroot,
 		}
 
-		log.Verboseln(fmt.Sprintf("new acme file provider: hosts=%#v wwwroot=%#v", host, wwwroot))
+		zlog.Debug().
+			Strs("hosts", host).
+			Str("wwwroot", wwwroot).
+			Msg("new acme file provider")
 		return acmec, nil
 	},
 	"builtin::webui": func(spec *ArgNode) (any, error) {
@@ -1444,14 +1509,16 @@ var _builtin_refs = map[string]Inst{
 			prik = append(prik, pk)
 		}
 
-		log.Verboseln("got", len(prik), "private keys")
+		// log.Verboseln("got", len(prik), "private keys")
+		zlog.Debug().Int("count", len(prik)).Msg("got private keys")
 
 		var _quotes []string
 		for _, q := range quotes {
 			_quotes = append(_quotes, strings.TrimSpace(q))
 		}
 
-		log.Verboseln("got", len(_quotes), "quotes")
+		// log.Verboseln("got", len(_quotes), "quotes")
+		zlog.Debug().Int("count", len(_quotes)).Msg("got quotes")
 
 		var pwd ssh.PasswordCbFn = nil
 		if logpassword {
@@ -1473,7 +1540,8 @@ var _builtin_refs = map[string]Inst{
 
 			midware.AddHandler(service, utils.MustCompileRegexp([]string{"^.*$"}))
 
-			log.Verboseln(fmt.Sprintf("new ssh service %#v: logi=%T", name, logi.Value))
+			// log.Verboseln(fmt.Sprintf("new ssh service %#v: logi=%T", name, logi.Value))
+			zlog.Debug().Str("name", name).Type("logi", logi.Value).Msg("new ssh service")
 		}
 		return midware, nil
 	},
@@ -1491,7 +1559,7 @@ var _builtin_refs = map[string]Inst{
 			prik = append(prik, pk)
 		}
 
-		log.Verboseln("got", len(prik), "default private keys")
+		zlog.Debug().Int("count", len(prik)).Msg("got default private keys")
 
 		hm := map[string]ssh.Host{}
 
@@ -1540,11 +1608,14 @@ var _builtin_refs = map[string]Inst{
 
 				AllowedUsers: allowedusers,
 			}
-			log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v allowedusers=%#v identity=... user=... password=...", name, hostname, port, pubkey, allowedusers.String()))
+			// log.Verboseln(fmt.Sprintf("new ssh reverse host %#v: hostname=%#v port=%d pubkey=%#v allowedusers=%#v identity=... user=... password=...", name, hostname, port, pubkey, allowedusers.String()))
+
+			zlog.Debug().Str("name", name).Str("hostname", hostname).Int("port", port).Str("pubkey", pubkey).Strs("allowedusers", allowedusers.String()).Msg("new ssh reverse host")
 
 			if i == 0 {
 				hm[""] = hm[name]
-				log.Verboseln("this is the default host")
+				// log.Verboseln("this is the default host")
+				zlog.Debug().Msg("this is the default host")
 			}
 
 		}
@@ -1569,7 +1640,8 @@ var _builtin_refs = map[string]Inst{
 			f.next = nextf
 		}
 
-		log.Verboseln(fmt.Sprintf("new ip filter: allowedcidrs=%#v", allowedcidrs))
+		// log.Verboseln(fmt.Sprintf("new ip filter: allowedcidrs=%#v", allowedcidrs))
+		zlog.Debug().Strs("allowedcidrs", allowedcidrs).Msg("new ip filter")
 
 		return f, nil
 	},
@@ -1587,7 +1659,9 @@ var _builtin_refs = map[string]Inst{
 			f.next = nextf
 		}
 
-		log.Verboseln(fmt.Sprintf("new host filter: allowedhosts=%#v", allowedhosts))
+		zlog.Debug().
+			Strs("allowedhosts", allowedhosts).
+			Msg("new host filter")
 
 		return f, nil
 	},
@@ -1614,7 +1688,13 @@ var _builtin_refs = map[string]Inst{
 			f.PolicyBackend = nextf
 		}
 
-		log.Verboseln(fmt.Sprintf("new gitlab auth: gitlaburl=%#v cachettl=%v matchusernames=%#v next=%#v", gitlaburl, f.ttl.String(), f.matchUsername.String(), next))
+		zlog.Debug().
+			Str("gitlaburl", gitlaburl.String()).
+			Dur("cachettl", f.ttl).
+			Strs("matchusernames", f.matchUsername.String()).
+			Bool("has_next", next != nil).
+			Str("prefix", prefix).
+			Msg("new gitlab auth")
 		return f, nil
 	},
 	"builtin::http::midware::addservice": func(spec *ArgNode) (any, error) {
@@ -1648,7 +1728,11 @@ var _builtin_refs = map[string]Inst{
 				ServiceHandler: service.HandleHTTP,
 			})
 
-			log.Verboseln(fmt.Sprintf("new http service %#v: hosts=%#v logi=%T", name, hosts.String(), logi.Value))
+			zlog.Debug().
+				Str("name", name).
+				Strs("hosts", hosts.String()).
+				Type("logi", logi.Value).
+				Msg("new http service")
 		}
 
 		return nil, nil

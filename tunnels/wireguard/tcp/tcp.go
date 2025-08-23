@@ -20,7 +20,6 @@ import (
 
 	gnet "net"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 
 	"github.com/mrhaoxx/OpenNG/tunnels/wireguard/netstack"
@@ -31,6 +30,8 @@ import (
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 	"gvisor.dev/gvisor/pkg/waiter"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 // Configure TCP handler.
@@ -53,13 +54,16 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		s := req.ID()
 
 		now := time.Now()
-		path := fmt.Sprintf("wg %s TCP -> %s", gnet.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
-
+		// path := fmt.Sprintf("wg %s TCP -> %s", gnet.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort)), gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
+		path := ""
 		// Add address to stack.
 		addr, _ := netip.AddrFromSlice(s.LocalAddress.AsSlice())
 		err := c.Tnet.AddAddress(addr, c.Tnet.Stack(), c.StackLock)
 		if err != nil {
-			log.Println("failed to add address: ", err)
+			zlog.Error().
+				Str("type", "tunnels/wireguard/tcp").
+				Str("error", err.Error()).
+				Msg("failed to add address")
 			req.Complete(false)
 			return
 		}
@@ -67,7 +71,10 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		defer func() {
 			err := c.Tnet.RemoveAddress(addr, c.Tnet.Stack(), c.StackLock)
 			if err != nil {
-				log.Verbosef("[wireguard] failed to remove address: %v", err)
+				zlog.Error().
+					Str("type", "tunnels/wireguard/tcp").
+					Str("error", err.Error()).
+					Msg("failed to remove address")
 			}
 		}()
 
@@ -90,7 +97,10 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		srcConn, err := accept(&c, req)
 		if err != nil {
 			dstConn.Close()
-			log.Verbosef("[wireguard] failed to create endpoint: %v", err)
+			zlog.Error().
+				Str("type", "tunnels/wireguard/tcp").
+				Str("error", err.Error()).
+				Msg("failed to create endpoint")
 			return
 		}
 		defer srcConn.Close()
@@ -100,7 +110,12 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 
 		path += fmt.Sprintf(" accept %s", time.Since(now))
 
-		log.Println(path)
+		zlog.Info().
+			Str("type", "tunnels/wireguard/tcp").
+			Str("routine", path).
+			Str("remote", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort))).
+			Str("local", gnet.JoinHostPort(s.RemoteAddress.String(), fmt.Sprint(s.RemotePort))).
+			Msg("")
 	}
 }
 
@@ -134,7 +149,12 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 			}
 		}
 
-		log.Verbosef("[wireguard] failed to connect to %s: %v", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)), err)
+		zlog.Error().
+			Str("type", "tunnels/wireguard/tcp").
+			Str("error", err.Error()).
+			Str("remote", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort))).
+			Msg("failed to connect")
+
 		return nil, true
 	}
 

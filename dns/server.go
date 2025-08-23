@@ -2,16 +2,16 @@ package dns
 
 import (
 	"net"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 type record struct {
@@ -59,7 +59,16 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	id := atomic.AddUint64(&s.count, 1)
 	startTime := time.Now()
 	defer func() {
-		log.Println("d"+strconv.FormatUint(id, 10), w.RemoteAddr().String(), time.Since(startTime).Round(1*time.Microsecond), RcodeTypeMap[m.Rcode], joinTypes(req.Question), joinNames(req.Question))
+		// log.Println("d"+strconv.FormatUint(id, 10), w.RemoteAddr().String(), time.Since(startTime).Round(1*time.Microsecond), RcodeTypeMap[m.Rcode], joinTypes(req.Question), joinNames(req.Question))
+		zlog.Info().
+			Str("type", "dns/request").
+			Uint64("id", id).
+			Str("remote", w.RemoteAddr().String()).
+			Dur("duration", time.Since(startTime)).
+			Str("rcode", RcodeTypeMap[m.Rcode]).
+			Str("types", joinTypes(req.Question)).
+			Str("names", joinNames(req.Question)).
+			Msg("")
 	}()
 
 	for _, q := range req.Question {

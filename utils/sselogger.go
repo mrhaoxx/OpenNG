@@ -1,11 +1,10 @@
 package utils
 
 import (
-	"fmt"
 	"net/http"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
+	zlog "github.com/rs/zerolog/log"
 )
 
 type TextStreamLogger struct {
@@ -61,10 +60,16 @@ func (broker *TextStreamLogger) listen() {
 		select {
 		case s := <-broker.newClients:
 			broker.clients[s] = true
-			log.Println(fmt.Sprintf("sys [sselogger] Client added. %d registered clients", len(broker.clients)))
+			zlog.Info().
+				Str("type", "sys/sselogger").
+				Int("clients", len(broker.clients)).
+				Msg("client added")
 		case s := <-broker.closingClients:
 			delete(broker.clients, s)
-			log.Println(fmt.Sprintf("sys [sselogger] Removed client. %d registered clients", len(broker.clients)))
+			zlog.Info().
+				Str("type", "sys/sselogger").
+				Int("clients", len(broker.clients)).
+				Msg("client removed")
 		case event := <-broker.notifier:
 			for clientMessageChan := range broker.clients {
 				clientMessageChan <- event

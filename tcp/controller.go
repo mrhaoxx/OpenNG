@@ -3,12 +3,11 @@ package tcp
 import (
 	"errors"
 	"net"
-	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
+	zlog "github.com/rs/zerolog/log"
 )
 
 const (
@@ -48,14 +47,24 @@ func (c *controller) Deliver(conn *Conn) {
 		delete(c.activeConnections, conn.Id)
 		c.muActiveConnection.Unlock()
 		conn.Close()
-		log.Println(
-			"c"+strconv.FormatUint(conn.Id, 10),
-			conn.Addr().String(),
-			time.Since(conn.start).Round(10*time.Microsecond),
-			atomic.LoadUint64(&conn.bytesrx), atomic.LoadUint64(&conn.bytestx),
-			conn.protos,
-			conn.path,
-		)
+		// log.Println(
+		// 	"c"+strconv.FormatUint(conn.Id, 10),
+		// 	conn.Addr().String(),
+		// 	time.Since(conn.start).Round(10*time.Microsecond),
+		// 	atomic.LoadUint64(&conn.bytesrx), atomic.LoadUint64(&conn.bytestx),
+		// 	conn.protos,
+		// 	conn.path,
+		// )
+		zlog.Info().
+			Uint64("conn", conn.Id).
+			Str("ip", conn.IP()).
+			Int("port", conn.Port()).
+			Dur("duration", time.Since(conn.start)).
+			Uint64("bytesrx", atomic.LoadUint64(&conn.bytesrx)).
+			Uint64("bytestx", atomic.LoadUint64(&conn.bytestx)).
+			Strs("protocols", conn.proto).
+			Str("routine", conn.path).
+			Str("type", "tcp/conn").Msg("")
 	}()
 
 _restart:
@@ -103,7 +112,7 @@ var listenerlock sync.Mutex
 func (ctl *controller) Listen(addr string) error {
 	listenerlock.Lock()
 	if lc, ok := listeners[addr]; ok {
-		log.Verbosef("rebind tcp listen %s", addr)
+		zlog.Warn().Str("type", "tcp/listen").Str("addr", addr).Msg("rebind tcp listen")
 		lc.Close()
 	}
 
@@ -121,15 +130,16 @@ func (ctl *controller) Listen(addr string) error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				log.Println(err)
+				zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen panic")
 			}
 		}()
 		for {
 			socket, err := lc.Accept()
 			if err != nil {
-				log.Errorf("%v", err)
+				zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen accept")
 				break
 			}
+
 			go func() {
 				i := head(socket)
 				ctl.Deliver(i)

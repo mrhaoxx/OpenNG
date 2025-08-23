@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/auth"
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/ssh"
 	"github.com/mrhaoxx/OpenNG/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
+	zlog "github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
 
@@ -210,12 +210,20 @@ func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ssh.Ctx, key gossh.Publi
 
 		url := g.gitlabUrl + rus + ".keys"
 
-		log.Verboseln(ok, cache, "gitlab >", url)
+		zlog.Info().
+			Bool("ok", ok).
+			Interface("cache", cache).
+			Str("url", url).
+			Msg("gitlab")
 
 		resp, err := stdhttp.Get(url)
 
 		if err != nil {
-			log.Verboseln("gitlab >", err)
+			zlog.Info().
+				Str("type", "gitlab/get").
+				Str("url", url).
+				Str("error", err.Error()).
+				Msg("gitlab")
 			return false
 		}
 

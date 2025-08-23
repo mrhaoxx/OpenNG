@@ -1,7 +1,6 @@
 package ssh
 
 import (
-	"encoding/hex"
 	"io"
 	"net"
 	"strconv"
@@ -9,9 +8,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/crypto/ssh"
+
+	zlog "github.com/rs/zerolog/log"
 )
 
 const (
@@ -130,8 +130,18 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 			chn := atomic.AddUint64(&ctx.chn, 1) - 1
 			go func() {
 				defer func() {
-					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-						"s"+strconv.FormatUint(ctx.Id, 10), "<", nc.ChannelType(), hex.EncodeToString(nc.ExtraData()))
+					// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+					// 	"s"+strconv.FormatUint(ctx.Id, 10), "<", nc.ChannelType(), hex.EncodeToString(nc.ExtraData()))
+					zlog.Info().
+						Str("type", "ssh/channel").
+						Uint64("id", ctx.Id).
+						Str("remote", ctx.conn.Addr().String()).
+						Dur("duration", time.Since(ctx.starttime)).
+						Str("channeltype", nc.ChannelType()).
+						Str("direction", "<").
+						Uint64("chn", chn).
+						Hex("data", nc.ExtraData()).
+						Msg("")
 				}()
 				p.HandleChannel(ctx, nc, ctx.sshconn, chn)
 			}()
@@ -143,8 +153,18 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 			chn := atomic.AddUint64(&ctx.chn, 1) - 1
 			go func() {
 				defer func() {
-					log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-						"s"+strconv.FormatUint(ctx.Id, 10), ">", ch.ChannelType(), hex.EncodeToString(ch.ExtraData()))
+					// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+					// 	"s"+strconv.FormatUint(ctx.Id, 10), ">", ch.ChannelType(), hex.EncodeToString(ch.ExtraData()))
+					zlog.Info().
+						Str("type", "ssh/channel").
+						Uint64("id", ctx.Id).
+						Str("remote", ctx.conn.Addr().String()).
+						Dur("duration", time.Since(ctx.starttime)).
+						Str("channeltype", ch.ChannelType()).
+						Str("direction", ">").
+						Uint64("chn", chn).
+						Hex("data", ch.ExtraData()).
+						Msg("")
 				}()
 				p.HandleChannel(ctx, ch, remote, chn)
 			}()
@@ -160,8 +180,18 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 			_1, _2, _ := ctx.sshconn.SendRequest(req.Type, req.WantReply, req.Payload)
 			req.Reply(_1, _2)
 
-			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), "<", req.Type, hex.EncodeToString(req.Payload))
+			// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), "<", req.Type, hex.EncodeToString(req.Payload))
+			zlog.Info().
+				Str("type", "ssh/request").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Uint64("conn", ctx.conn.Id).
+				Str("direction", "<").
+				Str("requesttype", req.Type).
+				Hex("data", req.Payload).
+				Msg("")
 		}
 	}()
 
@@ -170,14 +200,32 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 			_1, _2, _ := remote.SendRequest(req.Type, req.WantReply, req.Payload)
 			req.Reply(_1, _2)
 
-			log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"c"+strconv.FormatUint(ctx.conn.Id, 10), ">", req.Type, hex.EncodeToString(req.Payload))
+			// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), ">", req.Type, hex.EncodeToString(req.Payload))
+			zlog.Info().
+				Str("type", "ssh/request").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Uint64("conn", ctx.conn.Id).
+				Str("direction", ">").
+				Str("requesttype", req.Type).
+				Hex("data", req.Payload).
+				Msg("")
 		}
 	}()
 
-	log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-		"c"+strconv.FormatUint(ctx.conn.Id, 10), "-", ctx.sshconn.Wait())
+	// log.Println("s"+strconv.FormatUint(ctx.Id, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+	// 	"c"+strconv.FormatUint(ctx.conn.Id, 10), "-", ctx.sshconn.Wait())
 
+	zlog.Info().
+		Str("type", "ssh/conn").
+		Uint64("id", ctx.Id).
+		Str("remote", ctx.conn.Addr().String()).
+		Dur("duration", time.Since(ctx.starttime)).
+		Uint64("conn", ctx.conn.Id).
+		Str("reason", ctx.sshconn.Wait().Error()).
+		Msg("disconnect")
 }
 func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
@@ -232,8 +280,18 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		for a := range r {
 			_1, _ := _c.SendRequest(a.Type, a.WantReply, a.Payload)
 			a.Reply(_1, nil)
-			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
+			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"s"+strconv.FormatUint(ctx.Id, 10), ">", a.Type, hex.EncodeToString(a.Payload))
+			zlog.Info().
+				Str("type", "ssh/channel/request").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Str("requesttype", a.Type).
+				Str("direction", ">").
+				Uint64("chn", chn).
+				Hex("data", a.Payload).
+				Msg("")
 		}
 		<-stddown
 		_c.Close()
@@ -242,8 +300,18 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 		for a := range _r {
 			_1, _ := c.SendRequest(a.Type, a.WantReply, a.Payload)
 			a.Reply(_1, nil)
-			log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
-				"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
+			// log.Println("n"+strconv.FormatUint(chn, 10), ctx.conn.Addr().String(), time.Since(ctx.starttime).Round(1*time.Microsecond),
+			// 	"s"+strconv.FormatUint(ctx.Id, 10), "<", a.Type, hex.EncodeToString(a.Payload))
+			zlog.Info().
+				Str("type", "ssh/channel/request").
+				Uint64("id", ctx.Id).
+				Str("remote", ctx.conn.Addr().String()).
+				Dur("duration", time.Since(ctx.starttime)).
+				Str("requesttype", a.Type).
+				Str("direction", "<").
+				Uint64("chn", chn).
+				Hex("data", a.Payload).
+				Msg("")
 		}
 		<-stdup
 		c.Close()
