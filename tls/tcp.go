@@ -45,6 +45,12 @@ func (mgr *TlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 					continue
 				}
 			}
+
+			c.Upgrade(tls.Server(c.TopConn(), &tls.Config{
+				Certificates: []tls.Certificate{*cert},
+			}), "")
+
+			return tcp.Continue
 		}
 	}
 	return tcp.Close
