@@ -121,7 +121,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 					continue
 				}
 
-				length := uint16(len(payload))
+				length := uint16(n)
 
 				lengthcrlf := [4]byte{byte(length >> 8), byte(length), 0x0d, 0x0a}
 
