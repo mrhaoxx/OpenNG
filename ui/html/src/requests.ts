@@ -1,6 +1,7 @@
 import './index.css'
 
 type RequestInfo = Record<string, any>
+type SortKey = 'id' | 'method' | 'host' | 'uri' | 'src' | 'protocol' | 'code' | 'enc' | 'respwritten' | 'starttime'
 
 function padZero(v: number): string { return v.toString().padStart(2, '0') }
 function formatTime(ms: number): string {
@@ -40,55 +41,95 @@ async function killRequest(requestId: string) {
   }
 }
 
+const tbody = document.getElementById('request-tbody') as HTMLTableSectionElement
+let currentSort: { key: SortKey, dir: 'asc' | 'desc' } = { key: 'starttime', dir: 'desc' }
+
+function compareValues(a: any, b: any, key: SortKey): number {
+  if (key === 'code' || key === 'respwritten') {
+    const na = Number(a[key] ?? 0)
+    const nb = Number(b[key] ?? 0)
+    return na - nb
+  }
+  if (key === 'starttime') {
+    const ta = new Date(a[key]).getTime()
+    const tb = new Date(b[key]).getTime()
+    return ta - tb
+  }
+  const sa = String(a[key] ?? '')
+  const sb = String(b[key] ?? '')
+  return sa.localeCompare(sb)
+}
+
+function renderRows(rows: Array<Record<string, any>>) {
+  tbody.innerHTML = ''
+  for (const row of rows) {
+    const tr = document.createElement('tr')
+    tr.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800/40'
+
+    const startTime = new Date(row.starttime)
+    const elapsed = formatTime(Date.now() - startTime.getTime())
+
+    tr.innerHTML = `
+      <td class="px-3 py-2 font-mono">${row.id}</td>
+      <td class="px-3 py-2">${row.method ?? ''}</td>
+      <td class="px-3 py-2">${row.host ?? ''}</td>
+      <td class="px-3 py-2">${row.uri ?? ''}</td>
+      <td class="px-3 py-2 font-mono text-xs">${row.src ?? ''}</td>
+      <td class="px-3 py-2">${row.protocol ?? ''}</td>
+      <td class="px-3 py-2">${row.code ?? ''}</td>
+      <td class="px-3 py-2">${row.enc ?? ''}</td>
+      <td class="px-3 py-2">${row.respwritten ?? ''}</td>
+      <td class="px-3 py-2 font-mono text-xs">${row.starttime ?? ''}</td>
+      <td class="px-3 py-2 font-mono">${elapsed}</td>
+      <td class="px-3 py-2">
+        <button data-rid="${row.id}" class="px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 text-xs">Kill</button>
+      </td>
+    `
+    tbody.appendChild(tr)
+  }
+}
+
 async function fetchRequests() {
   try {
     const resp = await fetch('/api/v1/http/requests')
     const data = await resp.json() as Record<string, RequestInfo>
-    const requestList = document.getElementById('request-list') as HTMLUListElement
-    requestList.innerHTML = ''
 
-    for (const requestId in data) {
-      const request = data[requestId]
-      const li = document.createElement('li')
-      li.className = 'py-3'
+    const rows = Object.keys(data).map(id => ({ id, ...(data[id] || {}) }))
+    rows.sort((a, b) => {
+      const cmp = compareValues(a, b, currentSort.key)
+      return currentSort.dir === 'asc' ? cmp : -cmp
+    })
 
-      const h3 = document.createElement('div')
-      h3.className = 'text-sm font-medium text-neutral-900 dark:text-neutral-100'
-      h3.textContent = `Request ID: ${requestId}`
-      li.appendChild(h3)
-
-      const meta = document.createElement('div')
-      meta.className = 'mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs text-neutral-700 dark:text-neutral-300 font-mono'
-      for (const key in request) {
-        if (key === 'starttime') {
-          const startTime = new Date(request[key])
-          const currentTime = new Date()
-          const timeDiff = currentTime.getTime() - startTime.getTime()
-          const div = document.createElement('div')
-          div.textContent = `Elapsed: ${formatTime(timeDiff)}`
-          meta.appendChild(div)
-        } else {
-          const div = document.createElement('div')
-          div.textContent = `${key}: ${request[key]}`
-          meta.appendChild(div)
-        }
-      }
-      li.appendChild(meta)
-
-      const actions = document.createElement('div')
-      actions.className = 'mt-2'
-      const killBtn = document.createElement('button')
-      killBtn.className = 'px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700'
-      killBtn.textContent = 'Kill Request'
-      killBtn.addEventListener('click', () => killRequest(requestId))
-      actions.appendChild(killBtn)
-      li.appendChild(actions)
-
-      requestList.appendChild(li)
-    }
+    renderRows(rows)
   } catch (e) {
     console.log(e)
   }
+}
+
+function setupSorting() {
+  const thead = document.querySelectorAll('thead th[data-key]')
+  thead.forEach(th => {
+    th.addEventListener('click', () => {
+      const key = (th as HTMLElement).dataset.key as SortKey
+      if (!key) return
+      if (currentSort.key === key) {
+        currentSort = { key, dir: currentSort.dir === 'asc' ? 'desc' : 'asc' }
+      } else {
+        currentSort = { key, dir: 'asc' }
+      }
+      void fetchRequests()
+    })
+  })
+}
+
+function setupActions() {
+  tbody.addEventListener('click', (ev) => {
+    const target = ev.target as HTMLElement
+    const btn = target.closest('button[data-rid]') as HTMLButtonElement | null
+    if (btn && btn.dataset.rid) {
+      void killRequest(btn.dataset.rid)
+    }
+  })
 }
 
 async function updateUptime() {
@@ -104,9 +145,11 @@ async function updateUptime() {
   }
 }
 
-fetchRequests()
+setupSorting()
+setupActions()
+void fetchRequests()
 setInterval(fetchRequests, 1000)
-updateUptime()
+void updateUptime()
 setInterval(updateUptime, 1000)
 
 

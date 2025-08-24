@@ -22,7 +22,27 @@
       </div>
     </header>
     <main class="flex-1 p-0">
-      <ul class="divide-y divide-neutral-200 dark:divide-neutral-800" id="request-list"></ul>
+      <div class="overflow-x-auto">
+        <table class="min-w-full text-sm text-left text-neutral-800 dark:text-neutral-100">
+          <thead class="bg-neutral-50 dark:bg-neutral-800/50 text-neutral-700 dark:text-neutral-300">
+            <tr>
+              <th class="px-3 py-2 cursor-pointer" data-key="id">ID</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="method">Method</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="host">Host</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="uri">URI</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="src">Src</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="protocol">Proto</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="code">Code</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="enc">Enc</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="respwritten">Tx</th>
+              <th class="px-3 py-2">Start Time</th>
+              <th class="px-3 py-2 cursor-pointer" data-key="starttime">Elapsed</th>
+              <th class="px-3 py-2">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="request-tbody" class="divide-y divide-neutral-200 dark:divide-neutral-800"></tbody>
+        </table>
+      </div>
     </main>
   </div>
 

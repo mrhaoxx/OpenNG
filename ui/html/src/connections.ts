@@ -9,7 +9,11 @@ type Connection = {
   starttime: string
 }
 
+type SortKey = 'id' | 'src' | 'path' | 'protocols' | 'bytesrx' | 'bytestx' | 'starttime'
+
 const previousData: Record<string, { bytesRx: number; bytesTx: number; timestamp: number }> = {}
+const tbody = document.getElementById('connection-tbody') as HTMLTableSectionElement
+let currentSort: { key: SortKey, dir: 'asc' | 'desc' } = { key: 'starttime', dir: 'desc' }
 
 function formatSpeed(speed: number): string {
   if (!isFinite(speed)) return '0 B/s'
@@ -55,66 +59,6 @@ async function killConnection(cid: string) {
   }
 }
 
-async function fetchData() {
-  try {
-    const resp = await fetch('/api/v1/tcp/connections')
-    const json = await resp.json() as Record<string, Connection>
-    displayData(json)
-  } catch (e) {
-    console.error('Error:', e)
-  }
-}
-
-function displayData(connections: Record<string, Connection>) {
-  const ul = document.getElementById('connection-list') as HTMLUListElement
-  ul.innerHTML = ''
-  const now = Date.now()
-  Object.keys(connections).forEach(key => {
-    const c = connections[key]
-    const li = document.createElement('li')
-    li.className = 'py-3'
-
-    const title = document.createElement('div')
-    title.className = 'text-sm font-medium text-neutral-900 dark:text-neutral-100'
-    title.textContent = `Connection ID: ${key}`
-    li.appendChild(title)
-
-    const start = new Date(c.starttime)
-    const prev = previousData[key] ?? { bytesRx: c.bytesrx, bytesTx: c.bytestx, timestamp: now }
-    const dt = Math.max(0.001, (now - prev.timestamp) / 1000)
-    const speedRx = (c.bytesrx - prev.bytesRx) / dt
-    const speedTx = (c.bytestx - prev.bytesTx) / dt
-
-    const meta = document.createElement('div')
-    meta.className = 'mt-2 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-x-6 gap-y-1 text-xs text-neutral-700 dark:text-neutral-300 font-mono'
-    meta.innerHTML = `
-      <div>BytesRx: ${c.bytesrx}</div>
-      <div>BytesTx: ${c.bytestx}</div>
-      <div>Path: ${c.path}</div>
-      <div>Protocols: ${c.protocols}</div>
-      <div>Source: ${c.src}</div>
-      <div>Start: ${start.toLocaleString()}</div>
-      <div>SpeedRx: ${formatSpeed(speedRx)}</div>
-      <div>SpeedTx: ${formatSpeed(speedTx)}</div>
-      <div>Elapsed: ${formatTime(now - start.getTime())}</div>
-    `
-    li.appendChild(meta)
-
-    previousData[key] = { bytesRx: c.bytesrx, bytesTx: c.bytestx, timestamp: now }
-
-    const actions = document.createElement('div')
-    actions.className = 'mt-2'
-    const killBtn = document.createElement('button')
-    killBtn.className = 'px-3 py-1.5 rounded-md bg-red-600 text-white hover:bg-red-700'
-    killBtn.textContent = 'Kill'
-    killBtn.addEventListener('click', () => killConnection(key))
-    actions.appendChild(killBtn)
-    li.appendChild(actions)
-
-    ul.appendChild(li)
-  })
-}
-
 async function updateUptime() {
   try {
     const resp = await fetch('/api/v1/uptime', { redirect: 'error' })
@@ -128,9 +72,94 @@ async function updateUptime() {
   }
 }
 
+function compare(a: any, b: any, key: SortKey): number {
+  if (key === 'bytesrx' || key === 'bytestx') {
+    return Number(a[key] ?? 0) - Number(b[key] ?? 0)
+  }
+  if (key === 'starttime') {
+    return new Date(a[key]).getTime() - new Date(b[key]).getTime()
+  }
+  return String(a[key] ?? '').localeCompare(String(b[key] ?? ''))
+}
+
+function renderRows(rows: Array<Record<string, any>>) {
+  tbody.innerHTML = ''
+  const now = Date.now()
+  for (const row of rows) {
+    const tr = document.createElement('tr')
+    tr.className = 'hover:bg-neutral-50 dark:hover:bg-neutral-800/40'
+
+    const start = new Date(row.starttime)
+    const prev = previousData[row.id] ?? { bytesRx: row.bytesrx, bytesTx: row.bytestx, timestamp: now }
+    const dt = Math.max(0.001, (now - prev.timestamp) / 1000)
+    const speedRx = (row.bytesrx - prev.bytesRx) / dt
+    const speedTx = (row.bytestx - prev.bytesTx) / dt
+
+    tr.innerHTML = `
+      <td class="px-3 py-2 font-mono">${row.id}</td>
+      <td class="px-3 py-2 font-mono text-xs">${row.src}</td>
+      <td class="px-3 py-2">${row.path}</td>
+      <td class="px-3 py-2">${row.protocols}</td>
+      <td class="px-3 py-2">${row.bytesrx}</td>
+      <td class="px-3 py-2">${row.bytestx}</td>
+      <td class="px-3 py-2 font-mono text-xs">${row.starttime}</td>
+      <td class="px-3 py-2 font-mono">${formatTime(now - start.getTime())}</td>
+      <td class="px-3 py-2 font-mono text-xs">${formatSpeed(speedRx)}</td>
+      <td class="px-3 py-2 font-mono text-xs">${formatSpeed(speedTx)}</td>
+      <td class="px-3 py-2">
+        <button data-cid="${row.id}" class="px-2 py-1 rounded-md bg-red-600 text-white hover:bg-red-700 text-xs">Kill</button>
+      </td>
+    `
+    tbody.appendChild(tr)
+
+    previousData[row.id] = { bytesRx: row.bytesrx, bytesTx: row.bytestx, timestamp: now }
+  }
+}
+
+async function fetchData() {
+  try {
+    const resp = await fetch('/api/v1/tcp/connections')
+    const json = await resp.json() as Record<string, Connection>
+    const rows = Object.keys(json).map(id => ({ id, ...(json[id] || {}) }))
+    rows.sort((a, b) => {
+      const cmp = compare(a, b, currentSort.key)
+      return currentSort.dir === 'asc' ? cmp : -cmp
+    })
+    renderRows(rows)
+  } catch (e) {
+    console.error('Error:', e)
+  }
+}
+
+function setupSorting() {
+  const heads = document.querySelectorAll('thead th[data-key]')
+  heads.forEach(th => {
+    th.addEventListener('click', () => {
+      const key = (th as HTMLElement).dataset.key as SortKey
+      if (!key) return
+      if (currentSort.key === key) {
+        currentSort = { key, dir: currentSort.dir === 'asc' ? 'desc' : 'asc' }
+      } else {
+        currentSort = { key, dir: 'asc' }
+      }
+      void fetchData()
+    })
+  })
+}
+
+function setupActions() {
+  tbody.addEventListener('click', (ev) => {
+    const target = ev.target as HTMLElement
+    const btn = target.closest('button[data-cid]') as HTMLButtonElement | null
+    if (btn && btn.dataset.cid) {
+      void killConnection(btn.dataset.cid)
+    }
+  })
+}
+
+setupSorting()
+setupActions()
 setInterval(fetchData, 1000)
-fetchData()
-updateUptime()
+void fetchData()
+void updateUptime()
 setInterval(updateUptime, 1000)
-
-
