@@ -25,10 +25,6 @@ type StdForwardProxy struct {
 func (h *StdForwardProxy) HandleHTTPForward(ctx *http.HttpCtx) http.Ret {
 
 	h.init.Do(func() {
-		if h.Underlying == nil {
-			h.Underlying = net.DefaultRouteTable
-		}
-
 		h.transport = &stdhttp.Transport{
 			DialContext: func(ctx context.Context, network, addr string) (gonet.Conn, error) {
 				return h.Underlying.Dial(network, addr)

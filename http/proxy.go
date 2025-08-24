@@ -33,7 +33,7 @@ type HttpHost struct {
 func (h *HttpHost) Init() {
 
 	if h.Underlying == nil {
-		h.Underlying = net.DefaultRouteTable
+		panic("underlying interface is nil")
 	}
 
 	var HTTPTlsConfig = tls.Config{
@@ -122,8 +122,6 @@ type ReverseProxy struct {
 	buf *utils.BufferedLookup
 
 	allowhosts utils.GroupRegexp
-
-	underlying net.Interface
 }
 
 func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
@@ -146,7 +144,6 @@ func NewHTTPProxier(allowedhosts []string) *ReverseProxy {
 	hpx := &ReverseProxy{
 		hosts:      make([]*HttpHost, 0),
 		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
-		underlying: net.DefaultRouteTable,
 	}
 
 	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {

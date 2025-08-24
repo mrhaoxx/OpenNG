@@ -43,6 +43,7 @@ type Config struct {
 	KeepaliveCount    int
 	Tnet              *netstack.Net
 	StackLock         *sync.Mutex
+	Underlying        net.Interface
 
 	Addr tcpip.Address
 }
@@ -127,7 +128,7 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout)
 	defer cancel()
-	c, err := net.DefaultRouteTable.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
+	c, err := config.Underlying.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
 	// c, err := gonet.DialTCPWithBind(ctx, config.Tnet.Stack(), tcpip.FullAddress{
 	// 	NIC:  1,

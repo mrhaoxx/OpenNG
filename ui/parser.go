@@ -27,6 +27,7 @@ type AssertMap map[string]Assert
 type Assert struct {
 	Type     string
 	Required bool
+	Forced   bool
 	Sub      AssertMap
 
 	Default any
@@ -55,9 +56,9 @@ func (node *ArgNode) Assert(assertions Assert) error {
 		if assertions.Type != "any" && !node.IfCompatibleAndConvert(assertions) {
 			return fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
 		}
-		if assertions.Required && assertions.Default != nil && assertions.Type != "url" {
+		if assertions.Forced && assertions.Default != nil && assertions.Type != "url" {
 			if !reflect.DeepEqual(node.Value, assertions.Default) {
-				return fmt.Errorf("required field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
+				return fmt.Errorf("forced field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
 			}
 		}
 	}
@@ -146,16 +147,19 @@ func (node *ArgNode) Assert(assertions Assert) error {
 
 		if assertions.Default != nil {
 			assertnode := assertions.Default.(*net.URL)
+
+			if assertions.Forced && realnode.Interface != assertnode.Interface {
+				return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
+			}
+
 			if assertnode.Interface != "" {
-				if assertions.Required && realnode.Interface != assertnode.Interface {
-					return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
-				}
+
 				if realnode.Interface == "" {
 					realnode.Interface = assertnode.Interface
 				}
 			}
 			if assertnode.URL.Scheme != "" {
-				if assertions.Required && realnode.URL.Scheme != assertnode.URL.Scheme {
+				if assertions.Forced && realnode.URL.Scheme != assertnode.URL.Scheme {
 					return fmt.Errorf("url scheme mismatch: %s != %s", realnode.URL.Scheme, assertnode.URL.Scheme)
 				}
 				if realnode.URL.Scheme == "" {
@@ -163,7 +167,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				}
 			}
 			if assertnode.URL.Host != "" {
-				if assertions.Required && realnode.URL.Host != assertnode.URL.Host {
+				if assertions.Forced && realnode.URL.Host != assertnode.URL.Host {
 					return fmt.Errorf("url host mismatch: %s != %s", realnode.URL.Host, assertnode.URL.Host)
 				}
 				if realnode.URL.Host == "" {
@@ -171,7 +175,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				}
 			}
 			if assertnode.URL.Path != "" {
-				if assertions.Required && realnode.URL.Path != assertnode.URL.Path {
+				if assertions.Forced && realnode.URL.Path != assertnode.URL.Path {
 					return fmt.Errorf("url path mismatch: %s != %s", realnode.URL.Path, assertnode.URL.Path)
 				}
 				if realnode.URL.Path == "" {
@@ -179,7 +183,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				}
 			}
 			if assertnode.URL.RawQuery != "" {
-				if assertions.Required && realnode.URL.RawQuery != assertnode.URL.RawQuery {
+				if assertions.Forced && realnode.URL.RawQuery != assertnode.URL.RawQuery {
 					return fmt.Errorf("url query mismatch: %s != %s", realnode.URL.RawQuery, assertnode.URL.RawQuery)
 				}
 				if realnode.URL.RawQuery == "" {
@@ -187,7 +191,7 @@ func (node *ArgNode) Assert(assertions Assert) error {
 				}
 			}
 			if assertnode.URL.RawFragment != "" {
-				if assertions.Required && realnode.URL.RawFragment != assertnode.URL.RawFragment {
+				if assertions.Forced && realnode.URL.RawFragment != assertnode.URL.RawFragment {
 					return fmt.Errorf("url fragment mismatch: %s != %s", realnode.URL.RawFragment, assertnode.URL.RawFragment)
 				}
 				if realnode.URL.RawFragment == "" {

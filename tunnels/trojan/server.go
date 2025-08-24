@@ -26,17 +26,9 @@ type UDPPacket struct {
 type Server struct {
 	PasswordHashes []string
 	Underlying     net.Interface
-
-	initOnce sync.Once
 }
 
 func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
-	s.initOnce.Do(func() {
-		if s.Underlying == nil {
-			s.Underlying = net.DefaultRouteTable
-		}
-	})
-
 	buf := make([]byte, 58)
 
 	var r = conn.TopConn()

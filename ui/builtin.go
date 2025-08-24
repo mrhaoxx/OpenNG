@@ -51,6 +51,7 @@ var _builtin_refs_assertions = map[string]Assert{
 				Desc:     "config version",
 				Type:     "int",
 				Required: true,
+				Forced:   true,
 				Default:  6,
 			},
 			"Config": {
@@ -135,6 +136,7 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type:     "url",
 								Required: true,
 								Desc:     "backend URL to proxy requests to",
+								Default:  &net.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
 							},
 							"MaxConnsPerHost": {
 								Type:    "int",
@@ -368,7 +370,7 @@ var _builtin_refs_assertions = map[string]Assert{
 							"backend": {
 								Type:     "url",
 								Required: true,
-								Default:  &net.URL{URL: url.URL{Scheme: "tcp"}},
+								Default:  &net.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
 							},
 							"protocol": {
 								Type:     "string",
@@ -955,6 +957,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			"url": {
 				Type:     "url",
 				Required: true,
+				Default:  &net.URL{Interface: "sys"},
 			},
 		},
 	},

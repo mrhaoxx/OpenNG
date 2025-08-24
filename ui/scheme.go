@@ -209,7 +209,9 @@ func ValidateConfig(root *ArgNode) []error {
 	srvs := root.MustGet("Services")
 
 	space := Space{
-		Services: map[string]any{},
+		Services: map[string]any{
+			"sys": true,
+		},
 	}
 
 	for i, _srv := range srvs.Value.([]*ArgNode) {

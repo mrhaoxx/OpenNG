@@ -193,8 +193,10 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	}
 
 	space := Space{
-		Refs:     _builtin_refs,
-		Services: map[string]any{},
+		Refs: _builtin_refs,
+		Services: map[string]any{
+			"sys": &net.SysInterface{},
+		},
 	}
 
 	space.Services["@"] = space
