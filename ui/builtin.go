@@ -636,7 +636,7 @@ var _builtin_refs_assertions = map[string]Assert{
 		Sub: AssertMap{
 			"interface": {
 				Type:    "ptr",
-				Default: &net.SysInterface{},
+				Default: "sys",
 			},
 		},
 	},
@@ -952,7 +952,7 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 			"interface": {
 				Type:    "ptr",
-				Default: &net.SysInterface{},
+				Default: "sys",
 			},
 		},
 	},
