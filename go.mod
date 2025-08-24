@@ -11,17 +11,12 @@ require (
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.68
 	github.com/pires/go-proxyproto v0.8.1
+	github.com/rs/zerolog v1.34.0
 	golang.org/x/crypto v0.41.0
 	golang.org/x/net v0.43.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20250820192457-dde98974cb6c
-)
-
-require (
-	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/rs/zerolog v1.34.0 // indirect
 )
 
 require (
@@ -31,6 +26,8 @@ require (
 	github.com/google/gopacket v1.1.19
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/libp2p/go-reuseport v0.4.0
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/stretchr/testify v1.10.0 // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
