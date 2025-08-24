@@ -632,8 +632,13 @@ var _builtin_refs_assertions = map[string]Assert{
 		},
 	},
 	"builtin::http::forwardproxier": {
-		Type: "null",
-		Desc: "HTTP forward proxy implementation (no configuration needed)",
+		Type: "map",
+		Sub: AssertMap{
+			"interface": {
+				Type:    "ptr",
+				Default: &net.SysInterface{},
+			},
+		},
 	},
 	"builtin::http::acme::fileprovider": {
 		Type: "map",
@@ -946,8 +951,8 @@ var _builtin_refs_assertions = map[string]Assert{
 				},
 			},
 			"interface": {
-				Type:     "ptr",
-				Required: false,
+				Type:    "ptr",
+				Default: &net.SysInterface{},
 			},
 		},
 	},
@@ -1442,7 +1447,10 @@ var _builtin_refs = map[string]Inst{
 		return Dns, nil
 	},
 	"builtin::http::forwardproxier": func(spec *ArgNode) (any, error) {
-		return &thttp.StdForwardProxy{}, nil
+
+		underlying := spec.MustGet("interface").Value.(net.Interface)
+
+		return &thttp.StdForwardProxy{Underlying: underlying}, nil
 	},
 	// "builtin::http::fwdforwardproxier": func(spec *ArgNode) (any, error) {
 	// 	proxyurl := spec.MustGet("ProxyURL").ToString()

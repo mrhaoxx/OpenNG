@@ -53,6 +53,8 @@ var connMapLock = sync.RWMutex{}
 type Config struct {
 	Tnet      *netstack.Net
 	StackLock *sync.Mutex
+
+	Underlying net.Interface
 }
 
 // Handler handles UDP packets. Returns function that returns true if packet is handled, or false if ICMP Destination Unreachable should be sent.
