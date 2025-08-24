@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/mrhaoxx/OpenNG/tcp"
@@ -77,6 +78,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 		zlog.Info().
 			Str("type", "tunnels/trojan/dial").
 			Str("address", address).
+			Str("conn", conn.Id).
 			Str("network", "tcp").
 			Msg("")
 
@@ -84,6 +86,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 			zlog.Error().
 				Str("type", "tunnels/trojan/dial").
 				Str("address", address).
+				Str("conn", conn.Id).
 				Str("network", "tcp").
 				Str("error", err.Error()).
 				Msg("dial failed")
@@ -95,6 +98,10 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 	case 0x3: // Associate
 		connTable := make(map[string]*gonet.UDPConn)
+
+		// atomic rx
+		var rx atomic.Uint64
+		var tx atomic.Uint64
 
 		var muWrite sync.Mutex
 
@@ -111,6 +118,8 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 				if err != nil {
 					return
 				}
+
+				rx.Add(uint64(n))
 
 				payload := buf[:n]
 
@@ -188,6 +197,7 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 						Str("type", "tunnels/trojan/dial").
 						Str("address", address).
 						Str("network", "udp").
+						Str("conn", conn.Id).
 						Str("error", err.Error()).
 						Msg("dial failed")
 					continue
@@ -202,7 +212,8 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 					Str("type", "tunnels/trojan/dial").
 					Str("address", address).
 					Str("network", "udp").
-					Msg("new UDP connection")
+					Str("conn", conn.Id).
+					Msg("")
 			}
 
 			n, err := io.ReadFull(r, buf[:length])
@@ -217,6 +228,8 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 
 			_, err = target.Write(buf[:n])
 
+			tx.Add(uint64(n))
+
 			if err != nil {
 				target.Close()
 				delete(connTable, address)
@@ -229,6 +242,14 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 		for _, target := range connTable {
 			target.Close()
 		}
+
+		zlog.Info().
+			Str("type", "tunnels/trojan/dial/udp").
+			Str("network", "udp").
+			Str("conn", conn.Id).
+			Uint64("rx", rx.Load()).
+			Uint64("tx", tx.Load()).
+			Msg("closed")
 
 		return tcp.Close
 

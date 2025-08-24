@@ -187,7 +187,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 				Uint64("id", ctx.Id).
 				Str("remote", ctx.conn.Addr().String()).
 				Dur("duration", time.Since(ctx.starttime)).
-				Uint64("conn", ctx.conn.Id).
+				Str("conn", ctx.conn.Id).
 				Str("direction", "<").
 				Str("requesttype", req.Type).
 				Hex("data", req.Payload).
@@ -207,7 +207,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 				Uint64("id", ctx.Id).
 				Str("remote", ctx.conn.Addr().String()).
 				Dur("duration", time.Since(ctx.starttime)).
-				Uint64("conn", ctx.conn.Id).
+				Str("conn", ctx.conn.Id).
 				Str("direction", ">").
 				Str("requesttype", req.Type).
 				Hex("data", req.Payload).
@@ -223,7 +223,7 @@ func (p *proxier) HandleConn(ctx *Ctx) {
 		Uint64("id", ctx.Id).
 		Str("remote", ctx.conn.Addr().String()).
 		Dur("duration", time.Since(ctx.starttime)).
-		Uint64("conn", ctx.conn.Id).
+		Str("conn", ctx.conn.Id).
 		Str("reason", ctx.sshconn.Wait().Error()).
 		Msg("disconnect")
 }

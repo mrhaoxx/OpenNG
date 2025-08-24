@@ -121,7 +121,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 			Str("remote", ctx.conn.Addr().String()).
 			Dur("duration", time.Since(ctx.starttime)).
 			Str("username", ctx.username).
-			Uint64("conn", ctx.conn.Id).
+			Str("conn", ctx.conn.Id).
 			Str("routine", path).
 			Msg("")
 	}()
@@ -156,7 +156,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 					Str("remote", ctx.conn.Addr().String()).
 					Dur("duration", time.Since(ctx.starttime)).
 					Str("username", ctx.username).
-					Uint64("conn", ctx.conn.Id).
+					Str("conn", ctx.conn.Id).
 					Str("method", "ssh-pwd").
 					Str("status", "passed").
 					Msg("")
@@ -172,7 +172,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 				Str("remote", ctx.conn.Addr().String()).
 				Dur("duration", time.Since(ctx.starttime)).
 				Str("username", ctx.username).
-				Uint64("conn", ctx.conn.Id).
+				Str("conn", ctx.conn.Id).
 				Str("method", "ssh-pwd").
 				Str("password", string(password)).
 				Str("status", "failed").
@@ -197,7 +197,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 					Str("remote", ctx.conn.Addr().String()).
 					Dur("duration", time.Since(ctx.starttime)).
 					Str("username", ctx.username).
-					Uint64("conn", ctx.conn.Id).
+					Str("conn", ctx.conn.Id).
 					Str("method", key.Type()).
 					Str("status", "passed").
 					Str("key", string(MarshalAuthorizedKey(key))).
@@ -213,7 +213,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 				Str("remote", ctx.conn.Addr().String()).
 				Dur("duration", time.Since(ctx.starttime)).
 				Str("username", ctx.username).
-				Uint64("conn", ctx.conn.Id).
+				Str("conn", ctx.conn.Id).
 				Str("method", key.Type()).
 				Str("key", string(MarshalAuthorizedKey(key))).
 				Str("status", "failed").

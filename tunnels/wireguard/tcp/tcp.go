@@ -78,7 +78,7 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 			}
 		}()
 
-		path += fmt.Sprintf(" prep %s", time.Since(now))
+		path += fmt.Sprintf("prep %s", time.Since(now))
 		now = time.Now()
 
 		// Address is added, now test if remote endpoint is available.

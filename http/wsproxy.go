@@ -8,10 +8,10 @@ import (
 	"net"
 	"net/http"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
+	zlog "github.com/rs/zerolog/log"
 )
 
 type WebsocketProxy struct {
@@ -69,7 +69,15 @@ func (w *WebsocketProxy) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 		if resp != nil {
 			copyResponse(rw, resp)
 		} else {
-			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(err.Error()))
+			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway")
+			zlog.Error().
+				Str("type", "http/wsproxy").
+				Str("host", req.Host).
+				Str("backend", backendURL.String()).
+				Str("conn", rw.(*NgResponseWriter).ctx.conn.Id).
+				Str("reqid", rw.(*NgResponseWriter).ctx.Id).
+				Str("error", err.Error()).
+				Msg("")
 		}
 		return
 	}

@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
-	"strconv"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -59,11 +58,13 @@ func (h *HttpHost) Init() {
 
 	h.proxy = &httputil.ReverseProxy{
 		ErrorHandler: func(rw http.ResponseWriter, r *http.Request, e error) {
-			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway\n"+strconv.Quote(e.Error()))
+			rw.(*NgResponseWriter).ErrorPage(http.StatusBadGateway, "Bad Gateway")
 			zlog.Error().
 				Str("type", "http/reverseproxy").
 				Str("host", r.Host).
 				Str("id", h.Id).
+				Str("conn", rw.(*NgResponseWriter).ctx.conn.Id).
+				Str("reqid", rw.(*NgResponseWriter).ctx.Id).
 				Str("error", e.Error()).
 				Msg("")
 		},

@@ -24,7 +24,7 @@ import (
 var index embed.FS
 
 type Reporter interface {
-	Report() map[uint64]interface{}
+	Report() map[string]interface{}
 }
 
 var ConfigFile string

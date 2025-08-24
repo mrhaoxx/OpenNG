@@ -1,6 +1,8 @@
 package tcp
 
 import (
+	"crypto/rand"
+	"encoding/hex"
 	"net"
 	"strconv"
 	"sync"
@@ -13,7 +15,7 @@ import (
 //ng:generate def obj Connection
 type Conn struct {
 	//unsync \ atomic
-	Id    uint64
+	Id    string
 	conn  []net.Conn
 	proto []string
 	start time.Time
@@ -139,9 +141,16 @@ var cur uint64 = 1
 
 const InitProtocolLayer = 4
 
+func newConnID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func head(cn net.Conn) *Conn {
+	atomic.AddUint64(&cur, 1)
 	p := &Conn{
-		Id:      atomic.AddUint64(&cur, 1) - 1,
+		Id:      newConnID(),
 		conn:    make([]net.Conn, 0, InitProtocolLayer),
 		proto:   make([]string, 0, InitProtocolLayer),
 		head:    -1,

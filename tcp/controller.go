@@ -32,7 +32,7 @@ type controller struct {
 	listeners []*net.Listener
 
 	muActiveConnection sync.RWMutex
-	activeConnections  map[uint64]*Conn
+	activeConnections  map[string]*Conn
 }
 
 func (c *controller) Deliver(conn *Conn) {
@@ -56,7 +56,7 @@ func (c *controller) Deliver(conn *Conn) {
 		// 	conn.path,
 		// )
 		zlog.Info().
-			Uint64("conn", conn.Id).
+			Str("conn", conn.Id).
 			Str("ip", conn.IP()).
 			Int("port", conn.Port()).
 			Dur("duration", time.Since(conn.start)).
@@ -163,10 +163,10 @@ func (ctl *controller) Bind(protocol string, svcs ...ServiceBinding) {
 	ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
 }
 
-func (ctl *controller) Report() map[uint64]interface{} {
+func (ctl *controller) Report() map[string]interface{} {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
-	ret := make(map[uint64]interface{})
+	ret := make(map[string]interface{})
 	for _, conn := range ctl.activeConnections {
 		ret[conn.Id] = map[string]interface{}{
 			"src":       conn.Addr().String(),
@@ -180,7 +180,7 @@ func (ctl *controller) Report() map[uint64]interface{} {
 	return ret
 }
 
-func (ctl *controller) KillConnection(connection_id uint64) error {
+func (ctl *controller) KillConnection(connection_id string) error {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	conn, ok := ctl.activeConnections[connection_id]
@@ -196,6 +196,6 @@ func NewTcpController() *controller {
 	return &controller{
 		binds:              map[string][]ServiceBinding{},
 		muActiveConnection: sync.RWMutex{},
-		activeConnections:  map[uint64]*Conn{},
+		activeConnections:  map[string]*Conn{},
 	}
 }

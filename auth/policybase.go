@@ -336,7 +336,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 						Str("status", "passed").
 						Str("user", userl).
 						Str("session", session).
-						Uint64("reqid", ctx.Id).
+						Str("reqid", ctx.Id).
 						Str("ip", ctx.RemoteIP).
 						Int("port", ctx.RemotePort).
 						Msg("")
@@ -353,7 +353,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 						Str("type", "auth/login").
 						Str("status", "failed").
 						Str("user", userl).
-						Uint64("reqid", ctx.Id).
+						Str("reqid", ctx.Id).
 						Str("ip", ctx.RemoteIP).
 						Int("port", ctx.RemotePort).
 						Msg("")
@@ -401,7 +401,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 				Str("reason", "manual").
 				Str("user", session.username).
 				Str("session", token).
-				Uint64("reqid", ctx.Id).
+				Str("reqid", ctx.Id).
 				Str("ip", ctx.RemoteIP).
 				Int("port", ctx.RemotePort).
 				Msg("")

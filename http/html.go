@@ -38,7 +38,7 @@ func (rw *NgResponseWriter) ErrorPage(code int, err string) {
 	}{
 		MSG:  err,
 		CODE: strconv.Itoa(code),
-		RID:  strconv.FormatUint(rw.ctx.Id, 10),
+		RID:  rw.ctx.Id,
 		RIP:  rw.ctx.RemoteIP,
 		// CID:  strconv.FormatUint(rw.ctx.conn.Id, 10),
 		UTC: rw.ctx.starttime.UTC().Format("2006\u201101\u201102\u00A015:04:05\u00A0UTC"),

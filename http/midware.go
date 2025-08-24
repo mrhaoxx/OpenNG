@@ -33,7 +33,7 @@ type Midware struct {
 	bufferedLookupForForward *utils.BufferedLookup
 
 	muActiveRequest sync.RWMutex
-	activeRequests  map[uint64]*HttpCtx
+	activeRequests  map[string]*HttpCtx
 }
 
 type ServiceHandler func(*HttpCtx) Ret
@@ -141,11 +141,11 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		// 	RequestCtx.Req.Method, RequestCtx.Req.Host, RequestCtx.Req.URL.Path, RequestPath)
 
 		zlog.Info().
-			Uint64("reqid", RequestCtx.Id).
+			Str("reqid", RequestCtx.Id).
 			Str("ip", RequestCtx.RemoteIP).
 			Int("port", RequestCtx.RemotePort).
 			Dur("duration", time.Since(RequestCtx.starttime)).
-			Uint64("conn", RequestCtx.conn.Id).
+			Str("conn", RequestCtx.conn.Id).
 			Int("code", RequestCtx.Resp.code).
 			Str("encoding", RequestCtx.Resp.encoding.String()).
 			Uint64("written", RequestCtx.Resp.writtenBytes).
@@ -207,7 +207,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 func NewHttpMidware(sni []string) *Midware {
 	hmw := &Midware{
 		sni:            nil,
-		activeRequests: map[uint64]*HttpCtx{},
+		activeRequests: map[string]*HttpCtx{},
 	}
 	hmw.current = make([]*ServiceStruct, 0)
 
@@ -215,12 +215,12 @@ func NewHttpMidware(sni []string) *Midware {
 		CgiHandler: func(ctx *HttpCtx, path string) Ret {
 			ctx.Resp.Header().Set("Content-Type", "text/plain; charset=utf-8")
 			ctx.Resp.Header().Set("Cache-Control", "no-cache")
-			ctx.WriteString("reqid: " + strconv.Itoa(int(ctx.Id)) + "\n" +
+			ctx.WriteString("reqid: " + ctx.Id + "\n" +
 				"timestamp: " + strconv.FormatInt(time.Now().UnixMilli(), 10) + "\n" +
 				"hostname: " + ctx.Req.Host + "\n" +
-				"connection: " + strconv.Itoa(int(ctx.conn.Id)) + "\n" +
+				"connection: " + ctx.conn.Id + "\n" +
 				"protocols: " + ctx.conn.Protocols() + "\n" +
-				"remoteip: " + ctx.Req.RemoteAddr + "\n")
+				"remoteip: " + ctx.RemoteIP + "\n")
 			return RequestEnd
 		},
 		CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
@@ -268,10 +268,10 @@ func NewHttpMidware(sni []string) *Midware {
 	return hmw
 }
 
-func (ctl *Midware) Report() map[uint64]interface{} {
+func (ctl *Midware) Report() map[string]interface{} {
 	ctl.muActiveRequest.RLock()
 	defer ctl.muActiveRequest.RUnlock()
-	ret := make(map[uint64]interface{})
+	ret := make(map[string]interface{})
 	for _, req := range ctl.activeRequests {
 		ret[req.Id] = map[string]interface{}{
 			"code":        req.Resp.code,                             // FIXME: race r

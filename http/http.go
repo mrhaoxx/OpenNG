@@ -5,6 +5,8 @@ import (
 	"compress/flate"
 	"compress/gzip"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"io"
 	gonet "net"
@@ -25,7 +27,7 @@ import (
 // It holds the request and response writer
 type HttpCtx struct {
 	//unsync readonly
-	Id        uint64
+	Id        string
 	starttime time.Time
 
 	RemoteIP   string
@@ -145,6 +147,12 @@ var encoderpool = []sync.Pool{
 	EncodingBR:      {New: func() any { return brotli.NewWriter(nil) }},
 }
 
+func newReqID() string {
+	b := make([]byte, 8)
+	_, _ = rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
 func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) {
 	ngrw := &NgResponseWriter{
 		writer:         nil,
@@ -158,11 +166,14 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 
 	ip, _port, _ := gonet.SplitHostPort(r.RemoteAddr)
 	port, _ := strconv.Atoi(_port)
+	atomic.AddUint64(&curreq, 1)
+
+	id := newReqID()
 
 	ctx := &HttpCtx{
 		Req:        r.WithContext(c),
 		Resp:       ngrw,
-		Id:         (atomic.AddUint64(&curreq, 1)),
+		Id:         id,
 		starttime:  time.Now(),
 		kill:       kill,
 		closing:    make(chan struct{}),

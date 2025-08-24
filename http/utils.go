@@ -121,7 +121,7 @@ func EchoVerbose(ctx *HttpCtx) Ret {
 	ctx.WriteString("URL: " + ctx.Req.URL.String() + "\n")
 	ctx.WriteString("Proto: " + ctx.Req.Proto + "\n")
 	ctx.WriteString("Host: " + ctx.Req.Host + "\n")
-	ctx.WriteString("RemoteAddr: " + ctx.Req.RemoteAddr + "\n")
+	ctx.WriteString("IP: " + ctx.RemoteIP + "\n")
 	ctx.WriteString("RequestURI: " + ctx.Req.RequestURI + "\n")
 
 	for name, values := range ctx.Req.Header {
