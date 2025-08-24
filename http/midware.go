@@ -148,7 +148,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 			Str("conn", RequestCtx.conn.Id).
 			Int("code", RequestCtx.Resp.code).
 			Str("encoding", RequestCtx.Resp.encoding.String()).
-			Uint64("written", RequestCtx.Resp.writtenBytes).
+			Uint64("tx", RequestCtx.Resp.writtenBytes).
 			Str("method", RequestCtx.Req.Method).
 			Str("host", RequestCtx.Req.Host).
 			Str("path", RequestCtx.Req.URL.Path).

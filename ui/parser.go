@@ -248,7 +248,7 @@ func (node *ArgNode) IfCompatibleAndConvert(assertions Assert) bool {
 		}
 	case "hostname": // should be a valid hostname, use regexp to check
 		if node.Type == "string" {
-			re := regexp2.MustCompile("^(?=.{1,259}$)(?=^[^:]{1,253}(?::|$))(?:(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*)(?:\\.(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?|\\*))*)(?::(?:6553[0-5]|655[0-2]\\d|65[0-4]\\d{2}|6[0-4]\\d{3}|[1-5]?\\d{1,4}))?$", regexp2.RE2)
+			re := regexp2.MustCompile(`^[A-Za-z0-9.*-]+(?::\d{1,5})?$`, regexp2.RE2)
 			if ok, _ := re.MatchString(node.Value.(string)); ok {
 				node.Type = "hostname"
 				return true

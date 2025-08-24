@@ -60,8 +60,8 @@ func (c *controller) Deliver(conn *Conn) {
 			Str("ip", conn.IP()).
 			Int("port", conn.Port()).
 			Dur("duration", time.Since(conn.start)).
-			Uint64("bytesrx", atomic.LoadUint64(&conn.bytesrx)).
-			Uint64("bytestx", atomic.LoadUint64(&conn.bytestx)).
+			Uint64("rx", atomic.LoadUint64(&conn.bytesrx)).
+			Uint64("tx", atomic.LoadUint64(&conn.bytestx)).
 			Strs("protocols", conn.proto).
 			Str("routine", conn.path).
 			Str("type", "tcp/conn").Msg("")
