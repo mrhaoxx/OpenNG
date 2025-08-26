@@ -91,6 +91,7 @@ func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	switch top {
 	case "HTTP1":
 		http.Serve(utils.ConnGetSocket(c.TopConn()), http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			h.preparetls(rw, r, c)
 			h.head(rw, r, c)
 		}))
 		return tcp.Close

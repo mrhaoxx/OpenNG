@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/rand"
+	"crypto/tls"
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -151,6 +152,21 @@ func newReqID() string {
 	b := make([]byte, 8)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+func (h *Midware) preparetls(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) {
+	if r.TLS == nil {
+		head := conn.Head()
+		if head > 1 {
+			if conn.Protocol()[head-1] == "TLS" {
+				if conn, ok := conn.TopConn().(*utils.RwConn); ok {
+					r.TLS = new(tls.ConnectionState)
+					*r.TLS = conn.Rawconn.(*tls.Conn).ConnectionState()
+				}
+			}
+		}
+	}
+
 }
 
 func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) {

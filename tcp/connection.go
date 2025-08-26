@@ -54,10 +54,17 @@ func (c *Conn) TopConn() net.Conn {
 	return c.conn[c.head]
 }
 func (c *Conn) TopProtocol() string {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	return c.proto[c.head]
 }
+
+func (c *Conn) Protocol() []string {
+	return c.proto
+}
+
+func (c *Conn) Head() int {
+	return int(c.head)
+}
+
 func (c *Conn) unsync_genProtocols() {
 	c.protos = ""
 	for _, v := range c.proto {
