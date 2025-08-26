@@ -148,6 +148,11 @@ var _builtin_refs_assertions = map[string]Assert{
 								Default: false,
 								Desc:    "skip TLS certificate verification for backend",
 							},
+							"BypassEncoding": {
+								Type:    "bool",
+								Default: false,
+								Desc:    "bypass encoding for backend",
+							},
 						},
 					},
 				},
@@ -1003,8 +1008,9 @@ var _builtin_refs = map[string]Inst{
 			backend := host.MustGet("backend").ToURL()
 			maxconns := host.MustGet("MaxConnsPerHost").ToInt()
 			tlsskip := host.MustGet("TlsSkipVerify").ToBool()
+			bypassencoding := host.MustGet("BypassEncoding").ToBool()
 
-			proxier.Insert(id, name, hosts, backend, maxconns, tlsskip)
+			proxier.Insert(id, name, hosts, backend, maxconns, tlsskip, bypassencoding)
 
 			zlog.Debug().
 				Str("name", name).
@@ -1012,6 +1018,7 @@ var _builtin_refs = map[string]Inst{
 				Str("backend", backend.String()).
 				Int("maxconns", maxconns).
 				Bool("tlsskip", tlsskip).
+				Bool("bypassencoding", bypassencoding).
 				Msg("new http reverse host")
 		}
 

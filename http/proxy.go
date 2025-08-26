@@ -24,6 +24,7 @@ type HttpHost struct {
 	Backend            *net.URL
 	InsecureSkipVerify bool
 	MaxConnsPerHost    int
+	BypassEncoding     bool
 	Underlying         net.Interface
 
 	proxy   *httputil.ReverseProxy
@@ -171,6 +172,10 @@ func (h *ReverseProxy) HandleHTTP(ctx *HttpCtx) Ret {
 		recover()
 	}()
 
+	if host.BypassEncoding {
+		ctx.Resp.BypassEncoding()
+	}
+
 	if ctx.Req.Header.Get("Upgrade") == "websocket" {
 		host.wsproxy.ServeHTTP(ctx.Resp, ctx.Req)
 	} else {
@@ -187,7 +192,7 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 	return hpx.hosts
 }
 
-func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool) error {
+func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
 	buf := HttpHost{
 		Id:                 id,
 		ServerName:         utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
@@ -195,6 +200,7 @@ func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *n
 		MaxConnsPerHost:    MaxConnsPerHost,
 		InsecureSkipVerify: InsecureSkipVerify,
 		Underlying:         backend.Underlying,
+		BypassEncoding:     BypassEncoding,
 	}
 	buf.Init()
 

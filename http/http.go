@@ -223,6 +223,13 @@ func (w *NgResponseWriter) Header() http.Header {
 	return w.stdrw.Header()
 }
 
+func (w *NgResponseWriter) BypassEncoding() {
+	if w.acceptEncoding != "" {
+		w.Header().Set("Accept-Encoding", w.acceptEncoding)
+		w.acceptEncoding = ""
+	}
+}
+
 func (w *NgResponseWriter) initForWrite() {
 	w.Header().Set("Server", utils.ServerSign)
 	switch w.code {
