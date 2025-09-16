@@ -59,7 +59,7 @@ func (ctx *Ctx) initUserAlt() {
 func (ctx *Ctx) Error(err_msg string) {
 	for ch := range ctx.nc {
 		n, _, _ := ch.Accept()
-		n.Stderr().Write([]byte(err_msg))
+		n.Stderr().Write([]byte(err_msg + "\r\n"))
 		break
 	}
 	ctx.sshconn.Close()
@@ -86,17 +86,15 @@ type Midware struct {
 	PublicKeyCallback PublicKeyCbFn
 
 	current        []srv
-	bufferedLookup *utils.BufferedLookup
+	bufferedLookup *utils.BufferedLookup[ConnHandler]
+
+	basecfg ssh.ServerConfig
 }
 
 var cur uint64
 
 func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
-	serv := ssh.ServerConfig{}
-	serv.ServerVersion = "SSH-2.0-OpenNG"
-	for _, v := range ctl.private_keys {
-		serv.AddHostKey(v)
-	}
+	serv := ctl.basecfg
 
 	ctx := Ctx{
 		Id:        atomic.AddUint64(&cur, 1),
@@ -235,13 +233,14 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	f := ctl.bufferedLookup.Lookup(ctx.Alt)
 
 	if f == nil {
+		ctx.Error("SSH/2.0 418 I'm a teapot")
 		path += "#"
 		return tcp.Close
 	}
 
 	path += "."
 
-	f.(ConnHandler).HandleConn(&ctx)
+	f.HandleConn(&ctx)
 
 	return tcp.Close
 }
@@ -259,7 +258,17 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 		rnd_quotes:        quotes,
 	}
 
-	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) interface{} {
+	basecfg := ssh.ServerConfig{
+		ServerVersion: "SSH-2.0-OpenNG",
+	}
+
+	for _, v := range private_keys {
+		basecfg.AddHostKey(v)
+	}
+
+	Midware.basecfg = basecfg
+
+	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) ConnHandler {
 		for _, t := range Midware.current {
 			if t.matchalt.MatchString(s) {
 				return t.hdr

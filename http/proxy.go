@@ -120,7 +120,7 @@ func (h *HttpHost) Init() {
 type ReverseProxy struct {
 	hosts []*HttpHost
 
-	buf *utils.BufferedLookup
+	buf *utils.BufferedLookup[*HttpHost]
 
 	allowhosts utils.GroupRegexp
 }
@@ -129,7 +129,7 @@ func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	_host := h.buf.Lookup(ctx.Req.Host)
 	var id string
 	if _host != nil {
-		id = _host.(*HttpHost).Id
+		id = _host.Id
 	} else {
 		id = "nohit"
 	}
@@ -147,7 +147,7 @@ func NewHTTPProxier(allowedhosts []string) *ReverseProxy {
 		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
 	}
 
-	hpx.buf = utils.NewBufferedLookup(func(host string) interface{} {
+	hpx.buf = utils.NewBufferedLookup(func(host string) *HttpHost {
 		for _, t := range hpx.hosts {
 			if t.ServerName.MatchString(host) {
 				// fmt.Println(t.ServerName.String(), host, "success")
@@ -166,7 +166,7 @@ func (h *ReverseProxy) HandleHTTP(ctx *HttpCtx) Ret {
 		return Continue
 	}
 
-	host := _host.(*HttpHost)
+	host := _host
 
 	defer func() {
 		recover()

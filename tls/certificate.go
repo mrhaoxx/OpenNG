@@ -20,7 +20,7 @@ type Cert struct {
 
 type TlsMgr struct {
 	certs  map[string]Cert
-	lookup *utils.BufferedLookup
+	lookup *utils.BufferedLookup[*tls.Certificate]
 
 	muCerts sync.RWMutex
 }
@@ -31,7 +31,7 @@ func NewTlsMgr() *TlsMgr {
 		certs: make(map[string]Cert),
 	}
 
-	mgr.lookup = utils.NewBufferedLookup(func(s string) interface{} {
+	mgr.lookup = utils.NewBufferedLookup(func(s string) *tls.Certificate {
 		mgr.muCerts.RLock()
 		defer mgr.muCerts.RUnlock()
 
@@ -48,7 +48,7 @@ func NewTlsMgr() *TlsMgr {
 
 func (m *TlsMgr) getCertificate(dnsname string) *tls.Certificate {
 	if cert := m.lookup.Lookup(dnsname); cert != nil {
-		return cert.(*tls.Certificate)
+		return cert
 	} else {
 		panic(errors.New("no certificate for " + dnsname))
 	}

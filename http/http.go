@@ -154,7 +154,7 @@ func newReqID() string {
 	return hex.EncodeToString(b)
 }
 
-func (h *Midware) preparetls(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) {
+func (h *Midware) preparetls(_ http.ResponseWriter, r *http.Request, conn *tcp.Conn) {
 	if r.TLS == nil {
 		head := conn.Head()
 		if head > 1 {

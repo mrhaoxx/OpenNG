@@ -21,16 +21,16 @@ import (
 //ng:generate def obj Midware
 type Midware struct {
 	sni                  utils.GroupRegexp
-	bufferedLookupForSNI *utils.BufferedLookup
+	bufferedLookupForSNI *utils.BufferedLookup[bool]
 
 	current               []*ServiceStruct
-	bufferedLookupForHost *utils.BufferedLookup
+	bufferedLookupForHost *utils.BufferedLookup[[]*ServiceStruct]
 
 	currentCgi           []*CgiStruct
-	bufferedLookupForCgi *utils.BufferedLookup
+	bufferedLookupForCgi *utils.BufferedLookup[[]*CgiStruct]
 
 	currentForward           []*ServiceStruct
-	bufferedLookupForForward *utils.BufferedLookup
+	bufferedLookupForForward *utils.BufferedLookup[[]*ServiceStruct]
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[string]*HttpCtx
@@ -85,7 +85,7 @@ var h2s = &http2.Server{}
 func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	top := c.TopProtocol()
 	sni, ok := c.Load(tcp.KeyTlsSni)
-	if ok && !h.bufferedLookupForSNI.Lookup(sni.(string)).(bool) {
+	if ok && !h.bufferedLookupForSNI.Lookup(sni.(string)) {
 		return tcp.Continue
 	}
 	switch top {
@@ -189,7 +189,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 	}
 
 	{
-		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host).([]*ServiceStruct)
+		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host)
 		for i := 0; i < len(ServicesToExecute); i++ {
 
 			RequestPath += ServicesToExecute[i].Id + " " // record the executed service
@@ -228,7 +228,7 @@ func NewHttpMidware(sni []string) *Midware {
 	},
 	}
 
-	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) interface{} {
+	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.current {
 			if r.Hosts.MatchString(s) {
@@ -238,7 +238,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) interface{} {
+	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) []*CgiStruct {
 		var m []*CgiStruct = nil
 		for _, t := range hmw.currentCgi {
 			for _, r := range t.CgiPaths {
@@ -250,7 +250,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return m
 	})
 
-	hmw.bufferedLookupForForward = utils.NewBufferedLookup(func(s string) interface{} {
+	hmw.bufferedLookupForForward = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.currentForward {
 			if r.Hosts.MatchString(s) {
@@ -260,7 +260,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) interface{} {
+	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) bool {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 

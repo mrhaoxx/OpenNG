@@ -2,7 +2,7 @@ package http
 
 func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
 
-	ServicesToExecute := h.bufferedLookupForForward.Lookup(ctx.Req.Host).([]*ServiceStruct)
+	ServicesToExecute := h.bufferedLookupForForward.Lookup(ctx.Req.Host)
 	for i := 0; i < len(ServicesToExecute); i++ {
 
 		*RequestPath += ServicesToExecute[i].Id + " "

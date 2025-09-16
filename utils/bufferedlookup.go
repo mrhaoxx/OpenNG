@@ -2,38 +2,37 @@ package utils
 
 import "sync"
 
-type LookupFunc func(string) interface{}
+type LookupFunc[T any] func(string) T
 
-type BufferedLookup struct {
-	lookupFunc LookupFunc
-	buff       map[string]interface{}
+type BufferedLookup[T any] struct {
+	lookupFunc LookupFunc[T]
+	buff       map[string]T
 	lock       sync.RWMutex
 }
 
-func NewBufferedLookup(f LookupFunc) *BufferedLookup {
-	return &BufferedLookup{
+func NewBufferedLookup[T any](f LookupFunc[T]) *BufferedLookup[T] {
+	return &BufferedLookup[T]{
 		lookupFunc: f,
-		buff:       map[string]interface{}{},
+		buff:       make(map[string]T),
 	}
 }
 
-func (bl *BufferedLookup) Lookup(id string) (index interface{}) {
+func (bl *BufferedLookup[T]) Lookup(id string) T {
 	bl.lock.RLock()
-	index, ok := bl.buff[id]
+	value, ok := bl.buff[id]
 	bl.lock.RUnlock()
 	if ok {
-		return
+		return value
 	}
-	index = bl.lookupFunc(id)
+	value = bl.lookupFunc(id)
 	bl.lock.Lock()
-	bl.buff[id] = index
+	bl.buff[id] = value
 	bl.lock.Unlock()
-	return
-
+	return value
 }
 
-func (bl *BufferedLookup) Refresh() {
+func (bl *BufferedLookup[T]) Refresh() {
 	bl.lock.Lock()
-	bl.buff = make(map[string]interface{})
+	bl.buff = make(map[string]T)
 	bl.lock.Unlock()
 }

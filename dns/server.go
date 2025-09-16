@@ -28,7 +28,7 @@ type filter struct {
 type server struct {
 	records                  []*record
 	filters                  []*filter
-	bufferedLookupForFilters *utils.BufferedLookup
+	bufferedLookupForFilters *utils.BufferedLookup[bool]
 	// bufferedLookupForRecords *utils.BufferedLookup
 
 	domain string
@@ -72,7 +72,7 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 	}()
 
 	for _, q := range req.Question {
-		if s.bufferedLookupForFilters.Lookup(strings.ToLower(q.Name)).(bool) {
+		if s.bufferedLookupForFilters.Lookup(strings.ToLower(q.Name)) {
 			goto allowed
 		} else {
 			m.Rcode = dns.RcodeRefused
@@ -163,7 +163,7 @@ func NewServer() (ret *server) {
 		filters: []*filter{},
 		count:   0,
 	}
-	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) interface{} {
+	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) bool {
 		for _, r := range ret.filters {
 			if ok, _ := r.name.MatchString(s); ok {
 				if r.allowance {

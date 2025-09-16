@@ -677,6 +677,14 @@ var _builtin_refs_assertions = map[string]Assert{
 								Type:     "ptr",
 								Required: true,
 							},
+							"serv": {
+								Type: "list",
+								Sub: AssertMap{
+									"_": {Type: "string"},
+								},
+								Desc:    "matching services by regex pattern",
+								Default: []*ArgNode{{Type: "string", Value: ".*$"}},
+							},
 						},
 					},
 				},
@@ -1550,16 +1558,17 @@ var _builtin_refs = map[string]Inst{
 		for _, srv := range services {
 			name := srv.MustGet("name").ToString()
 			logi := srv.MustGet("logi")
+			serv := srv.MustGet("serv").ToStringList()
 
 			service, ok := logi.Value.(ssh.ConnHandler)
 			if !ok {
 				return nil, errors.New("ptr " + name + " is not a ssh.ConnHandler")
 			}
 
-			midware.AddHandler(service, utils.MustCompileRegexp([]string{"^.*$"}))
+			midware.AddHandler(service, utils.MustCompileRegexp(serv))
 
 			// log.Verboseln(fmt.Sprintf("new ssh service %#v: logi=%T", name, logi.Value))
-			zlog.Debug().Str("name", name).Type("logi", logi.Value).Msg("new ssh service")
+			zlog.Debug().Str("name", name).Type("logi", logi.Value).Strs("serv", serv).Msg("new ssh service")
 		}
 		return midware, nil
 	},

@@ -7,7 +7,7 @@ import (
 )
 
 func TestBufferedLookup_Lookup(t *testing.T) {
-	BufferedLookup := NewBufferedLookup(func(s string) interface{} {
+	BufferedLookup := NewBufferedLookup(func(s string) string {
 		return "test"
 	})
 	if BufferedLookup.Lookup("test") != "test" {
@@ -15,7 +15,7 @@ func TestBufferedLookup_Lookup(t *testing.T) {
 	}
 }
 func BenchmarkBufferedLookupNewKey(b *testing.B) {
-	BufferedLookup := NewBufferedLookup(func(s string) interface{} {
+	BufferedLookup := NewBufferedLookup(func(s string) string {
 		return "test"
 	})
 	for n := 0; n < b.N; n++ {
@@ -23,7 +23,7 @@ func BenchmarkBufferedLookupNewKey(b *testing.B) {
 	}
 }
 func BenchmarkBufferedLookupOldKey(b *testing.B) {
-	BufferedLookup := NewBufferedLookup(func(s string) interface{} {
+	BufferedLookup := NewBufferedLookup(func(s string) string {
 		return "test"
 	})
 	for n := 0; n < b.N; n++ {
@@ -31,7 +31,7 @@ func BenchmarkBufferedLookupOldKey(b *testing.B) {
 	}
 }
 func BenchmarkBufferedLookupOldKeyDelayed1ms(b *testing.B) {
-	BufferedLookup := NewBufferedLookup(func(s string) interface{} {
+	BufferedLookup := NewBufferedLookup(func(s string) string {
 		time.Sleep(1 * time.Millisecond)
 		return "test"
 	})
@@ -40,7 +40,7 @@ func BenchmarkBufferedLookupOldKeyDelayed1ms(b *testing.B) {
 	}
 }
 func BenchmarkBufferedLookupNewKeyelayed1ms(b *testing.B) {
-	BufferedLookup := NewBufferedLookup(func(s string) interface{} {
+	BufferedLookup := NewBufferedLookup(func(s string) string {
 		time.Sleep(1 * time.Millisecond)
 		return "test"
 	})

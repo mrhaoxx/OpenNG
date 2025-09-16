@@ -69,7 +69,7 @@ func (p *policy) check(username string, path string) uint8 {
 
 type policyBaseAuth struct {
 	policies        []*policy
-	policyLookupBuf *utils.BufferedLookup
+	policyLookupBuf *utils.BufferedLookup[[]*policy]
 
 	backends backendGroup
 
@@ -124,7 +124,7 @@ func NewPBAuth() *policyBaseAuth {
 		sessions: map[string]*session{},
 	}
 
-	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) interface{} {
+	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) []*policy {
 		var r []*policy = nil
 		for _, p := range po.policies {
 			if p.hosts != nil && p.hosts.MatchString(s) {
@@ -499,7 +499,7 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 }
 
 func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
-	pls := mgr.policyLookupBuf.Lookup(host).([]*policy)
+	pls := mgr.policyLookupBuf.Lookup(host)
 	if len(pls) == 0 {
 		return 0
 	}
