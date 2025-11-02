@@ -5,7 +5,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/utils"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
@@ -17,8 +17,8 @@ func init() {
 }
 
 func registerMidware() {
-	config.Register("ssh::midware",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("ssh::midware",
+		func(spec *netgate.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			banner := spec.MustGet("banner").ToString()
 			quotes := spec.MustGet("quotes").ToStringList()
@@ -72,22 +72,22 @@ func registerMidware() {
 				log.Debug().Str("name", name).Type("logi", logi.Value).Strs("serv", serv).Msg("new ssh service")
 			}
 			return midware, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"services": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true},
 								"serv": {
 									Type:    "list",
 									Desc:    "matching services by regex pattern",
-									Default: []*config.ArgNode{{Type: "string", Value: ".*$"}},
-									Sub: config.AssertMap{
+									Default: []*netgate.ArgNode{{Type: "string", Value: ".*$"}},
+									Sub: netgate.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -102,13 +102,13 @@ func registerMidware() {
 				},
 				"quotes": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
 				"privatekeys": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
@@ -126,8 +126,8 @@ func registerMidware() {
 }
 
 func registerReverseProxier() {
-	config.Register("ssh::reverseproxier",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("ssh::reverseproxier",
+		func(spec *netgate.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowDNSQuery := spec.MustGet("allowdnsquery").ToBool()
 			privateKeys := spec.MustGet("privatekeys").ToStringList()
@@ -201,15 +201,15 @@ func registerReverseProxier() {
 			srv.AllowDnsQuery = allowDNSQuery
 
 			return srv, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"hosts": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"name":     {Type: "string", Required: true},
 								"HostName": {Type: "hostname", Required: true},
 								"Port":     {Type: "int", Default: 22},
@@ -220,7 +220,7 @@ func registerReverseProxier() {
 								"AllowedUsers": {
 									Type: "list",
 									Desc: "empty means all, when set, only matched users are allowed",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
 									},
 								},
@@ -234,7 +234,7 @@ func registerReverseProxier() {
 				},
 				"privatekeys": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

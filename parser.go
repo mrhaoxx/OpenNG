@@ -1,4 +1,4 @@
-package config
+package netgate
 
 import (
 	"fmt"
@@ -11,11 +11,6 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/net"
 )
-
-type TopLevelConfig struct {
-	Version  int `yamk:"version"`
-	Services any `yaml:"Services,flow"`
-}
 
 type ArgNode struct {
 	Type  string

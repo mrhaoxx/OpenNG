@@ -9,7 +9,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/context"
 	ngnet "github.com/mrhaoxx/OpenNG/net"
 )
 
@@ -27,7 +26,6 @@ type Conn struct {
 
 	//communication
 	closing chan struct{}
-	context.Context
 
 	//sync(lock)
 	addr   net.Addr
@@ -37,6 +35,7 @@ type Conn struct {
 	path   string
 
 	mu sync.RWMutex
+	sync.Map
 }
 
 func (c *Conn) Addr() net.Addr {
@@ -165,7 +164,6 @@ func head(cn net.Conn) *Conn {
 		bytesrx: 0,
 		bytestx: 0,
 		closing: make(chan struct{}),
-		Context: &mainCtx{},
 	}
 
 	p.Upgrade(&ngnet.ByteCounterConn{
@@ -175,9 +173,4 @@ func head(cn net.Conn) *Conn {
 	}, "")
 
 	return p
-}
-
-type mainCtx struct {
-	context.SignalContext
-	context.StoreContext
 }

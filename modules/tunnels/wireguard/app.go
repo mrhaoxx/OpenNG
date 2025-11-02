@@ -3,7 +3,7 @@ package wireguard
 import (
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 )
 
 func init() {
@@ -12,8 +12,8 @@ func init() {
 }
 
 func registerServer() {
-	config.Register("wireguard::server",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("wireguard::server",
+		func(spec *netgate.ArgNode) (any, error) {
 			listenPort := spec.MustGet("ListenPort").ToInt()
 			privateKey := spec.MustGet("PrivateKey").ToString()
 			address := spec.MustGet("Address").ToString()
@@ -44,23 +44,23 @@ func registerServer() {
 			}
 
 			return NewWireGuardServer(cfg)
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"ListenPort": {Type: "int", Required: true},
 				"PrivateKey": {Type: "string", Required: true},
 				"Address":    {Type: "string", Required: true},
 				"MTU":        {Type: "int", Default: 1420},
 				"Forwarding": {
 					Type:    "map",
-					Default: map[string]*config.ArgNode{},
-					Sub: config.AssertMap{
+					Default: map[string]*netgate.ArgNode{},
+					Sub: netgate.AssertMap{
 						"EnableTCP": {Type: "bool", Default: true},
 						"EnableUDP": {Type: "bool", Default: true},
 						"TCP": {
 							Type:    "map",
-							Default: map[string]*config.ArgNode{},
-							Sub: config.AssertMap{
+							Default: map[string]*netgate.ArgNode{},
+							Sub: netgate.AssertMap{
 								"CatchTimeout": {
 									Type:    "duration",
 									Default: time.Duration(600 * time.Millisecond),
@@ -91,8 +91,8 @@ func registerServer() {
 }
 
 func registerAddPeers() {
-	config.Register("wireguard::addpeers",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("wireguard::addpeers",
+		func(spec *netgate.ArgNode) (any, error) {
 			peers := spec.MustGet("Peers").ToList()
 			server := spec.MustGet("server").Value.(*WireGuardServer)
 
@@ -106,19 +106,19 @@ func registerAddPeers() {
 			}
 
 			return nil, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"Peers": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"PublicKey": {Type: "string", Required: true},
 								"AllowedIPs": {
 									Type: "list",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"_": {Type: "string"},
 									},
 								},

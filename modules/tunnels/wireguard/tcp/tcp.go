@@ -129,9 +129,9 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 	defer cancel()
 	c, err := net.DefaultRouteTable.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
-	// c, err := gonet.DialTCPWithBind(ctx, config.Tnet.Stack(), tcpip.FullAddress{
+	// c, err := gonet.DialTCPWithBind(ctx, netgate.Tnet.Stack(), tcpip.FullAddress{
 	// 	NIC:  1,
-	// 	Addr: config.Addr,
+	// 	Addr: netgate.Addr,
 	// 	Port: 0,
 	// }, tcpip.FullAddress{
 	// 	NIC:  1,
@@ -162,7 +162,7 @@ func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
 	// caughtChan := make(chan bool)
 	// go func() {
 	// 	select {
-	// 	case <-time.After(config.CatchTimeout):
+	// 	case <-time.After(netgate.CatchTimeout):
 	// 		c.Close()
 	// 	case <-caughtChan:
 	// 	}

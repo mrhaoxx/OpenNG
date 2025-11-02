@@ -14,13 +14,15 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
-	"github.com/mrhaoxx/OpenNG/config"
+	netgatecmd "github.com/mrhaoxx/OpenNG/cmd"
 	"github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/tls"
 	"github.com/mrhaoxx/OpenNG/utils"
 	zlog "github.com/rs/zerolog/log"
 
 	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
+
+	netgate "github.com/mrhaoxx/OpenNG"
 )
 
 //go:embed html/dist
@@ -90,7 +92,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/save":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
-		errors := config.ValidateCfg(b)
+		errors := netgatecmd.ValidateCfg(b)
 		if len(errors) > 0 {
 			ctx.Resp.WriteHeader(http.StatusNotAcceptable)
 			ctx.WriteString(strings.Join(errors, "\n"))
@@ -101,7 +103,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/validate":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
-		errors := config.ValidateCfg(b)
+		errors := netgatecmd.ValidateCfg(b)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 		if len(errors) > 0 {
 			ctx.WriteString(strings.Join(errors, "\n"))
@@ -121,7 +123,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/schema":
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		ctx.Resp.Write(config.GenerateJsonSchema())
+		ctx.Resp.Write(netgate.GenerateJsonSchema())
 
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)
@@ -222,7 +224,7 @@ func Reload() error {
 		return err
 	}
 
-	if err := config.LoadCfg(r, true); err != nil {
+	if err := netgatecmd.LoadCfg(r, true); err != nil {
 		return err
 	}
 

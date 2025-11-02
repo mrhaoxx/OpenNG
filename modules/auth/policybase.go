@@ -11,7 +11,7 @@ import (
 
 	stdhttp "net/http"
 
-	"github.com/mrhaoxx/OpenNG/core"
+	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
@@ -183,7 +183,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 }
 
 func needAuth(ctx *http.HttpCtx) {
-	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\""+core.ServerSign+"\"")
+	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\""+netgate.ServerSign+"\"")
 	ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
 }
 

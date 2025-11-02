@@ -4,7 +4,7 @@ import (
 	"errors"
 	stdnet "net"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	netpkg "github.com/mrhaoxx/OpenNG/net"
 )
 
@@ -14,16 +14,16 @@ func init() {
 }
 
 func registerSysInterface() {
-	config.Register("net::interface::sys",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("net::interface::sys",
+		func(spec *netgate.ArgNode) (any, error) {
 			return &netpkg.SysInterface{}, nil
-		}, config.Assert{Type: "null", Desc: "use system default interface"},
+		}, netgate.Assert{Type: "null", Desc: "use system default interface"},
 	)
 }
 
 func registerRouteTable() {
-	config.Register("net::routetable::new",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("net::routetable::new",
+		func(spec *netgate.ArgNode) (any, error) {
 			routes := spec.MustGet("routes").ToList()
 			table := &netpkg.RouteTable{}
 
@@ -42,15 +42,15 @@ func registerRouteTable() {
 			}
 
 			return table, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"routes": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"cidr":      {Type: "string", Required: true},
 								"interface": {Type: "ptr", Required: true},
 							},

@@ -1,25 +1,39 @@
-package config
+package netgate
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/net"
-	"github.com/rs/zerolog"
-	zlog "github.com/rs/zerolog/log"
-	"gopkg.in/yaml.v3"
+	"github.com/rs/zerolog/log"
+
+	_ "embed"
 )
 
-type Inst func(*ArgNode) (any, error)
+//go:embed cmd/NetGATE.svg
+var logo_svg []byte
+
+func Logo() []byte {
+	return logo_svg
+}
+
+const (
+	ServerSign = "OpenNG"
+)
 
 type Space struct {
-	Refs map[string]Inst
-
 	Services map[string]any
 }
 
 func (space *Space) Apply(root *ArgNode, reload bool) error {
+
+	if err := Dedref(root); err != nil {
+		return err
+	}
+
+	if err := root.Assert(refs_assertions["_"]); err != nil {
+		return err
+	}
 
 	reload_errors := []error{}
 
@@ -31,12 +45,9 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		_ref := _srv.MustGet("kind").ToString()
 		to := _srv.MustGet("name").ToString()
 
-		ref, ok := space.Refs[_ref]
+		ref, ok := refs[_ref]
 		if !ok {
-			ref, ok = refs[_ref]
-			if !ok {
-				return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
-			}
+			return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
 
 		spec := _srv.MustGet("spec")
@@ -57,7 +68,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 
-			zlog.Error().Caller().Str("err", ret_err.Error()).Msg("failed to deptr")
+			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to deptr")
 
 			if !reload {
 				return ret_err
@@ -72,7 +83,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 
-			zlog.Error().Caller().Str("err", ret_err.Error()).Msg("failed to call ref")
+			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to call ref")
 
 			if !reload {
 				return ret_err
@@ -86,7 +97,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
 
-		zlog.Info().Str("kind", _ref).Str("name", to).Dur("elapsed", time.Since(_time)).Int("index", i).Msg("service applied")
+		log.Info().Str("kind", _ref).Str("name", to).Dur("elapsed", time.Since(_time)).Int("index", i).Msg("service applied")
 
 	}
 
@@ -95,7 +106,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		for _, e := range reload_errors {
 			errstr += e.Error() + "\n"
 		}
-		return fmt.Errorf("Reload Failed:\n%s", errstr)
+		return fmt.Errorf("reload failed:\n%s", errstr)
 	}
 
 	return nil
@@ -205,7 +216,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 		return nil, fmt.Errorf("%s: %w", kind, err)
 	}
 
-	ref, ok := space.Refs[kind]
+	ref, ok := refs[kind]
 	if !ok {
 		ref, ok = refs[kind]
 		if !ok {
@@ -227,110 +238,51 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 	return inst, nil
 }
 
-func LoadCfg(cfgs []byte, reload bool) error {
-	var cfg any
-	err := yaml.Unmarshal(cfgs, &cfg)
-	if err != nil {
-		return err
+func (space *Space) Validate(root *ArgNode) []error {
+	if err := Dedref(root); err != nil {
+		return []error{err}
 	}
 
-	nodes, err := ParseFromAny(cfg)
-	if err != nil {
-		return err
+	if err := root.Assert(refs_assertions["_"]); err != nil {
+		return []error{err}
 	}
 
-	err = Dedref(nodes)
+	errors := []error{}
 
-	if err != nil {
-		return err
-	}
+	srvs := root.MustGet("Services")
 
-	err = nodes.Assert(refs_assertions["_"])
+	for i, _srv := range srvs.Value.([]*ArgNode) {
 
-	if err != nil {
-		return err
-	}
+		_ref := _srv.MustGet("kind").ToString()
+		to := _srv.MustGet("name").ToString()
 
-	if !reload {
-		err = GlobalCfg(nodes.MustGet("Config"))
+		spec := _srv.MustGet("spec")
+
+		spec_assert, ok := refs_assertions[_ref]
+		if !ok {
+			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
+			continue
+		}
+
+		err := spec.Assert(spec_assert)
 
 		if err != nil {
-			return err
-		}
-	}
-
-	space := Space{
-		Refs: refs,
-		Services: map[string]any{
-			"sys": &net.SysInterface{},
-		},
-	}
-
-	space.Services["@"] = space
-
-	err = space.Apply(nodes, reload)
-
-	return err
-}
-
-func GlobalCfg(config *ArgNode) error {
-
-	if logger, err := config.Get("Logger"); err == nil {
-
-		if tz := logger.MustGet("TimeZone").ToString(); tz != "Local" {
-			_tz, err := time.LoadLocation(tz)
-			if err != nil {
-				return err
-			} else {
-				zerolog.TimestampFunc = func() time.Time {
-					return time.Now().In(_tz)
-				}
-			}
-
-			fmt.Fprintln(os.Stderr, "timezone:", tz)
+			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
+			continue
 		}
 
-		if verb := logger.MustGet("Verbose").ToBool(); verb {
-			zerolog.SetGlobalLevel(zerolog.DebugLevel)
-			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
+		err = space.Deptr(spec, true)
+
+		if err != nil {
+			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
+			continue
 		}
-	}
-	return nil
-}
 
-func ValidateCfg(cfgs []byte) []string {
-	var cfg any
-	err := yaml.Unmarshal(cfgs, &cfg)
-	if err != nil {
-		return []string{err.Error()}
-	}
-	nodes, err := ParseFromAny(cfg)
-	if err != nil {
-		return []string{err.Error()}
-	}
-
-	err = Dedref(nodes)
-
-	if err != nil {
-		return []string{err.Error()}
-	}
-
-	err = nodes.Assert(refs_assertions["_"])
-
-	if err != nil {
-		return []string{err.Error()}
-	}
-
-	errors := ValidateConfig(nodes)
-
-	errs := []string{}
-
-	if len(errors) > 0 {
-		for _, err := range errors {
-			errs = append(errs, err.Error())
+		if to != "" && to != "_" {
+			space.Services[to] = true
 		}
-		return errs
+
 	}
 
-	return nil
+	return errors
 }

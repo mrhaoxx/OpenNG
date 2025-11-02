@@ -11,7 +11,7 @@ RUN apt-get update && apt-get install -y build-essential git
 COPY . /go/src/github.com/mrhaoxx/OpenNG
 COPY --from=web /workdir/dist /go/src/github.com/mrhaoxx/OpenNG/modules/admin/html/dist
 
-RUN cd /go/src/github.com/mrhaoxx/OpenNG && ./build.sh -o /NetGATE
+RUN cd /go/src/github.com/mrhaoxx/OpenNG && cd cmd/netgate && go build  -o /NetGATE
 
 FROM debian:bookworm AS runtime
 

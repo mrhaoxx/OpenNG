@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	opennet "github.com/mrhaoxx/OpenNG/net"
 	"github.com/rs/zerolog/log"
 )
@@ -20,8 +20,8 @@ func init() {
 }
 
 func registerDetector() {
-	config.Register("tcp::det",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tcp::det",
+		func(spec *netgate.ArgNode) (any, error) {
 			protocols := spec.MustGet("protocols").ToStringList()
 			timeout := spec.MustGet("timeout").ToDuration()
 			timeoutProtocol := spec.MustGet("timeoutprotocol").ToString()
@@ -57,13 +57,13 @@ func registerDetector() {
 				Msg("new tcp detector")
 
 			return &Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutProtocol}, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "map",
 			Required: true,
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"protocols": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "string",
 							Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
@@ -86,8 +86,8 @@ func registerDetector() {
 }
 
 func registerController() {
-	config.Register("tcp::controller",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tcp::controller",
+		func(spec *netgate.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToMap()
 
 			controller := NewTcpController()
@@ -119,22 +119,22 @@ func registerController() {
 			}
 
 			return controller, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "TCP connection controller that manages protocol detection and service routing",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"services": {
 					Type: "map",
 					Desc: "protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "list",
 							Desc: "ordered list of service handlers for each protocol",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"_": {
 									Type: "map",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"name": {
 											Type:     "string",
 											Required: true,
@@ -157,8 +157,8 @@ func registerController() {
 }
 
 func registerListener() {
-	config.Register("tcp::listen",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tcp::listen",
+		func(spec *netgate.ArgNode) (any, error) {
 			ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
 			if !ok {
 				return nil, errors.New("ptr is not a tcp.Listener")
@@ -171,13 +171,13 @@ func registerListener() {
 				log.Debug().Str("addr", addr).Msg("tcp listen")
 			}
 			return nil, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"AddressBindings": {
 					Type: "list",
 					Desc: "tcp listen address",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string", Enum: []any{"0.0.0.0:443", "0.0.0.0:80", "0.0.0.0:22"}, AllowNonEnum: true},
 					},
 				},
@@ -191,8 +191,8 @@ func registerListener() {
 }
 
 func registerProxier() {
-	config.Register("tcp::proxier",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tcp::proxier",
+		func(spec *netgate.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 
 			proxier := NewTcpProxier()
@@ -214,15 +214,15 @@ func registerProxier() {
 			}
 
 			return proxier, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"hosts": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"name": {Type: "string", Required: true},
 								"backend": {
 									Type:     "url",
@@ -240,18 +240,18 @@ func registerProxier() {
 }
 
 func registerProxyProtocolHandler() {
-	config.Register("tcp::proxyprotocolhandler",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tcp::proxyprotocolhandler",
+		func(spec *netgate.ArgNode) (any, error) {
 			allowedSrcs := spec.MustGet("allowedsrcs").ToStringList()
 			log.Debug().Strs("allowedsrcs", allowedSrcs).Msg("new tcp proxy protocol handler")
 			return NewTCPProxyProtocolHandler(allowedSrcs), nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"allowedsrcs": {
 					Type:    "list",
-					Default: []*config.ArgNode{{Type: "string", Value: "127.0.0.1"}},
-					Sub: config.AssertMap{
+					Default: []*netgate.ArgNode{{Type: "string", Value: "127.0.0.1"}},
+					Sub: netgate.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

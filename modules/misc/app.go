@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/utils"
@@ -20,8 +20,8 @@ func init() {
 }
 
 func registerAcmeFileProvider() {
-	config.Register("http::acme::fileprovider",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("http::acme::fileprovider",
+		func(spec *netgate.ArgNode) (any, error) {
 			hosts := spec.MustGet("Hosts").ToStringList()
 			wwwroot := spec.MustGet("WWWRoot").ToString()
 			provider := &AcmeWebRoot{
@@ -31,12 +31,12 @@ func registerAcmeFileProvider() {
 
 			log.Debug().Strs("hosts", hosts).Str("wwwroot", wwwroot).Msg("new acme file provider")
 			return provider, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"Hosts": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -47,8 +47,8 @@ func registerAcmeFileProvider() {
 }
 
 func registerIpFilter() {
-	config.Register("ipfilter",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("ipfilter",
+		func(spec *netgate.ArgNode) (any, error) {
 			allowed := spec.MustGet("allowedcidrs").ToStringList()
 			blocked := spec.MustGet("blockedcidrs").ToStringList()
 			next := spec.MustGet("next")
@@ -66,22 +66,22 @@ func registerIpFilter() {
 			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
 
 			return filter, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on source IP CIDR ranges",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"blockedcidrs": {
 					Type: "list",
 					Desc: "list of CIDR ranges to block",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 					},
 				},
 				"allowedcidrs": {
 					Type: "list",
 					Desc: "list of CIDR ranges to allow",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 					},
 				},
@@ -96,8 +96,8 @@ func registerIpFilter() {
 }
 
 func registerHostFilter() {
-	config.Register("hostfilter",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("hostfilter",
+		func(spec *netgate.ArgNode) (any, error) {
 			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
 			next := spec.MustGet("next")
 
@@ -114,15 +114,15 @@ func registerHostFilter() {
 			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
 
 			return filter, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on HTTP Host header or TLS SNI",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"allowedhosts": {
 					Type: "list",
 					Desc: "list of allowed hostnames",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string", Desc: "hostname to allow"},
 					},
 				},
@@ -137,8 +137,8 @@ func registerHostFilter() {
 }
 
 func registerGitlabAuth() {
-	config.Register("gitlabauth",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("gitlabauth",
+		func(spec *netgate.ArgNode) (any, error) {
 			gitlabURL := spec.MustGet("gitlab_url").ToURL()
 			cacheTTL := spec.MustGet("cache_ttl").ToDuration()
 			matchUsernames := spec.MustGet("matchusernames").ToStringList()
@@ -169,14 +169,14 @@ func registerGitlabAuth() {
 				Str("prefix", prefix).
 				Msg("new gitlab auth")
 			return backend, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"gitlab_url": {Type: "url", Required: true},
 				"cache_ttl":  {Type: "duration", Default: time.Duration(10 * time.Second)},
 				"matchusernames": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

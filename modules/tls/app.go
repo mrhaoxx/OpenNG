@@ -3,7 +3,7 @@ package tls
 import (
 	"errors"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,8 +13,8 @@ func init() {
 }
 
 func registerTLS() {
-	config.Register("tls",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tls",
+		func(spec *netgate.ArgNode) (any, error) {
 			certs := spec.MustGet("certificates").ToList()
 
 			mgr := NewTlsMgr()
@@ -34,16 +34,16 @@ func registerTLS() {
 			}
 
 			return mgr, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "map",
 			Required: true,
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"certificates": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"CertFile": {
 									Type:     "string",
 									Required: true,
@@ -64,14 +64,14 @@ func registerTLS() {
 }
 
 func registerReload() {
-	config.Register("tls::reload",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("tls::reload",
+		func(spec *netgate.ArgNode) (any, error) {
 			mgr, ok := spec.Value.(*TlsMgr)
 			if !ok {
 				return nil, errors.New("ptr is not a tls.TlsMgr")
 			}
 			return nil, mgr.Reload()
-		}, config.Assert{
+		}, netgate.Assert{
 			Type:     "ptr",
 			Required: true,
 		},

@@ -1,8 +1,7 @@
-package config
+package netgate
 
 import (
 	"encoding/json"
-	"fmt"
 )
 
 func (m Assert) ToScheme(depth, maxDepth int) any {
@@ -253,52 +252,4 @@ func GenerateJsonSchema() []byte {
 	s, _ := json.Marshal(root)
 
 	return s
-}
-
-func ValidateConfig(root *ArgNode) []error {
-
-	errors := []error{}
-
-	srvs := root.MustGet("Services")
-
-	space := Space{
-		Services: map[string]any{
-			"sys": true,
-		},
-	}
-
-	for i, _srv := range srvs.Value.([]*ArgNode) {
-
-		_ref := _srv.MustGet("kind").ToString()
-		to := _srv.MustGet("name").ToString()
-
-		spec := _srv.MustGet("spec")
-
-		spec_assert, ok := refs_assertions[_ref]
-		if !ok {
-			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
-			continue
-		}
-
-		err := spec.Assert(spec_assert)
-
-		if err != nil {
-			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
-			continue
-		}
-
-		err = space.Deptr(spec, true)
-
-		if err != nil {
-			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
-			continue
-		}
-
-		if to != "" && to != "_" {
-			space.Services[to] = true
-		}
-
-	}
-
-	return errors
 }

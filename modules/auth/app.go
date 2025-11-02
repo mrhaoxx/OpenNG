@@ -3,7 +3,7 @@ package auth
 import (
 	"errors"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/utils"
@@ -117,8 +117,8 @@ import (
 //	},
 
 func init() {
-	config.Register("auth::manager",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("auth::manager",
+		func(spec *netgate.ArgNode) (any, error) {
 			backends := spec.MustGet("backends").ToList()
 			var authmethods []AuthHandle
 
@@ -136,19 +136,19 @@ func init() {
 				utils.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
 
 			return manager, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"backends": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*config.ArgNode{{Type: "hostname", Value: "*"}},
-					Sub: config.AssertMap{
+					Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
+					Sub: netgate.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -156,8 +156,8 @@ func init() {
 		},
 	)
 
-	config.Register("auth::backend::file",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("auth::backend::file",
+		func(spec *netgate.ArgNode) (any, error) {
 			users := spec.MustGet("users").ToList()
 			backend := authbackend.NewFileBackend()
 
@@ -186,15 +186,15 @@ func init() {
 			}
 
 			return backend, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"users": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -213,7 +213,7 @@ func init() {
 								"SSHAuthorizedKeys": {
 									Type: "list",
 									Desc: "SSH authorized keys",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -225,8 +225,8 @@ func init() {
 		},
 	)
 
-	config.Register("auth::backend::ldap",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("auth::backend::ldap",
+		func(spec *netgate.ArgNode) (any, error) {
 			url := spec.MustGet("Url").ToURL()
 			searchBase := spec.MustGet("SearchBase").ToString()
 			bindDN := spec.MustGet("BindDN").ToString()
@@ -238,9 +238,9 @@ func init() {
 				Msg("new auth ldap backend")
 
 			return authbackend.NewLDAPBackend(url, searchBase, bindDN, bindPW), nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"Url":        {Type: "url", Required: true},
 				"SearchBase": {Type: "string", Required: true},
 				"BindDN":     {Type: "string", Required: true},
@@ -249,8 +249,8 @@ func init() {
 		},
 	)
 
-	config.Register("auth::policyd",
-		func(spec *config.ArgNode) (any, error) {
+	netgate.Register("auth::policyd",
+		func(spec *netgate.ArgNode) (any, error) {
 			policies := spec.MustGet("Policies").ToList()
 			backends := spec.MustGet("backends").ToList()
 
@@ -292,35 +292,35 @@ func init() {
 			policyd.AddBackends(policyBackends)
 
 			return policyd, nil
-		}, config.Assert{
+		}, netgate.Assert{
 			Type: "map",
-			Sub: config.AssertMap{
+			Sub: netgate.AssertMap{
 				"Policies": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: config.AssertMap{
+							Sub: netgate.AssertMap{
 								"name":      {Type: "string", Required: true},
 								"Allowance": {Type: "bool", Required: true},
 								"Users": {
 									Type: "list",
 									Desc: "matching users,empty STRING means ALL, empty LIST means NONE",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
 								"Hosts": {
 									Type: "list",
 									Desc: "matching Hosts, empty means none",
-									Sub: config.AssertMap{
-										"_": {Type: "hostname", Desc: config.DescHostnameFormat},
+									Sub: netgate.AssertMap{
+										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
 									},
 								},
 								"Paths": {
 									Type: "list",
 									Desc: "matching Paths, empty means all",
-									Sub: config.AssertMap{
+									Sub: netgate.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -330,7 +330,7 @@ func init() {
 				},
 				"backends": {
 					Type: "list",
-					Sub: config.AssertMap{
+					Sub: netgate.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},

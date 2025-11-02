@@ -1,6 +1,8 @@
-package config
+package netgate
 
 const DescHostnameFormat = "supported hostname format:\nexample.com\na.example.com\n*.example.com\n*"
+
+type Inst func(*ArgNode) (any, error)
 
 var refs_assertions = map[string]Assert{
 	"_": {

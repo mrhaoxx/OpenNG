@@ -5,20 +5,17 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"runtime/debug"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/config"
+	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/log"
-	admin "github.com/mrhaoxx/OpenNG/modules/admin"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
 )
 
-var gitver = "dev"
-var buildstamp = "dev-built"
-
-var configfile = flag.String("config", "config.yaml", "the config file to load")
+var Configfile = flag.String("config", "config.yaml", "the config file to load")
 var printversion = flag.Bool("version", false, "print version and exit")
 var helpmessage = flag.Bool("help", false, "print help message")
 var printjsonschema = flag.Bool("jsonschema", false, "print json schema to stdout")
@@ -34,11 +31,18 @@ func Main() {
 	fmt.Fprintf(os.Stderr, "NetGATE - A Inbound Gateway\n")
 	flag.Parse()
 
-	admin.ConfigFile = *configfile
-
 	if *helpmessage {
 		flag.PrintDefaults()
 		return
+	}
+	binaryInfo, _ := debug.ReadBuildInfo()
+
+	vcs := "unknown"
+	for _, s := range binaryInfo.Settings {
+		if s.Key == "vcs.revision" {
+			vcs = s.Value
+			break
+		}
 	}
 
 	fmt.Fprintf(os.Stderr, `
@@ -54,16 +58,16 @@ func Main() {
 config: %s
 
 `,
-		gitver, buildstamp, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler, *configfile)
+		vcs, binaryInfo.Main.Version, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler, *Configfile)
 
 	switch {
 	case *printjsonschema:
-		os.Stdout.Write(config.GenerateJsonSchema())
+		os.Stdout.Write(netgate.GenerateJsonSchema())
 		return
 	case *printversion:
 		return
 	}
-	r, err := os.ReadFile(*configfile)
+	r, err := os.ReadFile(*Configfile)
 
 	if err != nil {
 		fmt.Println(err.Error())
@@ -72,7 +76,7 @@ config: %s
 
 	_start := time.Now()
 
-	if err := config.LoadCfg(r, false); err != nil {
+	if err := LoadCfg(r, false); err != nil {
 		zlog.Error().
 			Str("type", "sys/config").
 			Str("error", err.Error()).
@@ -80,6 +84,6 @@ config: %s
 		os.Exit(-1)
 	}
 
-	fmt.Fprintf(os.Stderr, "configuration from %s loaded in %s\n", *configfile, time.Since(_start).String())
+	fmt.Fprintf(os.Stderr, "configuration from %s loaded in %s\n", *Configfile, time.Since(_start).String())
 	select {}
 }
