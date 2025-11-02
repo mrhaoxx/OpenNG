@@ -12,15 +12,16 @@ import (
 
 	"github.com/gorilla/websocket"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
-	"github.com/mrhaoxx/OpenNG/net"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 
 	zlog "github.com/rs/zerolog/log"
 )
 
 type HttpHost struct {
 	Id                 string
-	ServerName         utils.GroupRegexp
+	ServerName         groupexp.GroupRegexp
 	Backend            *net.URL
 	InsecureSkipVerify bool
 	MaxConnsPerHost    int
@@ -120,9 +121,9 @@ func (h *HttpHost) Init() {
 type ReverseProxy struct {
 	hosts []*HttpHost
 
-	buf *utils.BufferedLookup[*HttpHost]
+	buf *lookup.BufferedLookup[*HttpHost]
 
-	allowhosts utils.GroupRegexp
+	allowhosts groupexp.GroupRegexp
 }
 
 func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
@@ -137,17 +138,17 @@ func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	ctx.WriteString("id: " + id + "\n")
 	return RequestEnd
 }
-func (*ReverseProxy) CgiPaths() utils.GroupRegexp {
+func (*ReverseProxy) CgiPaths() groupexp.GroupRegexp {
 	return regexpforproxy
 }
 
 func NewHTTPProxier(allowedhosts []string) *ReverseProxy {
 	hpx := &ReverseProxy{
 		hosts:      make([]*HttpHost, 0),
-		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
+		allowhosts: groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
 	}
 
-	hpx.buf = utils.NewBufferedLookup(func(host string) *HttpHost {
+	hpx.buf = lookup.NewBufferedLookup(func(host string) *HttpHost {
 		for _, t := range hpx.hosts {
 			if t.ServerName.MatchString(host) {
 				// fmt.Println(t.ServerName.String(), host, "success")
@@ -184,7 +185,7 @@ func (h *ReverseProxy) HandleHTTP(ctx *HttpCtx) Ret {
 	return RequestEnd
 }
 
-func (h *ReverseProxy) Hosts() utils.GroupRegexp {
+func (h *ReverseProxy) Hosts() groupexp.GroupRegexp {
 	return h.allowhosts
 }
 
@@ -195,7 +196,7 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
 	buf := HttpHost{
 		Id:                 id,
-		ServerName:         utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
+		ServerName:         groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
 		Backend:            backend,
 		MaxConnsPerHost:    MaxConnsPerHost,
 		InsecureSkipVerify: InsecureSkipVerify,

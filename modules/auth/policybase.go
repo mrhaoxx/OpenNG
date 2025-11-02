@@ -15,7 +15,8 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 
 	gossh "golang.org/x/crypto/ssh"
 
@@ -48,10 +49,10 @@ type policy struct {
 
 	users map[string]bool
 
-	hosts utils.GroupRegexp
-	// hup   *utils.BufferedLookup
+	hosts groupexp.GroupRegexp
+	// hup   *lookup.BufferedLookup
 
-	paths utils.GroupRegexp
+	paths groupexp.GroupRegexp
 }
 
 // 0 -> next;1 -> refuse;2 -> accept
@@ -70,7 +71,7 @@ func (p *policy) check(username string, path string) uint8 {
 
 type policyBaseAuth struct {
 	policies        []*policy
-	policyLookupBuf *utils.BufferedLookup[[]*policy]
+	policyLookupBuf *lookup.BufferedLookup[[]*policy]
 
 	backends backendGroup
 
@@ -125,7 +126,7 @@ func NewPBAuth() *policyBaseAuth {
 		sessions: map[string]*session{},
 	}
 
-	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) []*policy {
+	po.policyLookupBuf = lookup.NewBufferedLookup(func(s string) []*policy {
 		var r []*policy = nil
 		for _, p := range po.policies {
 			if p.hosts != nil && p.hosts.MatchString(s) {
@@ -414,7 +415,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	return http.RequestEnd
 }
 
-func (l *policyBaseAuth) CgiPaths() utils.GroupRegexp {
+func (l *policyBaseAuth) CgiPaths() groupexp.GroupRegexp {
 	return regexpforauthpath
 }
 
@@ -433,7 +434,7 @@ func (mgr *policyBaseAuth) generateSession(username string, src int) string {
 	return rand
 }
 
-func (*policyBaseAuth) HostsForward() utils.GroupRegexp {
+func (*policyBaseAuth) HostsForward() groupexp.GroupRegexp {
 	return nil
 }
 
@@ -482,16 +483,16 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		p.users[u] = true
 	}
 
-	// p.hup = utils.NewBufferedLookup(func(s string) interface{} {
+	// p.hup = lookup.NewBufferedLookup(func(s string) interface{} {
 	// 	return p.hosts == nil || p.hosts.MatchString(s)
 	// })
 
 	if len(hosts) != 0 {
-		p.hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+		p.hosts = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 	}
 
 	if len(paths) != 0 {
-		p.paths = utils.MustCompileRegexp((paths))
+		p.paths = groupexp.MustCompileRegexp((paths))
 	}
 
 	LGM.policies = append(LGM.policies, p)

@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"os"
 
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/log"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 )
 
 func init() {
-	netgate.Register("log::add", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::add", func(an *ngmodules.ArgNode) (any, error) {
 		logger, ok := an.Value.(log.Logger)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a log.Logger")
 		}
 		log.Loggers.Add(logger)
 		return nil, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "ptr",
 	})
 
-	netgate.Register("log::set", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::set", func(an *ngmodules.ArgNode) (any, error) {
 		logger := an.ToList()
 
 		loggers := []log.Logger{}
@@ -35,32 +35,32 @@ func init() {
 
 		log.Loggers.Set(loggers)
 		return nil, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "list",
-		Sub: netgate.AssertMap{
+		Sub: ngmodules.AssertMap{
 			"_": {Type: "ptr"},
 		},
 	})
 
-	netgate.Register("log::reset", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::reset", func(an *ngmodules.ArgNode) (any, error) {
 		log.Loggers.Reset()
 		return nil, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "null",
 	})
 
-	netgate.Register("log::stdout", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::stdout", func(an *ngmodules.ArgNode) (any, error) {
 		return os.Stdout, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "null",
 	})
-	netgate.Register("log::stderr", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::stderr", func(an *ngmodules.ArgNode) (any, error) {
 		return os.Stderr, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "null",
 	})
 
-	netgate.Register("log::file", func(an *netgate.ArgNode) (any, error) {
+	ngmodules.Register("log::file", func(an *ngmodules.ArgNode) (any, error) {
 		path, ok := an.Value.(string)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a string")
@@ -70,7 +70,7 @@ func init() {
 			return nil, fmt.Errorf("cannot open log file: %v", err)
 		}
 		return f, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type: "string",
 	})
 

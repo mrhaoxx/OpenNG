@@ -4,13 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 func init() {
-	netgate.Register("trojan::server",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("trojan::server",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			passwords := spec.MustGet("passwords").ToStringList()
 			iface := spec.MustGet("interface")
 
@@ -28,12 +28,12 @@ func init() {
 				PasswordHashes: passwords,
 				Underlying:     underlying,
 			}, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"passwords": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 func IsDoubleTailDomainSuffix(domain string) bool {

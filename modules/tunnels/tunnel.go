@@ -1,6 +1,6 @@
 package tunnels
 
-import "github.com/mrhaoxx/OpenNG/net"
+import "github.com/mrhaoxx/OpenNG/pkg/net"
 
 type Overlay interface {
 	Underlying() net.Interface

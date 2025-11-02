@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	ngnet "github.com/mrhaoxx/OpenNG/net"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/net"
 
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
@@ -167,7 +167,7 @@ type GitlabEnhancedPolicydBackend struct {
 	auth.PolicyBackend
 
 	gitlabUrl     string
-	matchUsername utils.GroupRegexp
+	matchUsername groupexp.GroupRegexp
 	prefix        string
 	ttl           time.Duration
 

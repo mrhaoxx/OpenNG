@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	zlog "github.com/rs/zerolog/log"
 )
 

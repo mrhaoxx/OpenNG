@@ -6,9 +6,10 @@ import (
 
 	"github.com/dlclark/regexp2"
 	netgate "github.com/mrhaoxx/OpenNG"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
-	opennet "github.com/mrhaoxx/OpenNG/net"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog/log"
 )
 
@@ -20,8 +21,8 @@ func init() {
 }
 
 func registerReverseProxier() {
-	netgate.Register("http::reverseproxier",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::reverseproxier",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowedHosts := spec.MustGet("allowhosts").ToStringList()
 
@@ -50,18 +51,18 @@ func registerReverseProxier() {
 			}
 
 			return proxier, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "HTTP reverse proxy configuration",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"hosts": {
 					Type: "list",
 					Desc: "reverse proxy host configurations",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -71,7 +72,7 @@ func registerReverseProxier() {
 									Type:     "list",
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -102,9 +103,9 @@ func registerReverseProxier() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
+					Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -114,8 +115,8 @@ func registerReverseProxier() {
 }
 
 func registerMidware() {
-	netgate.Register("http::midware",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::midware",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			cgis := spec.MustGet("cgis").ToList()
 			forwards := spec.MustGet("forward").ToList()
@@ -143,11 +144,11 @@ func registerMidware() {
 					return nil, errors.New("ptr " + name + " is not a http.Service")
 				}
 
-				var compiled utils.GroupRegexp
+				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddServices(&ServiceStruct{
@@ -191,11 +192,11 @@ func registerMidware() {
 					return nil, errors.New("ptr " + name + " is not a http.Forward")
 				}
 
-				var compiled utils.GroupRegexp
+				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.HostsForward()
 				} else {
-					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddForwardServices(&ServiceStruct{
@@ -212,21 +213,21 @@ func registerMidware() {
 			}
 
 			return midware, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"services": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -236,17 +237,17 @@ func registerMidware() {
 				},
 				"cgis": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{},
+					Default: []*ngmodules.ArgNode{},
 					Desc:    "CGI handlers for /ng-cgi/* paths",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
 								"paths": {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -256,19 +257,19 @@ func registerMidware() {
 				},
 				"forward": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{},
+					Default: []*ngmodules.ArgNode{},
 					Desc:    "forward proxy handlers",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
-									Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
+									Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -282,8 +283,8 @@ func registerMidware() {
 }
 
 func registerMidwareAddService() {
-	netgate.Register("http::midware::addservice",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::midware::addservice",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			midware, ok := spec.MustGet("midware").Value.(*Midware)
 			if !ok {
 				return nil, errors.New("ptr is not a http.Midware")
@@ -301,11 +302,11 @@ func registerMidwareAddService() {
 					return nil, errors.New("ptr " + name + " is not a http.Service")
 				}
 
-				var compiled utils.GroupRegexp
+				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddServices(&ServiceStruct{
@@ -322,23 +323,23 @@ func registerMidwareAddService() {
 			}
 
 			return nil, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
 			Desc: "adds additional HTTP services to an existing HTTP middleware",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
 				"services": {
 					Type: "list",
 					Desc: "list of HTTP services to add",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -353,9 +354,9 @@ func registerMidwareAddService() {
 }
 
 func registerSecureHTTP() {
-	netgate.Register("tcp::securehttp",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::securehttp",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			return Redirect2TLS, nil
-		}, netgate.Assert{Type: "null"},
+		}, ngmodules.Assert{Type: "null"},
 	)
 }

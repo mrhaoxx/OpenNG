@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	zlog "github.com/rs/zerolog/log"
 )
 
@@ -32,7 +32,7 @@ type Host struct {
 	IdentityKey ssh.Signer
 	Password    string
 
-	AllowedUsers utils.GroupRegexp
+	AllowedUsers groupexp.GroupRegexp
 }
 
 type proxier struct {

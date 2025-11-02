@@ -2,7 +2,7 @@ package auth
 
 import (
 	"github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 )
 
 type AuthRet uint8
@@ -24,7 +24,7 @@ type AuthHandle interface {
 
 type authMgr struct {
 	h  []AuthHandle
-	ho utils.GroupRegexp
+	ho groupexp.GroupRegexp
 }
 
 func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
@@ -46,14 +46,14 @@ func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	ctx.Resp.ErrorPage(http.StatusForbidden, "auth no hit")
 	return http.RequestEnd
 }
-func (l *authMgr) Hosts() utils.GroupRegexp {
+func (l *authMgr) Hosts() groupexp.GroupRegexp {
 	return l.ho
 }
 
 // NewAuthMgr creates a new authMgr. It requires a list of AuthHandle for auth mechanism and a GroupRegexp for host matching.
 // eg. Create A new AuthMgr that matches all hosts:
 //
-//	var auth = auth.NewAuthMgr([]auth.AuthHandle{}, utils.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
-func NewAuthMgr(h []AuthHandle, hosts utils.GroupRegexp) *authMgr {
+//	var auth = auth.NewAuthMgr([]auth.AuthHandle{}, groupexp.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
+func NewAuthMgr(h []AuthHandle, hosts groupexp.GroupRegexp) *authMgr {
 	return &authMgr{h: h, ho: hosts}
 }

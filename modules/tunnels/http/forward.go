@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/net"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 )
@@ -90,7 +90,7 @@ func (h *StdForwardProxy) HandleHTTPForward(ctx *http.HttpCtx) http.Ret {
 	return http.RequestEnd
 }
 
-func (*StdForwardProxy) HostsForward() utils.GroupRegexp {
+func (*StdForwardProxy) HostsForward() groupexp.GroupRegexp {
 	return nil
 }
 

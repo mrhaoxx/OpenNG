@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 const (

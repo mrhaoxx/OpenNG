@@ -1,15 +1,59 @@
-package netgatecmd
+package ngcmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
+
+func GenerateJsonSchema() []byte {
+	refs_assertions := ngmodules.AssertionsRegistry()
+
+	root := ToScheme(TopLevelConfigAssertion, 0, 5).(map[string]any)
+
+	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+
+	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
+
+	allOf := []any{}
+
+	for k, v := range refs_assertions {
+
+		if k == "_" {
+			continue
+		}
+
+		allOf = append(allOf, map[string]any{
+			"if": map[string]any{
+				"properties": map[string]any{
+					"kind": map[string]any{
+						"const": k,
+					},
+				},
+			},
+			"then": map[string]any{
+				"properties": map[string]any{
+					"spec": ToScheme(v, 0, 5),
+				},
+				"description": v.Desc,
+			},
+		})
+	}
+
+	if len(allOf) > 0 {
+		services["allOf"] = allOf
+	}
+
+	s, _ := json.Marshal(root)
+
+	return s
+}
 
 func LoadCfg(cfgs []byte, reload bool) error {
 	var cfg any
@@ -18,7 +62,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		return err
 	}
 
-	nodes := &netgate.ArgNode{}
+	nodes := &ngmodules.ArgNode{}
 
 	err = nodes.FromAny(cfg)
 	if err != nil {
@@ -45,8 +89,8 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		Services: map[string]any{
 			"sys": &net.SysInterface{},
 		},
-		Refs:       netgate.Registry(),
-		AssertRefs: netgate.AssertionsRegistry(),
+		Refs:       ngmodules.Registry(),
+		AssertRefs: ngmodules.AssertionsRegistry(),
 	}
 
 	space.Services["@"] = space
@@ -56,7 +100,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	return err
 }
 
-func GlobalCfg(config *netgate.ArgNode) error {
+func GlobalCfg(config *ngmodules.ArgNode) error {
 
 	if logger, err := config.Get("Logger"); err == nil {
 
@@ -88,7 +132,7 @@ func ValidateCfg(cfgs []byte) []string {
 		return []string{err.Error()}
 	}
 
-	nodes := &netgate.ArgNode{}
+	nodes := &ngmodules.ArgNode{}
 	err = nodes.FromAny(cfg)
 	if err != nil {
 		return []string{err.Error()}
@@ -106,8 +150,8 @@ func ValidateCfg(cfgs []byte) []string {
 		Services: map[string]any{
 			"sys": true,
 		},
-		Refs:       netgate.Registry(),
-		AssertRefs: netgate.AssertionsRegistry(),
+		Refs:       ngmodules.Registry(),
+		AssertRefs: ngmodules.AssertionsRegistry(),
 	}
 
 	errs := []string{}

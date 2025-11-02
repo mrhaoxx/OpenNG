@@ -8,7 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 
 	zlog "github.com/rs/zerolog/log"
 )
@@ -27,8 +27,8 @@ type filter struct {
 type server struct {
 	records                  []*record
 	filters                  []*filter
-	bufferedLookupForFilters *utils.BufferedLookup[bool]
-	// bufferedLookupForRecords *utils.BufferedLookup
+	bufferedLookupForFilters *lookup.BufferedLookup[bool]
+	// bufferedLookupForRecords *lookup.BufferedLookup
 
 	domain string
 
@@ -162,7 +162,7 @@ func NewServer() (ret *server) {
 		filters: []*filter{},
 		count:   0,
 	}
-	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) bool {
+	ret.bufferedLookupForFilters = lookup.NewBufferedLookup(func(s string) bool {
 		for _, r := range ret.filters {
 			if ok, _ := r.name.MatchString(s); ok {
 				if r.allowance {

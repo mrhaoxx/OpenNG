@@ -1,7 +1,7 @@
 package main
 
 import (
-	netgatecmd "github.com/mrhaoxx/OpenNG/cmd"
+	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
 	_ "github.com/mrhaoxx/OpenNG/modules/admin"
 	_ "github.com/mrhaoxx/OpenNG/modules/auth"
 	_ "github.com/mrhaoxx/OpenNG/modules/dns"
@@ -20,5 +20,5 @@ import (
 )
 
 func main() {
-	netgatecmd.Main()
+	ngcmd.Main()
 }

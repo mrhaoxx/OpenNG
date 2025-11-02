@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog/log"
 )
 
@@ -20,8 +20,8 @@ func init() {
 }
 
 func registerDetector() {
-	netgate.Register("tcp::det",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::det",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			protocols := spec.MustGet("protocols").ToStringList()
 			timeout := spec.MustGet("timeout").ToDuration()
 			timeoutProtocol := spec.MustGet("timeoutprotocol").ToString()
@@ -57,13 +57,13 @@ func registerDetector() {
 				Msg("new tcp detector")
 
 			return &Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutProtocol}, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type:     "map",
 			Required: true,
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"protocols": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "string",
 							Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
@@ -86,8 +86,8 @@ func registerDetector() {
 }
 
 func registerController() {
-	netgate.Register("tcp::controller",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::controller",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToMap()
 
 			controller := NewTcpController()
@@ -119,22 +119,22 @@ func registerController() {
 			}
 
 			return controller, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "TCP connection controller that manages protocol detection and service routing",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"services": {
 					Type: "map",
 					Desc: "protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "list",
 							Desc: "ordered list of service handlers for each protocol",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"_": {
 									Type: "map",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"name": {
 											Type:     "string",
 											Required: true,
@@ -157,8 +157,8 @@ func registerController() {
 }
 
 func registerListener() {
-	netgate.Register("tcp::listen",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::listen",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
 			if !ok {
 				return nil, errors.New("ptr is not a tcp.Listener")
@@ -171,13 +171,13 @@ func registerListener() {
 				log.Debug().Str("addr", addr).Msg("tcp listen")
 			}
 			return nil, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"AddressBindings": {
 					Type: "list",
 					Desc: "tcp listen address",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string", Enum: []any{"0.0.0.0:443", "0.0.0.0:80", "0.0.0.0:22"}, AllowNonEnum: true},
 					},
 				},
@@ -191,8 +191,8 @@ func registerListener() {
 }
 
 func registerProxier() {
-	netgate.Register("tcp::proxier",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::proxier",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 
 			proxier := NewTcpProxier()
@@ -214,15 +214,15 @@ func registerProxier() {
 			}
 
 			return proxier, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"hosts": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {Type: "string", Required: true},
 								"backend": {
 									Type:     "url",
@@ -240,18 +240,18 @@ func registerProxier() {
 }
 
 func registerProxyProtocolHandler() {
-	netgate.Register("tcp::proxyprotocolhandler",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("tcp::proxyprotocolhandler",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			allowedSrcs := spec.MustGet("allowedsrcs").ToStringList()
 			log.Debug().Strs("allowedsrcs", allowedSrcs).Msg("new tcp proxy protocol handler")
 			return NewTCPProxyProtocolHandler(allowedSrcs), nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"allowedsrcs": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{{Type: "string", Value: "127.0.0.1"}},
-					Sub: netgate.AssertMap{
+					Default: []*ngmodules.ArgNode{{Type: "string", Value: "127.0.0.1"}},
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

@@ -1,25 +1,25 @@
-package netgatecmd
+package ngcmd
 
 import (
 	"fmt"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog/log"
 )
 
 type Space struct {
 	Services   map[string]any
-	AssertRefs map[string]netgate.Assert
-	Refs       map[string]netgate.Inst
+	AssertRefs map[string]ngmodules.Assert
+	Refs       map[string]ngmodules.Inst
 }
 
-func (space *Space) Apply(root *netgate.ArgNode, reload bool) error {
+func (space *Space) Apply(root *ngmodules.ArgNode, reload bool) error {
 	reload_errors := []error{}
 	srvs := root.MustGet("Services")
 
-	for i, _srv := range srvs.Value.([]*netgate.ArgNode) {
+	for i, _srv := range srvs.Value.([]*ngmodules.ArgNode) {
 		_time := time.Now()
 
 		_ref := _srv.MustGet("kind").ToString()
@@ -93,13 +93,13 @@ func (space *Space) Apply(root *netgate.ArgNode, reload bool) error {
 
 }
 
-func (space *Space) Deptr(root *netgate.ArgNode, validate bool) error {
+func (space *Space) Deptr(root *ngmodules.ArgNode, validate bool) error {
 	if root == nil {
 		return nil
 	}
 
-	var walk func(*netgate.ArgNode) error
-	walk = func(node *netgate.ArgNode) error {
+	var walk func(*ngmodules.ArgNode) error
+	walk = func(node *ngmodules.ArgNode) error {
 		switch node.Type {
 		case "map":
 			for k, v := range node.ToMap() {
@@ -142,17 +142,17 @@ func (space *Space) Deptr(root *netgate.ArgNode, validate bool) error {
 				} else {
 					return fmt.Errorf("ptr not found: %s", v)
 				}
-			case map[string]*netgate.ArgNode:
+			case map[string]*ngmodules.ArgNode:
 				inst, err := space.instantiateAnon(v, validate)
 				if err != nil {
 					return err
 				}
 				node.Value = inst
-			case *netgate.ArgNode:
+			case *ngmodules.ArgNode:
 				if v.Type != "map" {
 					return fmt.Errorf("invalid anonymous ptr node type: %s", v.Type)
 				}
-				mm := v.Value.(map[string]*netgate.ArgNode)
+				mm := v.Value.(map[string]*ngmodules.ArgNode)
 				inst, err := space.instantiateAnon(mm, validate)
 				if err != nil {
 					return err
@@ -168,7 +168,7 @@ func (space *Space) Deptr(root *netgate.ArgNode, validate bool) error {
 	return walk(root)
 }
 
-func (space *Space) instantiateAnon(m map[string]*netgate.ArgNode, validate bool) (any, error) {
+func (space *Space) instantiateAnon(m map[string]*ngmodules.ArgNode, validate bool) (any, error) {
 	var kind string
 	if k, ok := m["kind"]; ok && k != nil {
 		if k.Type != "string" {
@@ -179,7 +179,7 @@ func (space *Space) instantiateAnon(m map[string]*netgate.ArgNode, validate bool
 		return nil, fmt.Errorf("anonymous object missing kind")
 	}
 
-	spec := &netgate.ArgNode{Type: "null", Value: nil}
+	spec := &ngmodules.ArgNode{Type: "null", Value: nil}
 	if s, ok := m["spec"]; ok && s != nil {
 		spec = s
 	}
@@ -215,12 +215,12 @@ func (space *Space) instantiateAnon(m map[string]*netgate.ArgNode, validate bool
 	return inst, nil
 }
 
-func (space *Space) Validate(root *netgate.ArgNode) []error {
+func (space *Space) Validate(root *ngmodules.ArgNode) []error {
 	errors := []error{}
 
 	srvs := root.MustGet("Services")
 
-	for i, _srv := range srvs.Value.([]*netgate.ArgNode) {
+	for i, _srv := range srvs.Value.([]*ngmodules.ArgNode) {
 
 		_ref := _srv.MustGet("kind").ToString()
 		to := _srv.MustGet("name").ToString()

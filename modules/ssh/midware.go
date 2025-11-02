@@ -9,7 +9,8 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	ssh "golang.org/x/crypto/ssh"
 
 	zlog "github.com/rs/zerolog/log"
@@ -73,7 +74,7 @@ type ConnHandler interface {
 
 type srv struct {
 	hdr      ConnHandler
-	matchalt utils.GroupRegexp
+	matchalt groupexp.GroupRegexp
 }
 
 type Midware struct {
@@ -86,7 +87,7 @@ type Midware struct {
 	PublicKeyCallback PublicKeyCbFn
 
 	current        []srv
-	bufferedLookup *utils.BufferedLookup[ConnHandler]
+	bufferedLookup *lookup.BufferedLookup[ConnHandler]
 
 	basecfg ssh.ServerConfig
 }
@@ -245,7 +246,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	return tcp.Close
 }
 
-func (c *Midware) AddHandler(h ConnHandler, alt utils.GroupRegexp) {
+func (c *Midware) AddHandler(h ConnHandler, alt groupexp.GroupRegexp) {
 	c.current = append(c.current, srv{hdr: h, matchalt: alt})
 }
 
@@ -268,7 +269,7 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 
 	Midware.basecfg = basecfg
 
-	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) ConnHandler {
+	Midware.bufferedLookup = lookup.NewBufferedLookup(func(s string) ConnHandler {
 		for _, t := range Midware.current {
 			if t.matchalt.MatchString(s) {
 				return t.hdr

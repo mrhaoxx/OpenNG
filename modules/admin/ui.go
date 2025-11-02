@@ -14,10 +14,10 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
-	netgatecmd "github.com/mrhaoxx/OpenNG/cmd"
+	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
 	"github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/tls"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	zlog "github.com/rs/zerolog/log"
 
 	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
@@ -41,7 +41,7 @@ type UI struct {
 	TlsMgr *tls.TlsMgr
 }
 
-func (*UI) Hosts() utils.GroupRegexp {
+func (*UI) Hosts() groupexp.GroupRegexp {
 	return nil
 }
 func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
@@ -88,18 +88,18 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/save":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
-		errors := netgatecmd.ValidateCfg(b)
+		errors := ngcmd.ValidateCfg(b)
 		if len(errors) > 0 {
 			ctx.Resp.WriteHeader(http.StatusNotAcceptable)
 			ctx.WriteString(strings.Join(errors, "\n"))
 			return http.RequestEnd
 		}
-		os.WriteFile(*netgatecmd.Configfile, b, fs.ModeCharDevice)
+		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 	case "/api/v1/cfg/validate":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
-		errors := netgatecmd.ValidateCfg(b)
+		errors := ngcmd.ValidateCfg(b)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 		if len(errors) > 0 {
 			ctx.WriteString(strings.Join(errors, "\n"))
@@ -109,7 +109,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		b, _ := os.ReadFile(*netgatecmd.Configfile)
+		b, _ := os.ReadFile(*ngcmd.Configfile)
 		ctx.Resp.Write(b)
 	case "/api/v1/cfg/getcur":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
@@ -119,7 +119,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/schema":
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		ctx.Resp.Write(netgatecmd.GenerateJsonSchema())
+		ctx.Resp.Write(ngcmd.GenerateJsonSchema())
 
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)
@@ -213,14 +213,14 @@ func Reload() error {
 	ReloadTime = time.Now()
 	ReloadCount++
 
-	r, err := os.ReadFile(*netgatecmd.Configfile)
+	r, err := os.ReadFile(*ngcmd.Configfile)
 
 	if err != nil {
 		fmt.Println(err.Error())
 		return err
 	}
 
-	if err := netgatecmd.LoadCfg(r, true); err != nil {
+	if err := ngcmd.LoadCfg(r, true); err != nil {
 		return err
 	}
 

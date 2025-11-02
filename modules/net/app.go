@@ -4,8 +4,8 @@ import (
 	"errors"
 	stdnet "net"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	netpkg "github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	netpkg "github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 func init() {
@@ -14,16 +14,16 @@ func init() {
 }
 
 func registerSysInterface() {
-	netgate.Register("net::interface::sys",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("net::interface::sys",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			return &netpkg.SysInterface{}, nil
-		}, netgate.Assert{Type: "null", Desc: "use system default interface"},
+		}, ngmodules.Assert{Type: "null", Desc: "use system default interface"},
 	)
 }
 
 func registerRouteTable() {
-	netgate.Register("net::routetable::new",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("net::routetable::new",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			routes := spec.MustGet("routes").ToList()
 			table := &netpkg.RouteTable{}
 
@@ -42,15 +42,15 @@ func registerRouteTable() {
 			}
 
 			return table, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"routes": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"cidr":      {Type: "string", Required: true},
 								"interface": {Type: "ptr", Required: true},
 							},

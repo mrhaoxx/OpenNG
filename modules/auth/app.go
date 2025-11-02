@@ -3,17 +3,17 @@ package auth
 import (
 	"errors"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
 
 func init() {
-	netgate.Register("auth::manager",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("auth::manager",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			backends := spec.MustGet("backends").ToList()
 			var authmethods []AuthHandle
 
@@ -28,22 +28,22 @@ func init() {
 			log.Debug().Int("backend_count", len(authmethods)).Msg("new auth manager")
 
 			manager := NewAuthMgr(authmethods,
-				utils.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
+				groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
 
 			return manager, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"backends": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
-					Sub: netgate.AssertMap{
+					Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -51,8 +51,8 @@ func init() {
 		},
 	)
 
-	netgate.Register("auth::backend::file",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("auth::backend::file",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			users := spec.MustGet("users").ToList()
 			backend := authbackend.NewFileBackend()
 
@@ -81,15 +81,15 @@ func init() {
 			}
 
 			return backend, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"users": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -108,7 +108,7 @@ func init() {
 								"SSHAuthorizedKeys": {
 									Type: "list",
 									Desc: "SSH authorized keys",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -120,8 +120,8 @@ func init() {
 		},
 	)
 
-	netgate.Register("auth::backend::ldap",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("auth::backend::ldap",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			url := spec.MustGet("Url").ToURL()
 			searchBase := spec.MustGet("SearchBase").ToString()
 			bindDN := spec.MustGet("BindDN").ToString()
@@ -133,9 +133,9 @@ func init() {
 				Msg("new auth ldap backend")
 
 			return authbackend.NewLDAPBackend(url, searchBase, bindDN, bindPW), nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"Url":        {Type: "url", Required: true},
 				"SearchBase": {Type: "string", Required: true},
 				"BindDN":     {Type: "string", Required: true},
@@ -144,8 +144,8 @@ func init() {
 		},
 	)
 
-	netgate.Register("auth::policyd",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("auth::policyd",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			policies := spec.MustGet("Policies").ToList()
 			backends := spec.MustGet("backends").ToList()
 
@@ -187,35 +187,35 @@ func init() {
 			policyd.AddBackends(policyBackends)
 
 			return policyd, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"Policies": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name":      {Type: "string", Required: true},
 								"Allowance": {Type: "bool", Required: true},
 								"Users": {
 									Type: "list",
 									Desc: "matching users,empty STRING means ALL, empty LIST means NONE",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
 								"Hosts": {
 									Type: "list",
 									Desc: "matching Hosts, empty means none",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
 								"Paths": {
 									Type: "list",
 									Desc: "matching Paths, empty means all",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -225,7 +225,7 @@ func init() {
 				},
 				"backends": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},

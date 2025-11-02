@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -20,8 +20,8 @@ func init() {
 }
 
 func registerAcmeFileProvider() {
-	netgate.Register("http::acme::fileprovider",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::acme::fileprovider",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			hosts := spec.MustGet("Hosts").ToStringList()
 			wwwroot := spec.MustGet("WWWRoot").ToString()
 			provider := &AcmeWebRoot{
@@ -31,12 +31,12 @@ func registerAcmeFileProvider() {
 
 			log.Debug().Strs("hosts", hosts).Str("wwwroot", wwwroot).Msg("new acme file provider")
 			return provider, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"Hosts": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -47,8 +47,8 @@ func registerAcmeFileProvider() {
 }
 
 func registerIpFilter() {
-	netgate.Register("ipfilter",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("ipfilter",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			allowed := spec.MustGet("allowedcidrs").ToStringList()
 			blocked := spec.MustGet("blockedcidrs").ToStringList()
 			next := spec.MustGet("next")
@@ -66,22 +66,22 @@ func registerIpFilter() {
 			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
 
 			return filter, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on source IP CIDR ranges",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"blockedcidrs": {
 					Type: "list",
 					Desc: "list of CIDR ranges to block",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 					},
 				},
 				"allowedcidrs": {
 					Type: "list",
 					Desc: "list of CIDR ranges to allow",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
 					},
 				},
@@ -96,8 +96,8 @@ func registerIpFilter() {
 }
 
 func registerHostFilter() {
-	netgate.Register("hostfilter",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("hostfilter",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
 			next := spec.MustGet("next")
 
@@ -114,15 +114,15 @@ func registerHostFilter() {
 			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
 
 			return filter, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on HTTP Host header or TLS SNI",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"allowedhosts": {
 					Type: "list",
 					Desc: "list of allowed hostnames",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string", Desc: "hostname to allow"},
 					},
 				},
@@ -137,8 +137,8 @@ func registerHostFilter() {
 }
 
 func registerGitlabAuth() {
-	netgate.Register("gitlabauth",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("gitlabauth",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			gitlabURL := spec.MustGet("gitlab_url").ToURL()
 			cacheTTL := spec.MustGet("cache_ttl").ToDuration()
 			matchUsernames := spec.MustGet("matchusernames").ToStringList()
@@ -148,7 +148,7 @@ func registerGitlabAuth() {
 			backend := &GitlabEnhancedPolicydBackend{
 				gitlabUrl:     gitlabURL.String(),
 				ttl:           cacheTTL,
-				matchUsername: utils.MustCompileRegexp(matchUsernames),
+				matchUsername: groupexp.MustCompileRegexp(matchUsernames),
 				cache:         make(map[string]*SSHKeyCache),
 				prefix:        prefix,
 			}
@@ -169,14 +169,14 @@ func registerGitlabAuth() {
 				Str("prefix", prefix).
 				Msg("new gitlab auth")
 			return backend, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"gitlab_url": {Type: "url", Required: true},
 				"cache_ttl":  {Type: "duration", Default: time.Duration(10 * time.Second)},
 				"matchusernames": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

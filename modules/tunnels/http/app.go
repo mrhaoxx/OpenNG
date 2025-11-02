@@ -1,18 +1,18 @@
 package http
 
 import (
-	netgate "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/net"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 func init() {
-	netgate.Register("http::proxy",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::proxy",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			proxyURL := spec.MustGet("url").ToURL()
 			return &HttpProxyInterface{Proxyurl: proxyURL}, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"url": {
 					Type:     "url",
 					Required: true,
@@ -21,13 +21,13 @@ func init() {
 			},
 		},
 	)
-	netgate.Register("http::forwardproxier",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("http::forwardproxier",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			underlying := spec.MustGet("interface").Value.(opennet.Interface)
 			return &StdForwardProxy{Underlying: underlying}, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"interface": {
 					Type:    "ptr",
 					Default: "sys",

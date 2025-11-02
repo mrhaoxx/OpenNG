@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-ldap/ldap/v3"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
-	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	gossh "golang.org/x/crypto/ssh"
 )
 

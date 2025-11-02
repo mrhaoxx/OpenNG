@@ -5,8 +5,8 @@ import (
 	"strconv"
 	"strings"
 
-	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/utils"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -17,8 +17,8 @@ func init() {
 }
 
 func registerMidware() {
-	netgate.Register("ssh::midware",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("ssh::midware",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			banner := spec.MustGet("banner").ToString()
 			quotes := spec.MustGet("quotes").ToStringList()
@@ -67,27 +67,27 @@ func registerMidware() {
 					return nil, errors.New("ptr " + name + " is not a ssh.ConnHandler")
 				}
 
-				midware.AddHandler(handler, utils.MustCompileRegexp(serv))
+				midware.AddHandler(handler, groupexp.MustCompileRegexp(serv))
 
 				log.Debug().Str("name", name).Type("logi", logi.Value).Strs("serv", serv).Msg("new ssh service")
 			}
 			return midware, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"services": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true},
 								"serv": {
 									Type:    "list",
 									Desc:    "matching services by regex pattern",
-									Default: []*netgate.ArgNode{{Type: "string", Value: ".*$"}},
-									Sub: netgate.AssertMap{
+									Default: []*ngmodules.ArgNode{{Type: "string", Value: ".*$"}},
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -102,13 +102,13 @@ func registerMidware() {
 				},
 				"quotes": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
 				"privatekeys": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
@@ -126,8 +126,8 @@ func registerMidware() {
 }
 
 func registerReverseProxier() {
-	netgate.Register("ssh::reverseproxier",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("ssh::reverseproxier",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowDNSQuery := spec.MustGet("allowdnsquery").ToBool()
 			privateKeys := spec.MustGet("privatekeys").ToStringList()
@@ -155,9 +155,9 @@ func registerReverseProxier() {
 				password := host.MustGet("Password").ToString()
 
 				allowedUsersList := host.MustGet("AllowedUsers").ToStringList()
-				var allowedUsers utils.GroupRegexp
+				var allowedUsers groupexp.GroupRegexp
 				if len(allowedUsersList) > 0 {
-					allowedUsers = utils.MustCompileRegexp(allowedUsersList)
+					allowedUsers = groupexp.MustCompileRegexp(allowedUsersList)
 				}
 
 				lowered := strings.ToLower(name)
@@ -201,15 +201,15 @@ func registerReverseProxier() {
 			srv.AllowDnsQuery = allowDNSQuery
 
 			return srv, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"hosts": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"name":     {Type: "string", Required: true},
 								"HostName": {Type: "hostname", Required: true},
 								"Port":     {Type: "int", Default: 22},
@@ -220,7 +220,7 @@ func registerReverseProxier() {
 								"AllowedUsers": {
 									Type: "list",
 									Desc: "empty means all, when set, only matched users are allowed",
-									Sub: netgate.AssertMap{
+									Sub: ngmodules.AssertMap{
 										"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
 									},
 								},
@@ -234,7 +234,7 @@ func registerReverseProxier() {
 				},
 				"privatekeys": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

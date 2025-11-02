@@ -1,4 +1,4 @@
-package utils
+package groupexp
 
 import "github.com/dlclark/regexp2"
 

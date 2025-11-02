@@ -3,9 +3,9 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	netgate "github.com/mrhaoxx/OpenNG"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 	"github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -32,12 +32,12 @@ func (e *httpexprbased) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	return http.Ret(ret)
 }
 
-func (e *httpexprbased) Hosts() utils.GroupRegexp {
+func (e *httpexprbased) Hosts() groupexp.GroupRegexp {
 	return nil
 }
 
 func init() {
-	netgate.Register("expr::http", func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("expr::http", func(spec *ngmodules.ArgNode) (any, error) {
 		expression := spec.MustGet("exp").ToString()
 		varsNode, err := spec.Get("vars")
 
@@ -62,14 +62,14 @@ func init() {
 			Program: program,
 			Vars:    vars,
 		}, nil
-	}, netgate.Assert{
+	}, ngmodules.Assert{
 		Type:     "map",
 		Required: true,
-		Sub: netgate.AssertMap{
+		Sub: ngmodules.AssertMap{
 			"exp": {Type: "string", Required: true, Desc: "expression-based HTTP backend"},
 			"vars": {
 				Type: "map",
-				Sub: netgate.AssertMap{
+				Sub: ngmodules.AssertMap{
 					"_": {Type: "any"},
 				},
 				Desc: "custom variables to be used in the expression",

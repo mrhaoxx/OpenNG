@@ -12,7 +12,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/tcp"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/udp"
-	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"

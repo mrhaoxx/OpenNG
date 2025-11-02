@@ -2,7 +2,7 @@ package dns
 
 import (
 	"github.com/dlclark/regexp2"
-	netgate "github.com/mrhaoxx/OpenNG"
+	ngmodules "github.com/mrhaoxx/OpenNG/modules"
 	"github.com/rs/zerolog/log"
 )
 
@@ -11,8 +11,8 @@ func init() {
 }
 
 func registerServer() {
-	netgate.Register("dns::server",
-		func(spec *netgate.ArgNode) (any, error) {
+	ngmodules.Register("dns::server",
+		func(spec *ngmodules.ArgNode) (any, error) {
 			records := spec.MustGet("Records").ToList()
 			filters := spec.MustGet("Filters").ToList()
 			binds := spec.MustGet("Binds").ToList()
@@ -72,12 +72,12 @@ func registerServer() {
 			}
 
 			return server, nil
-		}, netgate.Assert{
+		}, ngmodules.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: ngmodules.AssertMap{
 				"AddressBindings": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
@@ -87,10 +87,10 @@ func registerServer() {
 				},
 				"Records": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,
@@ -113,10 +113,10 @@ func registerServer() {
 				},
 				"Filters": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,
@@ -131,10 +131,10 @@ func registerServer() {
 				},
 				"Binds": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: ngmodules.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: ngmodules.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,

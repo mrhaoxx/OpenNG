@@ -13,24 +13,25 @@ import (
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/net"
-	"github.com/mrhaoxx/OpenNG/utils"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"golang.org/x/net/http2"
 )
 
 //ng:generate def obj Midware
 type Midware struct {
-	sni                  utils.GroupRegexp
-	bufferedLookupForSNI *utils.BufferedLookup[bool]
+	sni                  groupexp.GroupRegexp
+	bufferedLookupForSNI *lookup.BufferedLookup[bool]
 
 	current               []*ServiceStruct
-	bufferedLookupForHost *utils.BufferedLookup[[]*ServiceStruct]
+	bufferedLookupForHost *lookup.BufferedLookup[[]*ServiceStruct]
 
 	currentCgi           []*CgiStruct
-	bufferedLookupForCgi *utils.BufferedLookup[[]*CgiStruct]
+	bufferedLookupForCgi *lookup.BufferedLookup[[]*CgiStruct]
 
 	currentForward           []*ServiceStruct
-	bufferedLookupForForward *utils.BufferedLookup[[]*ServiceStruct]
+	bufferedLookupForForward *lookup.BufferedLookup[[]*ServiceStruct]
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[string]*HttpCtx
@@ -41,25 +42,25 @@ type ServiceHandler func(*HttpCtx) Ret
 type ServiceStruct struct {
 	ServiceHandler
 	Id    string
-	Hosts utils.GroupRegexp
+	Hosts groupexp.GroupRegexp
 }
 
 type CgiHandler func(*HttpCtx, string) Ret
 
 type CgiStruct struct {
 	CgiHandler
-	CgiPaths utils.GroupRegexp
+	CgiPaths groupexp.GroupRegexp
 }
 type Service interface {
-	Hosts() utils.GroupRegexp
+	Hosts() groupexp.GroupRegexp
 	HandleHTTP(*HttpCtx) Ret
 }
 type Cgi interface {
-	CgiPaths() utils.GroupRegexp
+	CgiPaths() groupexp.GroupRegexp
 	HandleHTTPCgi(*HttpCtx, string) Ret
 }
 type Forward interface {
-	HostsForward() utils.GroupRegexp
+	HostsForward() groupexp.GroupRegexp
 	HandleHTTPForward(*HttpCtx) Ret
 }
 
@@ -228,7 +229,7 @@ func NewHttpMidware(sni []string) *Midware {
 	},
 	}
 
-	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
+	hmw.bufferedLookupForHost = lookup.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.current {
 			if r.Hosts == nil || r.Hosts.MatchString(s) {
@@ -238,7 +239,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) []*CgiStruct {
+	hmw.bufferedLookupForCgi = lookup.NewBufferedLookup(func(s string) []*CgiStruct {
 		var m []*CgiStruct = nil
 		for _, t := range hmw.currentCgi {
 			for _, r := range t.CgiPaths {
@@ -250,7 +251,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return m
 	})
 
-	hmw.bufferedLookupForForward = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
+	hmw.bufferedLookupForForward = lookup.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.currentForward {
 			if r.Hosts.MatchString(s) {
@@ -260,11 +261,11 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) bool {
+	hmw.bufferedLookupForSNI = lookup.NewBufferedLookup(func(s string) bool {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 
-	hmw.sni = utils.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
+	hmw.sni = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
 
 	return hmw
 }
