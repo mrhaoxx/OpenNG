@@ -434,6 +434,31 @@ func (node *ArgNode) ToURL() *net.URL {
 
 	return node.Value.(*net.URL)
 }
+
+func (node *ArgNode) ToValue() any {
+	if node == nil {
+		return nil
+	}
+	switch node.Type {
+	case "map":
+		ret := map[string]any{}
+		for k, v := range node.Value.(map[string]*ArgNode) {
+			ret[k] = v.ToValue()
+		}
+		return ret
+
+	case "list":
+		ret := make([]any, len(node.ToList()))
+		for i, v := range node.ToList() {
+			ret[i] = v.ToValue()
+		}
+		return ret
+	default:
+		return node.Value
+	}
+
+}
+
 func (node *ArgNode) Get(path string) (*ArgNode, error) {
 	if path == "" {
 		return node, nil
