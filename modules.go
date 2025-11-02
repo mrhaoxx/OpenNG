@@ -46,34 +46,6 @@ var refs_assertions = map[string]Assert{
 								Type:    "bool",
 								Default: false,
 							},
-							"EnableSSELogger": {
-								Desc:    "enable server sent event logger for webui",
-								Type:    "bool",
-								Default: false,
-							},
-							"EnableConsoleLogger": {
-								Desc:    "enable console logger",
-								Type:    "bool",
-								Default: true,
-							},
-							"FileLogger": {
-								Type: "map",
-								Sub: AssertMap{
-									"Path": {
-										Type:     "string",
-										Required: true,
-									},
-								},
-							},
-							"UDPLogger": {
-								Type: "map",
-								Sub: AssertMap{
-									"Addr": {
-										Type:     "string",
-										Required: true,
-									},
-								},
-							},
 						},
 					},
 				},

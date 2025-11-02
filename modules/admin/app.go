@@ -9,6 +9,7 @@ import (
 
 func init() {
 	registerWebUI()
+	registerSSELogger()
 }
 
 func registerWebUI() {
@@ -43,4 +44,12 @@ func registerWebUI() {
 			},
 		},
 	)
+}
+
+func registerSSELogger() {
+	netgate.Register("webui::sselog", func(an *netgate.ArgNode) (any, error) {
+		return Sselogger, nil
+	}, netgate.Assert{
+		Type: "null",
+	})
 }
