@@ -32,8 +32,6 @@ type Reporter interface {
 	Report() map[string]interface{}
 }
 
-var ConfigFile string
-
 var Uptime time.Time = time.Now()
 var ReloadTime time.Time = time.Now()
 var ReloadCount int = 0
@@ -98,7 +96,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			ctx.WriteString(strings.Join(errors, "\n"))
 			return http.RequestEnd
 		}
-		os.WriteFile(ConfigFile, b, fs.ModeCharDevice)
+		os.WriteFile(*netgatecmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 	case "/api/v1/cfg/validate":
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
@@ -113,7 +111,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		b, _ := os.ReadFile(ConfigFile)
+		b, _ := os.ReadFile(*netgatecmd.Configfile)
 		ctx.Resp.Write(b)
 	case "/api/v1/cfg/getcur":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
@@ -217,7 +215,7 @@ func Reload() error {
 	ReloadTime = time.Now()
 	ReloadCount++
 
-	r, err := os.ReadFile(ConfigFile)
+	r, err := os.ReadFile(*netgatecmd.Configfile)
 
 	if err != nil {
 		fmt.Println(err.Error())
