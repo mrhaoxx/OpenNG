@@ -1,4 +1,4 @@
-package netgate
+package config
 
 import (
 	"encoding/json"

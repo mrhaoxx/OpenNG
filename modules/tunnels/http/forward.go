@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 )
@@ -90,7 +90,7 @@ func (h *StdForwardProxy) HandleHTTPForward(ctx *http.HttpCtx) http.Ret {
 	return http.RequestEnd
 }
 
-func (*StdForwardProxy) HostsForward() netgate.GroupRegexp {
+func (*StdForwardProxy) HostsForward() utils.GroupRegexp {
 	return nil
 }
 

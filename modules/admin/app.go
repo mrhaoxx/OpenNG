@@ -3,7 +3,7 @@ package ui
 import (
 	"errors"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
 	"github.com/mrhaoxx/OpenNG/modules/tls"
 )
 
@@ -12,8 +12,8 @@ func init() {
 }
 
 func registerWebUI() {
-	netgate.Register("webui",
-		func(spec *netgate.ArgNode) (any, error) {
+	config.Register("webui",
+		func(spec *config.ArgNode) (any, error) {
 			tcpController, ok := spec.MustGet("tcpcontroller").Value.(Reporter)
 			if !ok {
 				return nil, errors.New("tcp controller ptr is not a Reporter")
@@ -34,9 +34,9 @@ func registerWebUI() {
 			}
 
 			return ui, nil
-		}, netgate.Assert{
+		}, config.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: config.AssertMap{
 				"tcpcontroller": {Type: "ptr", Required: true},
 				"httpmidware":   {Type: "ptr", Required: true},
 				"tls":           {Type: "ptr"},

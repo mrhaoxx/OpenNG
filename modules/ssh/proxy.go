@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/utils"
 	zlog "github.com/rs/zerolog/log"
 )
 
@@ -32,7 +32,7 @@ type Host struct {
 	IdentityKey ssh.Signer
 	Password    string
 
-	AllowedUsers netgate.GroupRegexp
+	AllowedUsers utils.GroupRegexp
 }
 
 type proxier struct {

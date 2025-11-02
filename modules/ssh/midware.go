@@ -8,8 +8,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
+	"github.com/mrhaoxx/OpenNG/utils"
 	ssh "golang.org/x/crypto/ssh"
 
 	zlog "github.com/rs/zerolog/log"
@@ -73,7 +73,7 @@ type ConnHandler interface {
 
 type srv struct {
 	hdr      ConnHandler
-	matchalt netgate.GroupRegexp
+	matchalt utils.GroupRegexp
 }
 
 type Midware struct {
@@ -86,7 +86,7 @@ type Midware struct {
 	PublicKeyCallback PublicKeyCbFn
 
 	current        []srv
-	bufferedLookup *netgate.BufferedLookup[ConnHandler]
+	bufferedLookup *utils.BufferedLookup[ConnHandler]
 
 	basecfg ssh.ServerConfig
 }
@@ -245,7 +245,7 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 	return tcp.Close
 }
 
-func (c *Midware) AddHandler(h ConnHandler, alt netgate.GroupRegexp) {
+func (c *Midware) AddHandler(h ConnHandler, alt utils.GroupRegexp) {
 	c.current = append(c.current, srv{hdr: h, matchalt: alt})
 }
 
@@ -268,7 +268,7 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 
 	Midware.basecfg = basecfg
 
-	Midware.bufferedLookup = netgate.NewBufferedLookup(func(s string) ConnHandler {
+	Midware.bufferedLookup = utils.NewBufferedLookup(func(s string) ConnHandler {
 		for _, t := range Midware.current {
 			if t.matchalt.MatchString(s) {
 				return t.hdr

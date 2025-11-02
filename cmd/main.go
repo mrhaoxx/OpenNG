@@ -7,7 +7,7 @@ import (
 	"runtime"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
 	"github.com/mrhaoxx/OpenNG/log"
 	admin "github.com/mrhaoxx/OpenNG/modules/admin"
 
@@ -58,7 +58,7 @@ config: %s
 
 	switch {
 	case *printjsonschema:
-		os.Stdout.Write(netgate.GenerateJsonSchema())
+		os.Stdout.Write(config.GenerateJsonSchema())
 		return
 	case *printversion:
 		return
@@ -72,7 +72,7 @@ config: %s
 
 	_start := time.Now()
 
-	if err := netgate.LoadCfg(r, false); err != nil {
+	if err := config.LoadCfg(r, false); err != nil {
 		zlog.Error().
 			Str("type", "sys/config").
 			Str("error", err.Error()).

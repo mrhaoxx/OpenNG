@@ -6,13 +6,13 @@ import (
 	"errors"
 	"sync"
 
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
+	"github.com/mrhaoxx/OpenNG/utils"
 )
 
 type Cert struct {
 	*tls.Certificate
-	dnsnames netgate.GroupRegexp
+	dnsnames utils.GroupRegexp
 
 	certfile string
 	keyfile  string
@@ -20,7 +20,7 @@ type Cert struct {
 
 type TlsMgr struct {
 	certs  map[string]Cert
-	lookup *netgate.BufferedLookup[*tls.Certificate]
+	lookup *utils.BufferedLookup[*tls.Certificate]
 
 	muCerts sync.RWMutex
 }
@@ -31,7 +31,7 @@ func NewTlsMgr() *TlsMgr {
 		certs: make(map[string]Cert),
 	}
 
-	mgr.lookup = netgate.NewBufferedLookup(func(s string) *tls.Certificate {
+	mgr.lookup = utils.NewBufferedLookup(func(s string) *tls.Certificate {
 		mgr.muCerts.RLock()
 		defer mgr.muCerts.RUnlock()
 
@@ -67,7 +67,7 @@ func (m *TlsMgr) LoadCertificate(certfile, keyfile string) error {
 
 		m.certs[certfile] = Cert{
 			Certificate: &c,
-			dnsnames:    netgate.MustCompileRegexp(dns.Dnsnames2Regexps(c.Leaf.DNSNames)),
+			dnsnames:    utils.MustCompileRegexp(dns.Dnsnames2Regexps(c.Leaf.DNSNames)),
 			certfile:    certfile,
 			keyfile:     keyfile,
 		}
@@ -106,7 +106,7 @@ func (m *TlsMgr) Reload() error {
 		cert.Leaf, _ = x509.ParseCertificate(cert.Certificate[0])
 		v.Certificate = &cert
 
-		v.dnsnames = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(cert.Leaf.DNSNames))
+		v.dnsnames = utils.MustCompileRegexp(dns.Dnsnames2Regexps(cert.Leaf.DNSNames))
 
 		m.certs[v.certfile] = v
 

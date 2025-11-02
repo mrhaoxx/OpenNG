@@ -11,26 +11,26 @@ import (
 	zlog "github.com/rs/zerolog/log"
 
 	"github.com/dlclark/regexp2"
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/utils"
 	"golang.org/x/net/http2"
 )
 
 //ng:generate def obj Midware
 type Midware struct {
-	sni                  netgate.GroupRegexp
-	bufferedLookupForSNI *netgate.BufferedLookup[bool]
+	sni                  utils.GroupRegexp
+	bufferedLookupForSNI *utils.BufferedLookup[bool]
 
 	current               []*ServiceStruct
-	bufferedLookupForHost *netgate.BufferedLookup[[]*ServiceStruct]
+	bufferedLookupForHost *utils.BufferedLookup[[]*ServiceStruct]
 
 	currentCgi           []*CgiStruct
-	bufferedLookupForCgi *netgate.BufferedLookup[[]*CgiStruct]
+	bufferedLookupForCgi *utils.BufferedLookup[[]*CgiStruct]
 
 	currentForward           []*ServiceStruct
-	bufferedLookupForForward *netgate.BufferedLookup[[]*ServiceStruct]
+	bufferedLookupForForward *utils.BufferedLookup[[]*ServiceStruct]
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[string]*HttpCtx
@@ -41,25 +41,25 @@ type ServiceHandler func(*HttpCtx) Ret
 type ServiceStruct struct {
 	ServiceHandler
 	Id    string
-	Hosts netgate.GroupRegexp
+	Hosts utils.GroupRegexp
 }
 
 type CgiHandler func(*HttpCtx, string) Ret
 
 type CgiStruct struct {
 	CgiHandler
-	CgiPaths netgate.GroupRegexp
+	CgiPaths utils.GroupRegexp
 }
 type Service interface {
-	Hosts() netgate.GroupRegexp
+	Hosts() utils.GroupRegexp
 	HandleHTTP(*HttpCtx) Ret
 }
 type Cgi interface {
-	CgiPaths() netgate.GroupRegexp
+	CgiPaths() utils.GroupRegexp
 	HandleHTTPCgi(*HttpCtx, string) Ret
 }
 type Forward interface {
-	HostsForward() netgate.GroupRegexp
+	HostsForward() utils.GroupRegexp
 	HandleHTTPForward(*HttpCtx) Ret
 }
 
@@ -228,7 +228,7 @@ func NewHttpMidware(sni []string) *Midware {
 	},
 	}
 
-	hmw.bufferedLookupForHost = netgate.NewBufferedLookup(func(s string) []*ServiceStruct {
+	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.current {
 			if r.Hosts == nil || r.Hosts.MatchString(s) {
@@ -238,7 +238,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForCgi = netgate.NewBufferedLookup(func(s string) []*CgiStruct {
+	hmw.bufferedLookupForCgi = utils.NewBufferedLookup(func(s string) []*CgiStruct {
 		var m []*CgiStruct = nil
 		for _, t := range hmw.currentCgi {
 			for _, r := range t.CgiPaths {
@@ -250,7 +250,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return m
 	})
 
-	hmw.bufferedLookupForForward = netgate.NewBufferedLookup(func(s string) []*ServiceStruct {
+	hmw.bufferedLookupForForward = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.currentForward {
 			if r.Hosts.MatchString(s) {
@@ -260,11 +260,11 @@ func NewHttpMidware(sni []string) *Midware {
 		return ret
 	})
 
-	hmw.bufferedLookupForSNI = netgate.NewBufferedLookup(func(s string) bool {
+	hmw.bufferedLookupForSNI = utils.NewBufferedLookup(func(s string) bool {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 
-	hmw.sni = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
+	hmw.sni = utils.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
 
 	return hmw
 }

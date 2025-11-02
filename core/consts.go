@@ -1,4 +1,4 @@
-package netgate
+package core
 
 const (
 	ServerSign = "OpenNG"

@@ -1,4 +1,4 @@
-package netgate
+package config
 
 const DescHostnameFormat = "supported hostname format:\nexample.com\na.example.com\n*.example.com\n*"
 

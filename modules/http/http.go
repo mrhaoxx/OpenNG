@@ -18,7 +18,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/core"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/net"
 
@@ -251,7 +251,7 @@ func (w *NgResponseWriter) BypassEncoding() {
 }
 
 func (w *NgResponseWriter) initForWrite() {
-	w.HeaderRef.Set("Server", netgate.ServerSign)
+	w.HeaderRef.Set("Server", core.ServerSign)
 	switch w.code {
 	case StatusSwitchingProtocols: // do nothing
 		return

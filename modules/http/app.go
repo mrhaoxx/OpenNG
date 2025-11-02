@@ -5,9 +5,11 @@ import (
 	"net/url"
 
 	"github.com/dlclark/regexp2"
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
+	"github.com/mrhaoxx/OpenNG/core"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	opennet "github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -19,8 +21,8 @@ func init() {
 }
 
 func registerReverseProxier() {
-	netgate.Register("http::reverseproxier",
-		func(spec *netgate.ArgNode) (any, error) {
+	config.Register("http::reverseproxier",
+		func(spec *config.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowedHosts := spec.MustGet("allowhosts").ToStringList()
 
@@ -49,18 +51,18 @@ func registerReverseProxier() {
 			}
 
 			return proxier, nil
-		}, netgate.Assert{
+		}, config.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "HTTP reverse proxy configuration",
-			Sub: netgate.AssertMap{
+			Sub: config.AssertMap{
 				"hosts": {
 					Type: "list",
 					Desc: "reverse proxy host configurations",
-					Sub: netgate.AssertMap{
+					Sub: config.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: config.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -70,8 +72,8 @@ func registerReverseProxier() {
 									Type:     "list",
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
-									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+									Sub: config.AssertMap{
+										"_": {Type: "hostname", Desc: config.DescHostnameFormat},
 									},
 								},
 								"backend": {
@@ -101,10 +103,10 @@ func registerReverseProxier() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
+					Default: []*config.ArgNode{{Type: "hostname", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
-					Sub: netgate.AssertMap{
-						"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+					Sub: config.AssertMap{
+						"_": {Type: "hostname", Desc: config.DescHostnameFormat},
 					},
 				},
 			},
@@ -113,8 +115,8 @@ func registerReverseProxier() {
 }
 
 func registerMidware() {
-	netgate.Register("http::midware",
-		func(spec *netgate.ArgNode) (any, error) {
+	config.Register("http::midware",
+		func(spec *config.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			cgis := spec.MustGet("cgis").ToList()
 			forwards := spec.MustGet("forward").ToList()
@@ -125,7 +127,7 @@ func registerMidware() {
 				CgiHandler: func(ctx *HttpCtx, path string) Ret {
 					ctx.Resp.Header().Set("Content-Type", "image/svg+xml")
 					ctx.Resp.Header().Set("Cache-Control", "max-age=2592000")
-					ctx.Resp.Write(netgate.Logo())
+					ctx.Resp.Write(core.Logo())
 
 					return RequestEnd
 				},
@@ -142,11 +144,11 @@ func registerMidware() {
 					return nil, errors.New("ptr " + name + " is not a http.Service")
 				}
 
-				var compiled netgate.GroupRegexp
+				var compiled utils.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddServices(&ServiceStruct{
@@ -190,11 +192,11 @@ func registerMidware() {
 					return nil, errors.New("ptr " + name + " is not a http.Forward")
 				}
 
-				var compiled netgate.GroupRegexp
+				var compiled utils.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.HostsForward()
 				} else {
-					compiled = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddForwardServices(&ServiceStruct{
@@ -211,22 +213,22 @@ func registerMidware() {
 			}
 
 			return midware, nil
-		}, netgate.Assert{
+		}, config.Assert{
 			Type: "map",
-			Sub: netgate.AssertMap{
+			Sub: config.AssertMap{
 				"services": {
 					Type: "list",
-					Sub: netgate.AssertMap{
+					Sub: config.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: config.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+									Sub: config.AssertMap{
+										"_": {Type: "hostname", Desc: config.DescHostnameFormat},
 									},
 								},
 							},
@@ -235,17 +237,17 @@ func registerMidware() {
 				},
 				"cgis": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{},
+					Default: []*config.ArgNode{},
 					Desc:    "CGI handlers for /ng-cgi/* paths",
-					Sub: netgate.AssertMap{
+					Sub: config.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: config.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
 								"paths": {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
-									Sub: netgate.AssertMap{
+									Sub: config.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -255,20 +257,20 @@ func registerMidware() {
 				},
 				"forward": {
 					Type:    "list",
-					Default: []*netgate.ArgNode{},
+					Default: []*config.ArgNode{},
 					Desc:    "forward proxy handlers",
-					Sub: netgate.AssertMap{
+					Sub: config.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: config.AssertMap{
 								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
-									Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
+									Default: []*config.ArgNode{{Type: "hostname", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
-									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+									Sub: config.AssertMap{
+										"_": {Type: "hostname", Desc: config.DescHostnameFormat},
 									},
 								},
 							},
@@ -281,8 +283,8 @@ func registerMidware() {
 }
 
 func registerMidwareAddService() {
-	netgate.Register("http::midware::addservice",
-		func(spec *netgate.ArgNode) (any, error) {
+	config.Register("http::midware::addservice",
+		func(spec *config.ArgNode) (any, error) {
 			midware, ok := spec.MustGet("midware").Value.(*Midware)
 			if !ok {
 				return nil, errors.New("ptr is not a http.Midware")
@@ -300,11 +302,11 @@ func registerMidwareAddService() {
 					return nil, errors.New("ptr " + name + " is not a http.Service")
 				}
 
-				var compiled netgate.GroupRegexp
+				var compiled utils.GroupRegexp
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 				}
 
 				midware.AddServices(&ServiceStruct{
@@ -321,24 +323,24 @@ func registerMidwareAddService() {
 			}
 
 			return nil, nil
-		}, netgate.Assert{
+		}, config.Assert{
 			Type: "map",
 			Desc: "adds additional HTTP services to an existing HTTP middleware",
-			Sub: netgate.AssertMap{
+			Sub: config.AssertMap{
 				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
 				"services": {
 					Type: "list",
 					Desc: "list of HTTP services to add",
-					Sub: netgate.AssertMap{
+					Sub: config.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: netgate.AssertMap{
+							Sub: config.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+									Sub: config.AssertMap{
+										"_": {Type: "hostname", Desc: config.DescHostnameFormat},
 									},
 								},
 								"name": {Type: "string", Required: true, Desc: "name of the service (used in logs and monitoring)"},
@@ -352,9 +354,9 @@ func registerMidwareAddService() {
 }
 
 func registerSecureHTTP() {
-	netgate.Register("tcp::securehttp",
-		func(spec *netgate.ArgNode) (any, error) {
+	config.Register("tcp::securehttp",
+		func(spec *config.ArgNode) (any, error) {
 			return Redirect2TLS, nil
-		}, netgate.Assert{Type: "null"},
+		}, config.Assert{Type: "null"},
 	)
 }

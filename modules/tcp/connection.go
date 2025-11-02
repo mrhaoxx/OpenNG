@@ -9,9 +9,8 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/mrhaoxx/OpenNG/context"
 	ngnet "github.com/mrhaoxx/OpenNG/net"
-
-	netgate "github.com/mrhaoxx/OpenNG"
 )
 
 type Conn struct {
@@ -28,7 +27,7 @@ type Conn struct {
 
 	//communication
 	closing chan struct{}
-	netgate.Context
+	context.Context
 
 	//sync(lock)
 	addr   net.Addr
@@ -179,6 +178,6 @@ func head(cn net.Conn) *Conn {
 }
 
 type mainCtx struct {
-	netgate.SignalContext
-	netgate.StoreContext
+	context.SignalContext
+	context.StoreContext
 }
