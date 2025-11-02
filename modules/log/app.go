@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"os"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
 	"github.com/mrhaoxx/OpenNG/log"
 )
 
 func init() {
-	netgate.Register("log::add", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::add", func(an *config.ArgNode) (any, error) {
 		logger, ok := an.Value.(log.Logger)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a log.Logger")
 		}
 		log.Loggers.Add(logger)
 		return nil, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "ptr",
 	})
 
-	netgate.Register("log::set", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::set", func(an *config.ArgNode) (any, error) {
 		logger := an.ToList()
 
 		loggers := []log.Logger{}
@@ -35,32 +35,32 @@ func init() {
 
 		log.Loggers.Set(loggers)
 		return nil, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "list",
-		Sub: netgate.AssertMap{
+		Sub: config.AssertMap{
 			"_": {Type: "ptr"},
 		},
 	})
 
-	netgate.Register("log::reset", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::reset", func(an *config.ArgNode) (any, error) {
 		log.Loggers.Reset()
 		return nil, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "null",
 	})
 
-	netgate.Register("log::stdout", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::stdout", func(an *config.ArgNode) (any, error) {
 		return os.Stdout, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "null",
 	})
-	netgate.Register("log::stderr", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::stderr", func(an *config.ArgNode) (any, error) {
 		return os.Stderr, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "null",
 	})
 
-	netgate.Register("log::file", func(an *netgate.ArgNode) (any, error) {
+	config.Register("log::file", func(an *config.ArgNode) (any, error) {
 		path, ok := an.Value.(string)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a string")
@@ -70,7 +70,7 @@ func init() {
 			return nil, fmt.Errorf("cannot open log file: %v", err)
 		}
 		return f, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "string",
 	})
 

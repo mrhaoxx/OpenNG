@@ -47,9 +47,9 @@ func registerWebUI() {
 }
 
 func registerSSELogger() {
-	netgate.Register("webui::sselog", func(an *netgate.ArgNode) (any, error) {
+	config.Register("webui::sselog", func(an *config.ArgNode) (any, error) {
 		return Sselogger, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type: "null",
 	})
 }
