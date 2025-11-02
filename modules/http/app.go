@@ -72,7 +72,7 @@ func registerReverseProxier() {
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
 									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+										"_": {Type: "hostname"},
 									},
 								},
 								"backend": {
@@ -105,7 +105,7 @@ func registerReverseProxier() {
 					Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
 					Sub: netgate.AssertMap{
-						"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+						"_": {Type: "hostname"},
 					},
 				},
 			},
@@ -227,7 +227,7 @@ func registerMidware() {
 									Type: "list",
 									Desc: "hostnames this service handles",
 									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+										"_": {Type: "hostname"},
 									},
 								},
 							},
@@ -269,7 +269,7 @@ func registerMidware() {
 									Default: []*netgate.ArgNode{{Type: "hostname", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
 									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+										"_": {Type: "hostname"},
 									},
 								},
 							},
@@ -339,7 +339,7 @@ func registerMidwareAddService() {
 									Type: "list",
 									Desc: "hostnames this service handles",
 									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+										"_": {Type: "hostname"},
 									},
 								},
 								"name": {Type: "string", Required: true, Desc: "name of the service (used in logs and monitoring)"},

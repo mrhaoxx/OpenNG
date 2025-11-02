@@ -43,7 +43,7 @@ func init() {
 
 		var vars any
 		if err == nil {
-			vars = varsNode.ToValue()
+			vars = varsNode.ToAny()
 		}
 
 		log.Debug().

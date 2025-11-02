@@ -1,10 +1,8 @@
-package netgate
+package netgatecmd
 
-import (
-	"encoding/json"
-)
+import netgate "github.com/mrhaoxx/OpenNG"
 
-func (m Assert) ToScheme(depth, maxDepth int) any {
+func ToScheme(m netgate.Assert, depth, maxDepth int) any {
 	switch m.Type {
 	case "int":
 		res := map[string]any{
@@ -51,7 +49,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 		}
 
 		conds := []any{}
-		for k, v := range refs_assertions {
+		for k, v := range netgate.AssertionsRegistry() {
 			if k == "_" {
 				continue
 			}
@@ -64,7 +62,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 				},
 				"then": map[string]any{
 					"properties": map[string]any{
-						"spec": v.ToScheme(depth+1, maxDepth),
+						"spec": ToScheme(v, depth+1, maxDepth),
 					},
 					"description": v.Desc,
 				},
@@ -139,7 +137,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 		if sub, ok := m.Sub["_"]; !ok {
 			result["additionalProperties"] = false
 		} else {
-			result["additionalProperties"] = sub.ToScheme(depth, maxDepth)
+			result["additionalProperties"] = ToScheme(sub, depth, maxDepth)
 		}
 
 		props := map[string]any{}
@@ -150,7 +148,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 			if key == "_" {
 				continue
 			}
-			props[key] = value.ToScheme(depth+1, maxDepth)
+			props[key] = ToScheme(value, depth+1, maxDepth)
 			if value.Required {
 				requried = append(requried, key)
 			}
@@ -172,7 +170,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 			"description": m.Desc,
 		}
 		if def, ok := m.Sub["_"]; ok {
-			result["items"] = def.ToScheme(depth+1, maxDepth)
+			result["items"] = ToScheme(def, depth+1, maxDepth)
 		}
 
 		if m.Default != nil {
@@ -210,46 +208,5 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 	}
 
 	return map[string]any{}
-}
 
-func GenerateJsonSchema() []byte {
-
-	root := refs_assertions["_"].ToScheme(0, 5).(map[string]any)
-
-	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-
-	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
-
-	allOf := []any{}
-
-	for k, v := range refs_assertions {
-
-		if k == "_" {
-			continue
-		}
-
-		allOf = append(allOf, map[string]any{
-			"if": map[string]any{
-				"properties": map[string]any{
-					"kind": map[string]any{
-						"const": k,
-					},
-				},
-			},
-			"then": map[string]any{
-				"properties": map[string]any{
-					"spec": v.ToScheme(0, 5),
-				},
-				"description": v.Desc,
-			},
-		})
-	}
-
-	if len(allOf) > 0 {
-		services["allOf"] = allOf
-	}
-
-	s, _ := json.Marshal(root)
-
-	return s
 }

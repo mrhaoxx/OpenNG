@@ -209,7 +209,7 @@ func init() {
 									Type: "list",
 									Desc: "matching Hosts, empty means none",
 									Sub: netgate.AssertMap{
-										"_": {Type: "hostname", Desc: netgate.DescHostnameFormat},
+										"_": {Type: "hostname"},
 									},
 								},
 								"Paths": {

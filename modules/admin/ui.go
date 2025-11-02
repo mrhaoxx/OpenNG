@@ -21,8 +21,6 @@ import (
 	zlog "github.com/rs/zerolog/log"
 
 	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
-
-	netgate "github.com/mrhaoxx/OpenNG"
 )
 
 //go:embed html/dist
@@ -121,7 +119,7 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/schema":
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		ctx.Resp.Write(netgate.GenerateJsonSchema())
+		ctx.Resp.Write(netgatecmd.GenerateJsonSchema())
 
 	case "/genhash":
 		b, _ := io.ReadAll(ctx.Req.Body)

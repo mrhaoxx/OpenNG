@@ -1,6 +1,7 @@
 package netgatecmd
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -62,7 +63,7 @@ config: %s
 
 	switch {
 	case *printjsonschema:
-		os.Stdout.Write(netgate.GenerateJsonSchema())
+		os.Stdout.Write(GenerateJsonSchema())
 		return
 	case *printversion:
 		return
@@ -86,4 +87,47 @@ config: %s
 
 	fmt.Fprintf(os.Stderr, "configuration from %s loaded in %s\n", *Configfile, time.Since(_start).String())
 	select {}
+}
+
+func GenerateJsonSchema() []byte {
+	refs_assertions := netgate.AssertionsRegistry()
+
+	root := ToScheme(TopLevelConfigAssertion, 0, 5).(map[string]any)
+
+	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+
+	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
+
+	allOf := []any{}
+
+	for k, v := range refs_assertions {
+
+		if k == "_" {
+			continue
+		}
+
+		allOf = append(allOf, map[string]any{
+			"if": map[string]any{
+				"properties": map[string]any{
+					"kind": map[string]any{
+						"const": k,
+					},
+				},
+			},
+			"then": map[string]any{
+				"properties": map[string]any{
+					"spec": ToScheme(v, 0, 5),
+				},
+				"description": v.Desc,
+			},
+		})
+	}
+
+	if len(allOf) > 0 {
+		services["allOf"] = allOf
+	}
+
+	s, _ := json.Marshal(root)
+
+	return s
 }

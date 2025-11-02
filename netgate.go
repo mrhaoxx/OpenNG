@@ -1,13 +1,12 @@
 package netgate
 
 import (
+	_ "embed"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/net"
-	"github.com/rs/zerolog/log"
-
-	_ "embed"
 )
 
 //go:embed cmd/NetGATE.svg
@@ -21,268 +20,286 @@ const (
 	ServerSign = "OpenNG"
 )
 
-type Space struct {
-	Services map[string]any
+var refs_assertions = map[string]Assert{}
+
+var refs = map[string]Inst{}
+
+func Register(name string, inst Inst, assert Assert) {
+	refs[name] = inst
+	refs_assertions[name] = assert
 }
 
-func (space *Space) Apply(root *ArgNode, reload bool) error {
-
-	if err := Dedref(root); err != nil {
-		return err
-	}
-
-	if err := root.Assert(refs_assertions["_"]); err != nil {
-		return err
-	}
-
-	reload_errors := []error{}
-
-	srvs := root.MustGet("Services")
-
-	for i, _srv := range srvs.Value.([]*ArgNode) {
-		_time := time.Now()
-
-		_ref := _srv.MustGet("kind").ToString()
-		to := _srv.MustGet("name").ToString()
-
-		ref, ok := refs[_ref]
-		if !ok {
-			return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
-		}
-
-		spec := _srv.MustGet("spec")
-
-		spec_assert, ok := refs_assertions[_ref]
-		if !ok {
-			return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
-		}
-
-		err := spec.Assert(spec_assert)
-
-		if err != nil {
-			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-		}
-
-		err = space.Deptr(spec, false)
-
-		if err != nil {
-			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-
-			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to deptr")
-
-			if !reload {
-				return ret_err
-			} else {
-				reload_errors = append(reload_errors, ret_err)
-				continue
-			}
-		}
-
-		inst, err := ref(spec)
-
-		if err != nil {
-			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-
-			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to call ref")
-
-			if !reload {
-				return ret_err
-			} else {
-				reload_errors = append(reload_errors, ret_err)
-				continue
-			}
-		}
-
-		space.Services[to] = inst
-
-		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
-
-		log.Info().Str("kind", _ref).Str("name", to).Dur("elapsed", time.Since(_time)).Int("index", i).Msg("service applied")
-
-	}
-
-	if reload && len(reload_errors) > 0 {
-		var errstr string
-		for _, e := range reload_errors {
-			errstr += e.Error() + "\n"
-		}
-		return fmt.Errorf("reload failed:\n%s", errstr)
-	}
-
-	return nil
-
+func Registry() map[string]Inst {
+	return refs
 }
 
-func (space *Space) Deptr(root *ArgNode, validate bool) error {
-	if root == nil {
+func AssertionsRegistry() map[string]Assert {
+	return refs_assertions
+}
+
+type Inst func(*ArgNode) (any, error)
+
+type AssertMap map[string]Assert
+
+type Assert struct {
+	Type     string
+	Required bool
+	Forced   bool
+	Sub      AssertMap
+
+	Default any
+
+	Enum         []any
+	AllowNonEnum bool
+	Desc         string
+}
+
+type ArgNode struct {
+	Type  string
+	Value any
+}
+
+func (node *ArgNode) MustGet(path string) *ArgNode {
+	v, _ := node.Get(path)
+	return v
+}
+
+func (node *ArgNode) ToStringList() []string {
+	if node == nil {
 		return nil
 	}
 
-	var walk func(*ArgNode) error
-	walk = func(node *ArgNode) error {
-		switch node.Type {
-		case "map":
-			for k, v := range node.ToMap() {
-				err := walk(v)
-				if err != nil {
-					return fmt.Errorf(".%s: %w", k, err)
+	if node.Type != "list" {
+		return nil
+	}
+	var ret []string
+	for _, v := range node.ToList() {
+		if v.Value == nil {
+			ret = append(ret, "")
+		} else {
+			ret = append(ret, v.Value.(string))
+		}
+	}
+	return ret
+}
+
+func (node *ArgNode) ToString() string {
+	if node == nil {
+		return ""
+	}
+
+	return node.Value.(string)
+}
+
+func (node *ArgNode) ToInt() int {
+	if node == nil {
+		return 0
+	}
+	if node.Type != "int" {
+		return 0
+	}
+	return node.Value.(int)
+}
+
+func (node *ArgNode) ToBool() bool {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "bool" {
+		return false
+	}
+	return node.Value.(bool)
+}
+
+func (node *ArgNode) ToList() []*ArgNode {
+	if node == nil {
+		return nil
+	}
+
+	if node.Type != "list" {
+		return nil
+	}
+	return node.Value.([]*ArgNode)
+}
+
+func (node *ArgNode) ToMap() map[string]*ArgNode {
+	if node == nil {
+		panic("nil node")
+	}
+
+	if node.Type != "map" {
+		return nil
+	}
+	return node.Value.(map[string]*ArgNode)
+}
+
+func (node *ArgNode) ToDuration() time.Duration {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "duration" {
+		return 0
+	}
+
+	return node.Value.(time.Duration)
+}
+
+func (node *ArgNode) ToURL() *net.URL {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "url" {
+		return nil
+	}
+
+	return node.Value.(*net.URL)
+}
+
+func (node *ArgNode) ToAny() any {
+	if node == nil {
+		return nil
+	}
+	switch node.Type {
+	case "map":
+		ret := map[string]any{}
+		for k, v := range node.Value.(map[string]*ArgNode) {
+			ret[k] = v.ToAny()
+		}
+		return ret
+
+	case "list":
+		ret := make([]any, len(node.ToList()))
+		for i, v := range node.ToList() {
+			ret[i] = v.ToAny()
+		}
+		return ret
+	default:
+		return node.Value
+	}
+}
+
+func (m *ArgNode) FromAny(raw any) error {
+	switch raw := raw.(type) {
+	case nil:
+		m.Type = "null"
+		m.Value = nil
+		return nil
+	case string:
+		switch {
+		case strings.HasPrefix(raw, "$dref{"):
+			{
+				if strings.HasSuffix(raw, "...") {
+					m.Type = "dref..."
+					m.Value = raw[len("$dref{") : len(raw)-4]
+					return nil
 				}
-			}
-		case "list":
-			for i, v := range node.ToList() {
-				err := walk(v)
-				if err != nil {
-					return fmt.Errorf("[%d]: %w", i, err)
-				}
-			}
-		case "url":
-			if node.Value == nil {
-				node.Value = []*net.URL{}
+				m.Type = "dref"
+				m.Value = raw[len("$dref{") : len(raw)-1]
 				return nil
 			}
-			realnode, ok := node.Value.(*net.URL)
-			if !ok {
-				return fmt.Errorf("expected url, got %T", node.Value)
-			}
-			if realnode.Interface != "" {
-				v, ok := space.Services[realnode.Interface]
-				if ok {
-					if !validate {
-						node.Value.(*net.URL).Underlying = v.(net.Interface)
-					}
-				} else {
-					return fmt.Errorf("url interface not found: %s", realnode.Interface)
-				}
-			}
-		case "ptr":
-			switch v := node.Value.(type) {
-			case string:
-				if svc, ok := space.Services[v]; ok {
-					node.Value = svc
-				} else {
-					return fmt.Errorf("ptr not found: %s", v)
-				}
-			case map[string]*ArgNode:
-				inst, err := space.instantiateAnon(v, validate)
-				if err != nil {
-					return err
-				}
-				node.Value = inst
-			case *ArgNode:
-				if v.Type != "map" {
-					return fmt.Errorf("invalid anonymous ptr node type: %s", v.Type)
-				}
-				mm := v.Value.(map[string]*ArgNode)
-				inst, err := space.instantiateAnon(mm, validate)
-				if err != nil {
-					return err
-				}
-				node.Value = inst
-			default:
-				return fmt.Errorf("ptr expects name or inline anonymous object, got %T", node.Value)
-			}
+		default:
+			m.Type = "string"
+			m.Value = raw
+			return nil
 		}
+	case int:
+		m.Type = "int"
+		m.Value = raw
 		return nil
-	}
-
-	return walk(root)
-}
-
-func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, error) {
-	var kind string
-	if k, ok := m["kind"]; ok && k != nil {
-		if k.Type != "string" {
-			return nil, fmt.Errorf("anonymous object: kind must be string")
-		}
-		kind = k.ToString()
-	} else {
-		return nil, fmt.Errorf("anonymous object missing kind")
-	}
-
-	spec := &ArgNode{Type: "null", Value: nil}
-	if s, ok := m["spec"]; ok && s != nil {
-		spec = s
-	}
-
-	specAssert, ok := refs_assertions[kind]
-	if !ok {
-		return nil, fmt.Errorf("assert not found: %s", kind)
-	}
-	if err := spec.Assert(specAssert); err != nil {
-		return nil, fmt.Errorf("%s: assert failed: %w", kind, err)
-	}
-
-	if err := space.Deptr(spec, validate); err != nil {
-		return nil, fmt.Errorf("%s: %w", kind, err)
-	}
-
-	ref, ok := refs[kind]
-	if !ok {
-		ref, ok = refs[kind]
-		if !ok {
-			return nil, fmt.Errorf("kind not found: %s", kind)
-		}
-	}
-
-	if validate {
-		defer func() {
-			if r := recover(); r != nil {
+	case float64:
+		m.Type = "float"
+		m.Value = raw
+		return nil
+	case bool:
+		m.Type = "bool"
+		m.Value = raw
+		return nil
+	case map[string]any:
+		subnodes := make(map[string]*ArgNode)
+		for k, v := range raw {
+			subnode := &ArgNode{}
+			err := subnode.FromAny(v)
+			if err != nil {
+				return err
 			}
-		}()
+			subnodes[k] = subnode
+		}
+		m.Type = "map"
+		m.Value = subnodes
+		return nil
+	case []interface{}:
+		subnodes := make([]*ArgNode, len(raw))
+		for i, v := range raw {
+			subnode := &ArgNode{}
+			err := subnode.FromAny(v)
+			if err != nil {
+				return err
+			}
+			subnodes[i] = subnode
+		}
+		m.Type = "list"
+		m.Value = subnodes
+		return nil
+	default:
+		return fmt.Errorf("unsupported type: %T", raw)
 	}
-
-	inst, err := ref(spec)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", kind, err)
-	}
-	return inst, nil
 }
 
-func (space *Space) Validate(root *ArgNode) []error {
-	if err := Dedref(root); err != nil {
-		return []error{err}
+func (node *ArgNode) Get(path string) (*ArgNode, error) {
+	if path == "" {
+		return node, nil
 	}
 
-	if err := root.Assert(refs_assertions["_"]); err != nil {
-		return []error{err}
+	if node == nil {
+		return nil, fmt.Errorf("path not found")
 	}
 
-	errors := []error{}
+	switch node.Type {
+	case "map":
+		access := strings.Split(path, ".")
 
-	srvs := root.MustGet("Services")
+		rh := access[0]
+		if strings.HasSuffix(access[0], "]") {
+			rh = rh[:strings.LastIndex(access[0], "[")]
+			access[0] = access[0][len(rh):]
+		} else {
+			access = access[1:]
+		}
 
-	for i, _srv := range srvs.Value.([]*ArgNode) {
-
-		_ref := _srv.MustGet("kind").ToString()
-		to := _srv.MustGet("name").ToString()
-
-		spec := _srv.MustGet("spec")
-
-		spec_assert, ok := refs_assertions[_ref]
+		v, ok := node.ToMap()[rh]
 		if !ok {
-			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
-			continue
+			return nil, fmt.Errorf("path not found")
 		}
+		return v.Get(strings.Join(access, "."))
+	case "list":
+		if strings.HasPrefix(path, "[") {
 
-		err := spec.Assert(spec_assert)
-
-		if err != nil {
-			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
-			continue
+			var index int
+			fmt.Sscanf(path, "[%d]", &index)
+			inds := path[len(fmt.Sprintf("[%d]", index)):]
+			if inds == "" {
+				return node.ToList()[index], nil
+			} else if inds[0] == '.' {
+				return node.ToList()[index].Get(inds[1:])
+			}
+			return nil, fmt.Errorf("invalid path")
+		} else {
+			for _, v := range node.ToList() {
+				name, err := v.Get("name")
+				if err != nil || name.Type != "string" {
+					continue
+				}
+				if strings.HasPrefix(path, name.Value.(string)) {
+					inds := path[len(name.Value.(string)):]
+					if inds == "" {
+						return v, nil
+					} else if inds[0] == '.' {
+						return v.Get(inds[1:])
+					}
+				}
+			}
 		}
-
-		err = space.Deptr(spec, true)
-
-		if err != nil {
-			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
-			continue
-		}
-
-		if to != "" && to != "_" {
-			space.Services[to] = true
-		}
-
 	}
 
-	return errors
+	return nil, fmt.Errorf("path not found")
 }
