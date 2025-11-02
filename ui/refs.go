@@ -145,17 +145,87 @@ func (space *Space) Deptr(root *ArgNode, validate bool) error {
 				}
 			}
 		case "ptr":
-			v, ok := space.Services[node.Value.(string)]
-			if ok {
-				node.Value = v
-			} else {
-				return fmt.Errorf("ptr not found: %s", node.Value.(string))
+			switch v := node.Value.(type) {
+			case string:
+				if svc, ok := space.Services[v]; ok {
+					node.Value = svc
+				} else {
+					return fmt.Errorf("ptr not found: %s", v)
+				}
+			case map[string]*ArgNode:
+				inst, err := space.instantiateAnon(v, validate)
+				if err != nil {
+					return err
+				}
+				node.Value = inst
+			case *ArgNode:
+				if v.Type != "map" {
+					return fmt.Errorf("invalid anonymous ptr node type: %s", v.Type)
+				}
+				mm := v.Value.(map[string]*ArgNode)
+				inst, err := space.instantiateAnon(mm, validate)
+				if err != nil {
+					return err
+				}
+				node.Value = inst
+			default:
+				return fmt.Errorf("ptr expects name or inline anonymous object, got %T", node.Value)
 			}
 		}
 		return nil
 	}
 
 	return walk(root)
+}
+
+func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, error) {
+	var kind string
+	if k, ok := m["kind"]; ok && k != nil {
+		if k.Type != "string" {
+			return nil, fmt.Errorf("anonymous object: kind must be string")
+		}
+		kind = k.ToString()
+	} else {
+		return nil, fmt.Errorf("anonymous object missing kind")
+	}
+
+	spec := &ArgNode{Type: "null", Value: nil}
+	if s, ok := m["spec"]; ok && s != nil {
+		spec = s
+	}
+
+	specAssert, ok := _builtin_refs_assertions[kind]
+	if !ok {
+		return nil, fmt.Errorf("assert not found: %s", kind)
+	}
+	if err := spec.Assert(specAssert); err != nil {
+		return nil, fmt.Errorf("%s: assert failed: %w", kind, err)
+	}
+
+	if err := space.Deptr(spec, validate); err != nil {
+		return nil, fmt.Errorf("%s: %w", kind, err)
+	}
+
+	ref, ok := space.Refs[kind]
+	if !ok {
+		ref, ok = _builtin_refs[kind]
+		if !ok {
+			return nil, fmt.Errorf("kind not found: %s", kind)
+		}
+	}
+
+	if validate {
+		defer func() {
+			if r := recover(); r != nil {
+			}
+		}()
+	}
+
+	inst, err := ref(spec)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", kind, err)
+	}
+	return inst, nil
 }
 
 func LoadCfg(cfgs []byte, reload bool) error {

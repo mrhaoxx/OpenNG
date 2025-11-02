@@ -7,7 +7,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-func (m Assert) ToScheme() any {
+func (m Assert) ToScheme(depth, maxDepth int) any {
 	switch m.Type {
 	case "int":
 		res := map[string]any{
@@ -35,10 +35,58 @@ func (m Assert) ToScheme() any {
 
 		return res
 	case "ptr":
+		if depth >= maxDepth {
+			return map[string]any{
+				"type":         "string",
+				"description":  "(ptr) " + m.Desc,
+				"errorMessage": "Pointer must be a string (max nesting depth reached)",
+			}
+		}
+
+		anon := map[string]any{
+			"type":        "object",
+			"description": "(anonymous) " + m.Desc,
+			"properties": map[string]any{
+				"kind": map[string]any{"type": "string"},
+				"spec": map[string]any{},
+			},
+			"additionalProperties": false,
+		}
+
+		conds := []any{}
+		for k, v := range _builtin_refs_assertions {
+			if k == "_" {
+				continue
+			}
+			conds = append(conds, map[string]any{
+				"if": map[string]any{
+					"properties": map[string]any{
+						"kind": map[string]any{"const": k},
+					},
+					"required": []string{"kind"},
+				},
+				"then": map[string]any{
+					"properties": map[string]any{
+						"spec": v.ToScheme(depth+1, maxDepth),
+					},
+					"description": v.Desc,
+				},
+			})
+		}
+		if len(conds) > 0 {
+			anon["allOf"] = conds
+		}
+
 		return map[string]any{
-			"type":         "string",
-			"description":  "(ptr) " + m.Desc,
-			"errorMessage": "Pointer must be a string",
+			"description": m.Desc,
+			"anyOf": []any{
+				map[string]any{
+					"type":         "string",
+					"description":  "(ptr) " + m.Desc,
+					"errorMessage": "Pointer must be a string or an anonymous object",
+				},
+				anon,
+			},
 		}
 
 	case "string":
@@ -79,6 +127,13 @@ func (m Assert) ToScheme() any {
 		return res
 
 	case "map":
+		if depth >= maxDepth {
+			return map[string]any{
+				"type":         "object",
+				"description":  "(map) " + m.Desc,
+				"errorMessage": "Map must be an object (max nesting depth reached)",
+			}
+		}
 		result := map[string]any{
 			"type":        "object",
 			"description": m.Desc,
@@ -87,7 +142,7 @@ func (m Assert) ToScheme() any {
 		if sub, ok := m.Sub["_"]; !ok {
 			result["additionalProperties"] = false
 		} else {
-			result["additionalProperties"] = sub.ToScheme()
+			result["additionalProperties"] = sub.ToScheme(depth, maxDepth)
 		}
 
 		props := map[string]any{}
@@ -98,7 +153,7 @@ func (m Assert) ToScheme() any {
 			if key == "_" {
 				continue
 			}
-			props[key] = value.ToScheme()
+			props[key] = value.ToScheme(depth+1, maxDepth)
 			if value.Required {
 				requried = append(requried, key)
 			}
@@ -120,7 +175,7 @@ func (m Assert) ToScheme() any {
 			"description": m.Desc,
 		}
 		if def, ok := m.Sub["_"]; ok {
-			result["items"] = def.ToScheme()
+			result["items"] = def.ToScheme(depth+1, maxDepth)
 		}
 
 		if m.Default != nil {
@@ -162,9 +217,9 @@ func (m Assert) ToScheme() any {
 
 func GenerateJsonSchema() []byte {
 
-	root := _builtin_refs_assertions["_"].ToScheme().(map[string]any)
+	root := _builtin_refs_assertions["_"].ToScheme(0, 5).(map[string]any)
 
-	root["$scheme"] = "https://json-schema.org/draft/2020-12/schema"
+	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 
 	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
 
@@ -186,7 +241,7 @@ func GenerateJsonSchema() []byte {
 			},
 			"then": map[string]any{
 				"properties": map[string]any{
-					"spec": v.ToScheme(),
+					"spec": v.ToScheme(0, 5),
 				},
 				"description": v.Desc,
 			},

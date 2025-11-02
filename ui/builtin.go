@@ -511,6 +511,16 @@ var _builtin_refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::http::expr": {
+		Type:     "string",
+		Required: true,
+		Desc:     "expression-based authentication backend",
+	},
+	"builtin::tcp::expr": {
+		Type:     "string",
+		Required: true,
+		Desc:     "expression-based TCP backend",
+	},
 	"builtin::auth::knocked": {
 		Type: "map",
 		Sub: AssertMap{
@@ -1384,6 +1394,24 @@ var _builtin_refs = map[string]Inst{
 		policyd.AddBackends(b)
 
 		return policyd, nil
+	},
+	"builtin::http::expr": func(spec *ArgNode) (any, error) {
+		expression := spec.ToString()
+
+		zlog.Debug().
+			Str("expression", expression).
+			Msg("new http expr backend")
+
+		return http.NewExprbased(expression)
+	},
+	"builtin::tcp::expr": func(spec *ArgNode) (any, error) {
+		expression := spec.ToString()
+
+		zlog.Debug().
+			Str("expression", expression).
+			Msg("new tcp expr backend")
+
+		return tcp.NewExprbased(expression)
 	},
 	"builtin::auth::knocked": func(spec *ArgNode) (any, error) {
 		timeout := spec.MustGet("timeout").ToDuration()

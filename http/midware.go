@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -166,7 +165,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 			}
 
 			if RequestCtx.Resp.code == 0 {
-				RequestCtx.Resp.ErrorPage(http.StatusInternalServerError, fmt.Sprintf("Panic: %v", err))
+				RequestCtx.Resp.ErrorPage(http.StatusInternalServerError, "Internal Server Error")
 			}
 		}
 	}()
@@ -231,7 +230,7 @@ func NewHttpMidware(sni []string) *Midware {
 	hmw.bufferedLookupForHost = utils.NewBufferedLookup(func(s string) []*ServiceStruct {
 		ret := make([]*ServiceStruct, 0)
 		for _, r := range hmw.current {
-			if r.Hosts.MatchString(s) {
+			if r.Hosts == nil || r.Hosts.MatchString(s) {
 				ret = append(ret, r)
 			}
 		}

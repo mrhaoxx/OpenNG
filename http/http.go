@@ -51,8 +51,8 @@ func (c *HttpCtx) Redirect(url string, code int) {
 	http.Redirect(c.Resp, c.Req, url, code)
 }
 
-func (c *HttpCtx) WriteString(s string) {
-	io.WriteString(c.Resp, s)
+func (c *HttpCtx) WriteString(s string) (n int, err error) {
+	return io.WriteString(c.Resp, s)
 }
 
 func (c *HttpCtx) SetCookie(k *http.Cookie) {
@@ -174,6 +174,7 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 		writer:         nil,
 		stdrw:          rw,
 		acceptEncoding: r.Header.Get("Accept-Encoding"),
+		HeaderRef:      rw.Header(),
 	}
 
 	r.Header.Del("Accept-Encoding") // we don't want the backend to encode. WE DO IT.
@@ -206,6 +207,8 @@ func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *tcp.Conn) 
 type NgResponseWriter struct {
 	writer io.Writer
 	stdrw  http.ResponseWriter
+
+	HeaderRef http.Header
 
 	acceptEncoding string
 
@@ -241,13 +244,13 @@ func (w *NgResponseWriter) Header() http.Header {
 
 func (w *NgResponseWriter) BypassEncoding() {
 	if w.acceptEncoding != "" {
-		w.Header().Set("Accept-Encoding", w.acceptEncoding)
+		w.HeaderRef.Set("Accept-Encoding", w.acceptEncoding)
 		w.acceptEncoding = ""
 	}
 }
 
 func (w *NgResponseWriter) initForWrite() {
-	w.Header().Set("Server", utils.ServerSign)
+	w.HeaderRef.Set("Server", utils.ServerSign)
 	switch w.code {
 	case StatusSwitchingProtocols: // do nothing
 		return
@@ -256,11 +259,11 @@ func (w *NgResponseWriter) initForWrite() {
 		w.code = StatusOK
 		fallthrough
 	default: // init encode
-		if w.Header().Get("Content-Encoding") == "" &&
+		if w.HeaderRef.Get("Content-Encoding") == "" &&
 			w.acceptEncoding != "" { // if the content hasn't encoded,then we encode it here
-			ContentLength, _ := strconv.ParseUint(w.Header().Get("Content-Length"), 10, 64)         // get the content length
-			ContentType := w.Header().Get("Content-Type")                                           // get the content type
-			IsDownloading := strings.HasPrefix(w.Header().Get("Content-Disposition"), "attachment") // check if this request is a download action
+			ContentLength, _ := strconv.ParseUint(w.HeaderRef.Get("Content-Length"), 10, 64)         // get the content length
+			ContentType := w.HeaderRef.Get("Content-Type")                                           // get the content type
+			IsDownloading := strings.HasPrefix(w.HeaderRef.Get("Content-Disposition"), "attachment") // check if this request is a download action
 			switch {
 			case IsDownloading: // don't encode if is downloading
 			// case ContentLength <= 1024: // don't encode if size too small
@@ -281,8 +284,8 @@ func (w *NgResponseWriter) initForWrite() {
 		}
 	}
 	if w.encoding != EncodingRAW {
-		w.Header().Add("Content-Encoding", w.encoding.String())
-		w.Header().Del("Content-Length") // delete the content length that is no more correct after the encode
+		w.HeaderRef.Add("Content-Encoding", w.encoding.String())
+		w.HeaderRef.Del("Content-Length") // delete the content length that is no more correct after the encode
 
 		_w := encoderpool[w.encoding].Get().(io.Writer) //get encoder from pool
 		_w.(reSetter).Reset(w.stdrw)                    // reset the encoder

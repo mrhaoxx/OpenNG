@@ -216,6 +216,14 @@ func (node *ArgNode) IfCompatibleAndConvert(assertions Assert) bool {
 			node.Type = "ptr"
 			return true
 		}
+		if node.Type == "map" {
+			if m, ok := node.Value.(map[string]*ArgNode); ok {
+				if _, ok := m["kind"]; ok {
+					node.Type = "ptr"
+					return true
+				}
+			}
+		}
 	case "duration":
 		if node.Type == "string" {
 			if dur, err := time.ParseDuration(node.Value.(string)); err == nil {
