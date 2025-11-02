@@ -9,6 +9,8 @@ if [ "$(uname -m)" == "x86_64" ]; then
   export GOAMD64=v2
 fi
 
+cd cmd/netgate
+
 go build -a -ldflags="-w -s \
   -X 'main.buildstamp=$BUILD_TIME' \
   -X 'main.gitver=$GIT_VERSION'" \
