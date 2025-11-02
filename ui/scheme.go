@@ -54,7 +54,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 		}
 
 		conds := []any{}
-		for k, v := range _builtin_refs_assertions {
+		for k, v := range refs_assertions {
 			if k == "_" {
 				continue
 			}
@@ -217,7 +217,7 @@ func (m Assert) ToScheme(depth, maxDepth int) any {
 
 func GenerateJsonSchema() []byte {
 
-	root := _builtin_refs_assertions["_"].ToScheme(0, 5).(map[string]any)
+	root := refs_assertions["_"].ToScheme(0, 5).(map[string]any)
 
 	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 
@@ -225,7 +225,7 @@ func GenerateJsonSchema() []byte {
 
 	allOf := []any{}
 
-	for k, v := range _builtin_refs_assertions {
+	for k, v := range refs_assertions {
 
 		if k == "_" {
 			continue
@@ -276,7 +276,7 @@ func ValidateConfig(root *ArgNode) []error {
 
 		spec := _srv.MustGet("spec")
 
-		spec_assert, ok := _builtin_refs_assertions[_ref]
+		spec_assert, ok := refs_assertions[_ref]
 		if !ok {
 			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
 			continue
@@ -325,7 +325,7 @@ func ValidateCfg(cfgs []byte) []string {
 		return []string{err.Error()}
 	}
 
-	err = nodes.Assert(_builtin_refs_assertions["_"])
+	err = nodes.Assert(refs_assertions["_"])
 
 	if err != nil {
 		return []string{err.Error()}

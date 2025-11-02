@@ -13,6 +13,8 @@ import (
 	"github.com/mrhaoxx/OpenNG/ui"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
+
+	_ "github.com/mrhaoxx/OpenNG/plugins/expr"
 )
 
 var gitver = "dev"

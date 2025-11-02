@@ -1,4 +1,4 @@
-package http
+package expr
 
 import (
 	"fmt"
@@ -6,13 +6,7 @@ import (
 
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/ast"
-	"github.com/expr-lang/expr/vm"
-	"github.com/mrhaoxx/OpenNG/utils"
 )
-
-type exprbased struct {
-	*vm.Program
-}
 
 type MethodAsFuncPatcher struct{}
 
@@ -87,28 +81,3 @@ var caller = expr.Function(
 	},
 	new(func(any, string, ...any) any),
 )
-
-func NewExprbased(expression string) (*exprbased, error) {
-	program, err := expr.Compile(expression, expr.Env(&HttpCtx{}), expr.AsBool(), expr.Patch(MethodAsFuncPatcher{}),
-		caller)
-
-	if err != nil {
-		return nil, err
-	}
-	return &exprbased{
-		Program: program,
-	}, nil
-}
-
-func (e *exprbased) HandleHTTP(ctx *HttpCtx) Ret {
-	output, err := expr.Run(e.Program, ctx)
-	if err != nil {
-		panic(err)
-	}
-	ret, _ := output.(bool)
-	return Ret(ret)
-}
-
-func (e *exprbased) Hosts() utils.GroupRegexp {
-	return nil
-}

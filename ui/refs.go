@@ -34,7 +34,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 		ref, ok := space.Refs[_ref]
 		if !ok {
-			ref, ok = _builtin_refs[_ref]
+			ref, ok = refs[_ref]
 			if !ok {
 				return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 			}
@@ -42,7 +42,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 		spec := _srv.MustGet("spec")
 
-		spec_assert, ok := _builtin_refs_assertions[_ref]
+		spec_assert, ok := refs_assertions[_ref]
 		if !ok {
 			return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
@@ -194,7 +194,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 		spec = s
 	}
 
-	specAssert, ok := _builtin_refs_assertions[kind]
+	specAssert, ok := refs_assertions[kind]
 	if !ok {
 		return nil, fmt.Errorf("assert not found: %s", kind)
 	}
@@ -208,7 +208,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 
 	ref, ok := space.Refs[kind]
 	if !ok {
-		ref, ok = _builtin_refs[kind]
+		ref, ok = refs[kind]
 		if !ok {
 			return nil, fmt.Errorf("kind not found: %s", kind)
 		}
@@ -248,7 +248,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		return err
 	}
 
-	err = nodes.Assert(_builtin_refs_assertions["_"])
+	err = nodes.Assert(refs_assertions["_"])
 
 	if err != nil {
 		return err
@@ -263,7 +263,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	}
 
 	space := Space{
-		Refs: _builtin_refs,
+		Refs: refs,
 		Services: map[string]any{
 			"sys": &net.SysInterface{},
 		},

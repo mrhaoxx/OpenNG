@@ -29,7 +29,7 @@ import (
 
 const DescHostnameFormat = "supported hostname format:\nexample.com\na.example.com\n*.example.com\n*"
 
-var _builtin_refs_assertions = map[string]Assert{
+var refs_assertions = map[string]Assert{
 	"_": {
 		Type: "map",
 		Sub: AssertMap{
@@ -510,16 +510,6 @@ var _builtin_refs_assertions = map[string]Assert{
 				},
 			},
 		},
-	},
-	"builtin::http::expr": {
-		Type:     "string",
-		Required: true,
-		Desc:     "expression-based authentication backend",
-	},
-	"builtin::tcp::expr": {
-		Type:     "string",
-		Required: true,
-		Desc:     "expression-based TCP backend",
 	},
 	"builtin::auth::knocked": {
 		Type: "map",
@@ -1011,7 +1001,7 @@ var _builtin_refs_assertions = map[string]Assert{
 	},
 }
 
-var _builtin_refs = map[string]Inst{
+var refs = map[string]Inst{
 	"builtin::http::reverseproxier": func(spec *ArgNode) (any, error) {
 		hosts := spec.MustGet("hosts").ToList()
 
@@ -1395,24 +1385,7 @@ var _builtin_refs = map[string]Inst{
 
 		return policyd, nil
 	},
-	"builtin::http::expr": func(spec *ArgNode) (any, error) {
-		expression := spec.ToString()
 
-		zlog.Debug().
-			Str("expression", expression).
-			Msg("new http expr backend")
-
-		return http.NewExprbased(expression)
-	},
-	"builtin::tcp::expr": func(spec *ArgNode) (any, error) {
-		expression := spec.ToString()
-
-		zlog.Debug().
-			Str("expression", expression).
-			Msg("new tcp expr backend")
-
-		return tcp.NewExprbased(expression)
-	},
 	"builtin::auth::knocked": func(spec *ArgNode) (any, error) {
 		timeout := spec.MustGet("timeout").ToDuration()
 
@@ -1887,4 +1860,9 @@ var _builtin_refs = map[string]Inst{
 	"builtin::net::interface::sys": func(*ArgNode) (any, error) {
 		return &net.SysInterface{}, nil
 	},
+}
+
+func Register(name string, inst Inst, assert Assert) {
+	refs[name] = inst
+	refs_assertions[name] = assert
 }
