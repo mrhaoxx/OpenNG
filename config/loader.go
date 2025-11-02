@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
 	"github.com/mrhaoxx/OpenNG/net"
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"
@@ -294,11 +293,6 @@ func GlobalCfg(config *ArgNode) error {
 		if verb := logger.MustGet("Verbose").ToBool(); verb {
 			zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
-		}
-
-		if !logger.MustGet("EnableConsoleLogger").ToBool() {
-			log.Loggers.Loggers = []log.Logger{}
-			fmt.Fprintln(os.Stderr, "console log disabled")
 		}
 	}
 	return nil
