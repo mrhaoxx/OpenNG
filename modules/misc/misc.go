@@ -10,8 +10,8 @@ import (
 	"time"
 
 	ngnet "github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/utils"
 
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
@@ -167,7 +167,7 @@ type GitlabEnhancedPolicydBackend struct {
 	auth.PolicyBackend
 
 	gitlabUrl     string
-	matchUsername netgate.GroupRegexp
+	matchUsername utils.GroupRegexp
 	prefix        string
 	ttl           time.Duration
 

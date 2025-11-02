@@ -1,8 +1,8 @@
 package auth
 
 import (
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/http"
+	"github.com/mrhaoxx/OpenNG/utils"
 )
 
 type AuthRet uint8
@@ -24,7 +24,7 @@ type AuthHandle interface {
 
 type authMgr struct {
 	h  []AuthHandle
-	ho netgate.GroupRegexp
+	ho utils.GroupRegexp
 }
 
 func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
@@ -46,7 +46,7 @@ func (mgr *authMgr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	ctx.Resp.ErrorPage(http.StatusForbidden, "auth no hit")
 	return http.RequestEnd
 }
-func (l *authMgr) Hosts() netgate.GroupRegexp {
+func (l *authMgr) Hosts() utils.GroupRegexp {
 	return l.ho
 }
 
@@ -54,6 +54,6 @@ func (l *authMgr) Hosts() netgate.GroupRegexp {
 // eg. Create A new AuthMgr that matches all hosts:
 //
 //	var auth = auth.NewAuthMgr([]auth.AuthHandle{}, utils.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
-func NewAuthMgr(h []AuthHandle, hosts netgate.GroupRegexp) *authMgr {
+func NewAuthMgr(h []AuthHandle, hosts utils.GroupRegexp) *authMgr {
 	return &authMgr{h: h, ho: hosts}
 }

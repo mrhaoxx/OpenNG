@@ -11,16 +11,16 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/net"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	zlog "github.com/rs/zerolog/log"
 )
 
 type HttpHost struct {
 	Id                 string
-	ServerName         netgate.GroupRegexp
+	ServerName         utils.GroupRegexp
 	Backend            *net.URL
 	InsecureSkipVerify bool
 	MaxConnsPerHost    int
@@ -120,9 +120,9 @@ func (h *HttpHost) Init() {
 type ReverseProxy struct {
 	hosts []*HttpHost
 
-	buf *netgate.BufferedLookup[*HttpHost]
+	buf *utils.BufferedLookup[*HttpHost]
 
-	allowhosts netgate.GroupRegexp
+	allowhosts utils.GroupRegexp
 }
 
 func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
@@ -137,17 +137,17 @@ func (h *ReverseProxy) HandleHTTPCgi(ctx *HttpCtx, path string) Ret {
 	ctx.WriteString("id: " + id + "\n")
 	return RequestEnd
 }
-func (*ReverseProxy) CgiPaths() netgate.GroupRegexp {
+func (*ReverseProxy) CgiPaths() utils.GroupRegexp {
 	return regexpforproxy
 }
 
 func NewHTTPProxier(allowedhosts []string) *ReverseProxy {
 	hpx := &ReverseProxy{
 		hosts:      make([]*HttpHost, 0),
-		allowhosts: netgate.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
+		allowhosts: utils.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
 	}
 
-	hpx.buf = netgate.NewBufferedLookup(func(host string) *HttpHost {
+	hpx.buf = utils.NewBufferedLookup(func(host string) *HttpHost {
 		for _, t := range hpx.hosts {
 			if t.ServerName.MatchString(host) {
 				// fmt.Println(t.ServerName.String(), host, "success")
@@ -184,7 +184,7 @@ func (h *ReverseProxy) HandleHTTP(ctx *HttpCtx) Ret {
 	return RequestEnd
 }
 
-func (h *ReverseProxy) Hosts() netgate.GroupRegexp {
+func (h *ReverseProxy) Hosts() utils.GroupRegexp {
 	return h.allowhosts
 }
 
@@ -195,7 +195,7 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
 	buf := HttpHost{
 		Id:                 id,
-		ServerName:         netgate.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
+		ServerName:         utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
 		Backend:            backend,
 		MaxConnsPerHost:    MaxConnsPerHost,
 		InsecureSkipVerify: InsecureSkipVerify,

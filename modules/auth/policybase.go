@@ -11,10 +11,11 @@ import (
 
 	stdhttp "net/http"
 
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/core"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	gossh "golang.org/x/crypto/ssh"
 
@@ -47,10 +48,10 @@ type policy struct {
 
 	users map[string]bool
 
-	hosts netgate.GroupRegexp
-	// hup   *netgate.BufferedLookup
+	hosts utils.GroupRegexp
+	// hup   *utils.BufferedLookup
 
-	paths netgate.GroupRegexp
+	paths utils.GroupRegexp
 }
 
 // 0 -> next;1 -> refuse;2 -> accept
@@ -69,7 +70,7 @@ func (p *policy) check(username string, path string) uint8 {
 
 type policyBaseAuth struct {
 	policies        []*policy
-	policyLookupBuf *netgate.BufferedLookup[[]*policy]
+	policyLookupBuf *utils.BufferedLookup[[]*policy]
 
 	backends backendGroup
 
@@ -124,7 +125,7 @@ func NewPBAuth() *policyBaseAuth {
 		sessions: map[string]*session{},
 	}
 
-	po.policyLookupBuf = netgate.NewBufferedLookup(func(s string) []*policy {
+	po.policyLookupBuf = utils.NewBufferedLookup(func(s string) []*policy {
 		var r []*policy = nil
 		for _, p := range po.policies {
 			if p.hosts != nil && p.hosts.MatchString(s) {
@@ -182,7 +183,7 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *http.HttpCtx) AuthRet {
 }
 
 func needAuth(ctx *http.HttpCtx) {
-	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\""+netgate.ServerSign+"\"")
+	ctx.Resp.Header().Set("Proxy-Authenticate", "Basic realm=\""+core.ServerSign+"\"")
 	ctx.Resp.WriteHeader(http.StatusProxyAuthRequired)
 }
 
@@ -413,7 +414,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 	return http.RequestEnd
 }
 
-func (l *policyBaseAuth) CgiPaths() netgate.GroupRegexp {
+func (l *policyBaseAuth) CgiPaths() utils.GroupRegexp {
 	return regexpforauthpath
 }
 
@@ -432,7 +433,7 @@ func (mgr *policyBaseAuth) generateSession(username string, src int) string {
 	return rand
 }
 
-func (*policyBaseAuth) HostsForward() netgate.GroupRegexp {
+func (*policyBaseAuth) HostsForward() utils.GroupRegexp {
 	return nil
 }
 
@@ -481,16 +482,16 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		p.users[u] = true
 	}
 
-	// p.hup = netgate.NewBufferedLookup(func(s string) interface{} {
+	// p.hup = utils.NewBufferedLookup(func(s string) interface{} {
 	// 	return p.hosts == nil || p.hosts.MatchString(s)
 	// })
 
 	if len(hosts) != 0 {
-		p.hosts = netgate.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+		p.hosts = utils.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
 	}
 
 	if len(paths) != 0 {
-		p.paths = netgate.MustCompileRegexp((paths))
+		p.paths = utils.MustCompileRegexp((paths))
 	}
 
 	LGM.policies = append(LGM.policies, p)

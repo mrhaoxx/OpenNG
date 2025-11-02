@@ -1,4 +1,4 @@
-package netgate
+package utils
 
 import (
 	"strconv"

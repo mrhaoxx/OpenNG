@@ -3,8 +3,9 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
 	"github.com/mrhaoxx/OpenNG/modules/http"
+	"github.com/mrhaoxx/OpenNG/utils"
 	"github.com/rs/zerolog/log"
 )
 
@@ -21,12 +22,12 @@ func (e *httpexprbased) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	return http.Ret(ret)
 }
 
-func (e *httpexprbased) Hosts() netgate.GroupRegexp {
+func (e *httpexprbased) Hosts() utils.GroupRegexp {
 	return nil
 }
 
 func init() {
-	netgate.Register("expr::http", func(spec *netgate.ArgNode) (any, error) {
+	config.Register("expr::http", func(spec *config.ArgNode) (any, error) {
 		expression := spec.ToString()
 		log.Debug().
 			Str("expression", expression).
@@ -41,7 +42,7 @@ func init() {
 		return &httpexprbased{
 			Program: program,
 		}, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type:     "string",
 		Required: true,
 		Desc:     "expression-based HTTP backend",

@@ -8,7 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/utils"
 
 	zlog "github.com/rs/zerolog/log"
 )
@@ -27,7 +27,7 @@ type filter struct {
 type server struct {
 	records                  []*record
 	filters                  []*filter
-	bufferedLookupForFilters *netgate.BufferedLookup[bool]
+	bufferedLookupForFilters *utils.BufferedLookup[bool]
 	// bufferedLookupForRecords *utils.BufferedLookup
 
 	domain string
@@ -162,7 +162,7 @@ func NewServer() (ret *server) {
 		filters: []*filter{},
 		count:   0,
 	}
-	ret.bufferedLookupForFilters = netgate.NewBufferedLookup(func(s string) bool {
+	ret.bufferedLookupForFilters = utils.NewBufferedLookup(func(s string) bool {
 		for _, r := range ret.filters {
 			if ok, _ := r.name.MatchString(s); ok {
 				if r.allowance {

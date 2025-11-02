@@ -3,7 +3,7 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	netgate "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/config"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/rs/zerolog/log"
 )
@@ -22,7 +22,7 @@ func (e *tcpexprbased) Handle(ctx *tcp.Conn) tcp.SerRet {
 }
 
 func init() {
-	netgate.Register("expr::tcp", func(spec *netgate.ArgNode) (any, error) {
+	config.Register("expr::tcp", func(spec *config.ArgNode) (any, error) {
 		expression := spec.ToString()
 		log.Debug().
 			Str("expression", expression).
@@ -37,7 +37,7 @@ func init() {
 		return &tcpexprbased{
 			Program: program,
 		}, nil
-	}, netgate.Assert{
+	}, config.Assert{
 		Type:     "string",
 		Required: true,
 		Desc:     "expression-based TCP backend",

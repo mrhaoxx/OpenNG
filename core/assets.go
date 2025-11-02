@@ -1,4 +1,4 @@
-package netgate
+package core
 
 import (
 	_ "embed"
