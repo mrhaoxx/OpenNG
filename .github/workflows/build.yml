@@ -16,12 +16,12 @@ jobs:
       with:
         node-version: '20'
         cache: 'npm'
-        cache-dependency-path: ui/html/package.json
+        cache-dependency-path: modules/admin/html/package.json
 
     # Build the UI
     - name: Build UI
       run: |
-        cd ui/html
+        cd modules/admin/html/
         npm ci
         npm run build
     
@@ -30,7 +30,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: ui-build
-        path: ui/html/dist
+        path: modules/admin/html/dist
         retention-days: 1
 
   build-binary:
@@ -48,7 +48,7 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         name: ui-build
-        path: ui/html/dist
+        path: modules/admin/html/dist
 
     # Setup Go for building the application
     - name: Setup Go
@@ -70,6 +70,7 @@ jobs:
         GOOS: ${{ matrix.goos }}
         GOARCH: ${{ matrix.goarch }}
       run: |
+        cd cmd/netgate
         OUTPUT_NAME="NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}"
         if [ "${{ matrix.goos }}" = "windows" ]; then
           go build -v -o "${OUTPUT_NAME}.exe"
@@ -82,4 +83,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
+        path: cmd/netgate/NetGATE-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.goos == 'windows' && '.exe' || '' }}
