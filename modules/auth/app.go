@@ -1,7 +1,6 @@
 package auth
 
 import (
-	"errors"
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
@@ -21,7 +20,9 @@ func init() {
 				"backends": {
 					Type: "list",
 					Sub: ng.AssertMap{
-						"_": {Type: "ptr"},
+						"_": {Type: "ptr", Impls: []reflect.Type{
+							ng.Iface[AuthHandle](),
+						}},
 					},
 				},
 				"allowhosts": {
@@ -44,11 +45,7 @@ func init() {
 			var authmethods []AuthHandle
 
 			for _, backend := range backends {
-				b, ok := backend.Value.(AuthHandle)
-				if !ok {
-					return nil, errors.New("ptr is not a auth.AuthHandle")
-				}
-				authmethods = append(authmethods, b)
+				authmethods = append(authmethods, backend.Value.(AuthHandle))
 			}
 
 			log.Debug().Int("backend_count", len(authmethods)).Msg("new auth manager")
@@ -207,7 +204,9 @@ func init() {
 				"backends": {
 					Type: "list",
 					Sub: ng.AssertMap{
-						"_": {Type: "ptr"},
+						"_": {Type: "ptr", Impls: []reflect.Type{
+							ng.Iface[PolicyBackend](),
+						}},
 					},
 				},
 			},
@@ -246,12 +245,7 @@ func init() {
 
 			var policyBackends []PolicyBackend
 			for _, backend := range backends {
-				b, ok := backend.Value.(PolicyBackend)
-				if !ok {
-					return nil, errors.New("ptr is not a auth.PolicyBackend")
-				}
-				policyBackends = append(policyBackends, b)
-
+				policyBackends = append(policyBackends, backend.Value.(PolicyBackend))
 				log.Debug().
 					Type("backend", backend.Value).
 					Msg("new auth policy backend")

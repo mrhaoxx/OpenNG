@@ -77,6 +77,7 @@ func registerIpFilter() {
 				},
 				"next": {
 					Type:    "ptr",
+					Impls:   []reflect.Type{ng.Iface[tcp.Service]()},
 					Default: nil,
 					Desc:    "next service handler if no CIDR match is found",
 				},
@@ -96,11 +97,7 @@ func registerIpFilter() {
 			filter := NewIPFilter(allowed, blocked)
 
 			if next != nil {
-				nextHandler, ok := next.Value.(tcp.Service)
-				if !ok {
-					return nil, errors.New("ptr is not a http.HttpHandler")
-				}
-				filter.next = nextHandler
+				filter.next = next.Value.(tcp.Service)
 			}
 
 			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")

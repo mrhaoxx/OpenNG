@@ -134,7 +134,7 @@ func registerMidware() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true},
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Service]()}, Desc: "pointer to service function"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
@@ -154,7 +154,7 @@ func registerMidware() {
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Cgi]()}, Desc: "pointer to CGI handler implementation"},
 								"paths": {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
@@ -175,7 +175,7 @@ func registerMidware() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Forward]()}, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
 									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
@@ -219,10 +219,7 @@ func registerMidware() {
 				logi := srv.MustGet("logi")
 				hosts := srv.MustGet("hosts").ToStringList()
 
-				service, ok := logi.Value.(Service)
-				if !ok {
-					return nil, errors.New("ptr " + name + " is not a http.Service")
-				}
+				service := logi.Value.(Service)
 
 				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {
@@ -247,10 +244,7 @@ func registerMidware() {
 			for _, cgi := range cgis {
 				logi := cgi.MustGet("logi")
 
-				service, ok := logi.Value.(Cgi)
-				if !ok {
-					return nil, errors.New("ptr is not a http.Cgi")
-				}
+				service := logi.Value.(Cgi)
 
 				midware.AddCgis(&CgiStruct{
 					CgiHandler: service.HandleHTTPCgi,
@@ -267,10 +261,7 @@ func registerMidware() {
 				logi := fwd.MustGet("logi")
 				hosts := fwd.MustGet("hosts").ToStringList()
 
-				service, ok := logi.Value.(Forward)
-				if !ok {
-					return nil, errors.New("ptr " + name + " is not a http.Forward")
-				}
+				service := logi.Value.(Forward)
 
 				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {
@@ -311,7 +302,7 @@ func registerMidwareAddService() {
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Service]()}, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
@@ -340,10 +331,7 @@ func registerMidwareAddService() {
 				logi := srv.MustGet("logi")
 				hosts := srv.MustGet("hosts").ToStringList()
 
-				service, ok := logi.Value.(Service)
-				if !ok {
-					return nil, errors.New("ptr " + name + " is not a http.Service")
-				}
+				service := logi.Value.(Service)
 
 				var compiled groupexp.GroupRegexp
 				if len(hosts) == 0 {

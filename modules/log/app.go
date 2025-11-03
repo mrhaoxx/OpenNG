@@ -3,6 +3,7 @@ package log
 import (
 	"fmt"
 	"os"
+	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/log"
@@ -10,14 +11,12 @@ import (
 
 func init() {
 	ng.Register("log::add",
-		ng.Assert{Type: "ptr"},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{
+			ng.Iface[log.Logger](),
+		}},
 		ng.Assert{Type: "null"},
 		func(an *ng.ArgNode) (any, error) {
-			logger, ok := an.Value.(log.Logger)
-			if !ok {
-				return nil, fmt.Errorf("argument is not a log.Logger")
-			}
-			log.Loggers.Add(logger)
+			log.Loggers.Add(an.Value.(log.Logger))
 			return nil, nil
 		},
 	)
@@ -26,7 +25,7 @@ func init() {
 		ng.Assert{
 			Type: "list",
 			Sub: ng.AssertMap{
-				"_": {Type: "ptr"},
+				"_": {Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
 			},
 		},
 		ng.Assert{Type: "null"},
@@ -35,12 +34,8 @@ func init() {
 
 			loggers := []log.Logger{}
 
-			for i, l := range logger {
-				lg, ok := l.Value.(log.Logger)
-				if !ok {
-					return nil, fmt.Errorf("item %d is not a log.Logger", i)
-				}
-				loggers = append(loggers, lg)
+			for _, l := range logger {
+				loggers = append(loggers, l.Value.(log.Logger))
 			}
 
 			log.Loggers.Set(loggers)
@@ -59,14 +54,14 @@ func init() {
 
 	ng.Register("log::stdout",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr"},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stdout, nil
 		},
 	)
 	ng.Register("log::stderr",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr"},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stderr, nil
 		},
@@ -74,12 +69,9 @@ func init() {
 
 	ng.Register("log::file",
 		ng.Assert{Type: "string"},
-		ng.Assert{Type: "ptr"},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
-			path, ok := an.Value.(string)
-			if !ok {
-				return nil, fmt.Errorf("argument is not a string")
-			}
+			path := an.ToString()
 			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
 				return nil, fmt.Errorf("cannot open log file: %v", err)

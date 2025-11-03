@@ -7,6 +7,7 @@ import (
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/tls"
+	"github.com/mrhaoxx/OpenNG/pkg/log"
 )
 
 func init() {
@@ -19,9 +20,15 @@ func registerWebUI() {
 		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
-				"tcpcontroller": {Type: "ptr", Required: true},
-				"httpmidware":   {Type: "ptr", Required: true},
-				"tls":           {Type: "ptr"},
+				"tcpcontroller": {Type: "ptr", Impls: []reflect.Type{
+					ng.Iface[Reporter](),
+				}, Required: true},
+				"httpmidware": {Type: "ptr",
+					Impls: []reflect.Type{
+						ng.Iface[Reporter](),
+					},
+					Required: true},
+				"tls": {Type: "ptr"},
 			},
 		},
 		ng.Assert{
@@ -31,14 +38,8 @@ func registerWebUI() {
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
-			tcpController, ok := spec.MustGet("tcpcontroller").Value.(Reporter)
-			if !ok {
-				return nil, errors.New("tcp controller ptr is not a Reporter")
-			}
-			httpMidware, ok := spec.MustGet("httpmidware").Value.(Reporter)
-			if !ok {
-				return nil, errors.New("http midware ptr is not a Reporter")
-			}
+			tcpController := spec.MustGet("tcpcontroller").Value.(Reporter)
+			httpMidware := spec.MustGet("httpmidware").Value.(Reporter)
 
 			ui := &UI{TcpController: tcpController, HttpMidware: httpMidware}
 
@@ -55,11 +56,10 @@ func registerWebUI() {
 }
 
 func registerSSELogger() {
-	ng.Register("webui::sselog", ng.Assert{
-		Type: "null",
-	}, ng.Assert{
-		Type: "ptr",
-	}, func(an *ng.ArgNode) (any, error) {
-		return Sselogger, nil
-	})
+	ng.Register("webui::sselog",
+		ng.Assert{Type: "null"},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+		func(an *ng.ArgNode) (any, error) {
+			return Sselogger, nil
+		})
 }

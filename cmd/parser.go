@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/url"
 	"reflect"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -482,58 +483,121 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 
 		return res
 	case "ptr":
-		if depth >= maxDepth {
-			return map[string]any{
-				"type":         "string",
-				"description":  "(ptr) " + m.Desc,
-				"errorMessage": "Pointer must be a string (max nesting depth reached)",
-			}
-		}
+		argsRegistry := ng.AssertionsRegistry()
+		retRegistry := ng.ReturnAssertionsRegistry()
 
-		anon := map[string]any{
-			"type":        "object",
-			"description": "(anonymous) " + m.Desc,
-			"properties": map[string]any{
-				"kind": map[string]any{"type": "string"},
-				"spec": map[string]any{},
-			},
-			"additionalProperties": false,
-		}
-
-		conds := []any{}
-		for k, v := range ng.AssertionsRegistry() {
-			if k == "_" {
+		allowedKinds := make([]string, 0, len(argsRegistry))
+		for name := range argsRegistry {
+			if name == "_" {
 				continue
 			}
-			conds = append(conds, map[string]any{
-				"if": map[string]any{
-					"properties": map[string]any{
-						"kind": map[string]any{"const": k},
-					},
-					"required": []string{"kind"},
-				},
-				"then": map[string]any{
-					"properties": map[string]any{
-						"spec": ToSchema(v, depth+1, maxDepth),
-					},
-					"description": v.Desc,
-				},
-			})
+			if len(m.Impls) > 0 {
+				ret, ok := retRegistry[name]
+				if !ok {
+					continue
+				}
+				match := true
+				for _, required := range m.Impls {
+					found := false
+					for _, implemented := range ret.Impls {
+						if implemented == required {
+							found = true
+							break
+						}
+					}
+					if !found {
+						match = false
+						break
+					}
+				}
+				if !match {
+					continue
+				}
+			}
+			allowedKinds = append(allowedKinds, name)
 		}
-		if len(conds) > 0 {
-			anon["allOf"] = conds
+
+		sort.Strings(allowedKinds)
+
+		description := "(ptr) " + m.Desc
+		if len(m.Impls) > 0 {
+			required := make([]string, 0, len(m.Impls))
+			for _, iface := range m.Impls {
+				required = append(required, iface.String())
+			}
+			description = fmt.Sprintf("(ptr) %s (requires: %s)", m.Desc, strings.Join(required, ", "))
+		}
+
+		stringSchema := map[string]any{
+			"type":         "string",
+			"description":  description,
+			"errorMessage": "Pointer must reference a defined service name or be expanded inline",
+		}
+		if m.Default != nil {
+			stringSchema["default"] = m.Default
+		}
+
+		schemas := []any{stringSchema}
+
+		if depth < maxDepth {
+			allowAnon := len(m.Impls) == 0 || len(allowedKinds) > 0
+			if allowAnon {
+				kindProp := map[string]any{"type": "string"}
+				if len(m.Impls) > 0 && len(allowedKinds) > 0 {
+					kindProp["enum"] = allowedKinds
+				}
+
+				anon := map[string]any{
+					"type":        "object",
+					"description": "(anonymous) " + m.Desc,
+					"properties": map[string]any{
+						"kind": kindProp,
+						"spec": map[string]any{},
+					},
+					"additionalProperties": false,
+				}
+
+				conds := []any{}
+				for _, name := range allowedKinds {
+					value, ok := argsRegistry[name]
+					if !ok {
+						continue
+					}
+					conds = append(conds, map[string]any{
+						"if": map[string]any{
+							"properties": map[string]any{
+								"kind": map[string]any{"const": name},
+							},
+							"required": []string{"kind"},
+						},
+						"then": map[string]any{
+							"properties": map[string]any{
+								"spec": ToSchema(value, depth+1, maxDepth),
+							},
+							"description": value.Desc,
+						},
+					})
+				}
+
+				if len(conds) > 0 {
+					anon["allOf"] = conds
+				}
+
+				schemas = append(schemas, anon)
+			}
+		}
+
+		if m.AllowNil {
+			schemas = append(schemas, map[string]any{"type": "null"})
+		}
+
+		if len(schemas) == 1 {
+			return schemas[0]
 		}
 
 		return map[string]any{
 			"description": m.Desc,
-			"anyOf": []any{
-				map[string]any{
-					"type":         "string",
-					"description":  "(ptr) " + m.Desc,
-					"errorMessage": "Pointer must be a string or an anonymous object",
-				},
-				anon,
-			},
+			"anyOf":       schemas,
 		}
 
 	case "string":

@@ -40,6 +40,10 @@ func AssertionsRegistry() map[string]Assert {
 	return args_asserts
 }
 
+func ReturnAssertionsRegistry() map[string]Assert {
+	return ret_asserts
+}
+
 type Inst func(*ArgNode) (any, error)
 
 type AssertMap map[string]Assert
