@@ -11,18 +11,19 @@ import (
 )
 
 const (
-	Continue SerRet = iota
+	Continue Ret = iota
 	Close
 	Upgrade
 )
 
-type SerRet uint8
+type Ret uint8
 
-type ServiceHandler interface {
-	Handle(*Conn) SerRet
+type Service interface {
+	HandleTCP(*Conn) Ret
 }
+
 type ServiceBinding struct {
-	ServiceHandler
+	Service
 	Name string
 }
 
@@ -69,7 +70,7 @@ func (c *controller) Deliver(conn *Conn) {
 
 _restart:
 	s := c.binds[conn.protos]
-	var ret SerRet
+	var ret Ret
 
 	defer func() {
 		if err := recover(); err != nil {
@@ -88,7 +89,7 @@ _restart:
 
 		timing := time.Now()
 
-		ret = v.Handle(conn)
+		ret = v.HandleTCP(conn)
 
 		conn.AppendPath(time.Since(timing).Round(10*time.Microsecond).String() + " ")
 
@@ -149,13 +150,13 @@ func (ctl *controller) Listen(addr string) error {
 	return nil
 }
 
-type funcInterface func(*Conn) SerRet
+type funcInterface func(*Conn) Ret
 
-func (f funcInterface) Handle(a *Conn) SerRet {
+func (f funcInterface) HandleTCP(a *Conn) Ret {
 	return f(a)
 }
 
-func NewServiceFunction(f func(*Conn) SerRet) ServiceHandler {
+func NewServiceFunction(f func(*Conn) Ret) Service {
 	return funcInterface(f)
 }
 

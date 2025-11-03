@@ -60,16 +60,15 @@ func registerMidware() {
 			for _, srv := range services {
 				name := srv.MustGet("name").ToString()
 				logi := srv.MustGet("logi")
-				serv := srv.MustGet("serv").ToStringList()
 
-				handler, ok := logi.Value.(ConnHandler)
+				handler, ok := logi.Value.(Service)
 				if !ok {
 					return nil, errors.New("ptr " + name + " is not a ssh.ConnHandler")
 				}
 
-				midware.AddHandler(handler, groupexp.MustCompileRegexp(serv))
+				midware.AddHandler(handler)
 
-				log.Debug().Str("name", name).Type("logi", logi.Value).Strs("serv", serv).Msg("new ssh service")
+				log.Debug().Str("name", name).Type("logi", logi.Value).Msg("new ssh service")
 			}
 			return midware, nil
 		}, ng.Assert{
@@ -83,14 +82,6 @@ func registerMidware() {
 							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true},
-								"serv": {
-									Type:    "list",
-									Desc:    "matching services by regex pattern",
-									Default: []*ng.ArgNode{{Type: "string", Value: ".*$"}},
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
 							},
 						},
 					},

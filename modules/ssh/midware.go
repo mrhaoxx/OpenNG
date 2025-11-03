@@ -9,8 +9,6 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	ssh "golang.org/x/crypto/ssh"
 
 	zlog "github.com/rs/zerolog/log"
@@ -68,13 +66,16 @@ func (ctx *Ctx) Error(err_msg string) {
 
 type PasswordCbFn func(ctx *Ctx, password []byte) bool
 type PublicKeyCbFn func(ctx *Ctx, key ssh.PublicKey) bool
-type ConnHandler interface {
-	HandleConn(*Ctx)
-}
 
-type srv struct {
-	hdr      ConnHandler
-	matchalt groupexp.GroupRegexp
+const (
+	Continue Ret = iota
+	Close
+)
+
+type Ret uint8
+
+type Service interface {
+	HandleSSH(*Ctx) Ret
 }
 
 type Midware struct {
@@ -86,15 +87,13 @@ type Midware struct {
 	PasswordCallback  PasswordCbFn
 	PublicKeyCallback PublicKeyCbFn
 
-	current        []srv
-	bufferedLookup *lookup.BufferedLookup[ConnHandler]
-
+	current []Service
 	basecfg ssh.ServerConfig
 }
 
 var cur uint64
 
-func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
+func (ctl *Midware) HandleTCP(c *tcp.Conn) tcp.Ret {
 	serv := ctl.basecfg
 
 	ctx := Ctx{
@@ -229,25 +228,26 @@ func (ctl *Midware) Handle(c *tcp.Conn) tcp.SerRet {
 		return tcp.Close
 	}
 
-	path += "+" + ctx.User + " "
-
-	f := ctl.bufferedLookup.Lookup(ctx.Alt)
-
-	if f == nil {
-		ctx.Error("SSH/2.0 418 I'm a teapot")
-		path += "#"
-		return tcp.Close
+	for _, f := range ctl.current {
+		switch f.HandleSSH(&ctx) {
+		case Close:
+			goto closing
+		case Continue:
+			continue
+		}
 	}
 
-	path += "."
+	ctx.Error("SSH/2.0 418 I'm a teapot")
+	path += "#"
+	return tcp.Close
+closing:
 
-	f.HandleConn(&ctx)
-
+	path += "+" + ctx.User + " "
 	return tcp.Close
 }
 
-func (c *Midware) AddHandler(h ConnHandler, alt groupexp.GroupRegexp) {
-	c.current = append(c.current, srv{hdr: h, matchalt: alt})
+func (c *Midware) AddHandler(h Service) {
+	c.current = append(c.current, h)
 }
 
 func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string, pwdcb PasswordCbFn, pubcb PublicKeyCbFn) *Midware {
@@ -268,15 +268,6 @@ func NewSSHController(private_keys []ssh.Signer, banner string, quotes []string,
 	}
 
 	Midware.basecfg = basecfg
-
-	Midware.bufferedLookup = lookup.NewBufferedLookup(func(s string) ConnHandler {
-		for _, t := range Midware.current {
-			if t.matchalt.MatchString(s) {
-				return t.hdr
-			}
-		}
-		return nil
-	})
 	return &Midware
 }
 
@@ -289,3 +280,5 @@ func MarshalAuthorizedKey(key ssh.PublicKey) []byte {
 	e.Close()
 	return b.Bytes()
 }
+
+var _ tcp.Service = (*Midware)(nil)

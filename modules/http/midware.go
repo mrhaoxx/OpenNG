@@ -83,7 +83,7 @@ func (h *Midware) AddForwardServices(p ...*ServiceStruct) {
 
 var h2s = &http2.Server{}
 
-func (h *Midware) Handle(c *tcp.Conn) tcp.SerRet {
+func (h *Midware) HandleTCP(c *tcp.Conn) tcp.Ret {
 	top := c.TopProtocol()
 	sni, ok := c.Load(tcp.KeyTlsSni)
 	if ok && !h.bufferedLookupForSNI.Lookup(sni.(string)) {
@@ -290,3 +290,5 @@ func (ctl *Midware) Report() map[string]interface{} {
 	}
 	return ret
 }
+
+var _ tcp.Service = (*Midware)(nil)

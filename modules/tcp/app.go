@@ -97,14 +97,14 @@ func registerController() {
 				for i, srv := range srvs.ToList() {
 					serviceName := srv.MustGet("name").ToString()
 					logi := srv.MustGet("logi")
-					service, ok := logi.Value.(ServiceHandler)
+					service, ok := logi.Value.(Service)
 					if !ok {
 						return nil, errors.New("ptr " + serviceName + " is not a tcp.ServiceHandler " + fmt.Sprintf("%T %#v", logi.Value, logi.Value))
 					}
 
 					bindings = append(bindings, ServiceBinding{
-						Name:           serviceName,
-						ServiceHandler: service,
+						Name:    serviceName,
+						Service: service,
 					})
 
 					log.Debug().

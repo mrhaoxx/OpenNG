@@ -46,7 +46,7 @@ type Detect struct {
 	TimeoutProtocol string
 }
 
-func (det *Detect) Handle(c *Conn) SerRet {
+func (det *Detect) HandleTCP(c *Conn) Ret {
 	raw := c.TopConn()
 	buf := &BufferedReader{
 		source:     raw,
@@ -177,3 +177,5 @@ func DetectTROJAN(r io.Reader, conn *Conn) string {
 	}
 	return ""
 }
+
+var _ Service = (*Detect)(nil)

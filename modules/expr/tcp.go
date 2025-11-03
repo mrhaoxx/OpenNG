@@ -12,13 +12,13 @@ type tcpexprbased struct {
 	*vm.Program
 }
 
-func (e *tcpexprbased) Handle(ctx *tcp.Conn) tcp.SerRet {
+func (e *tcpexprbased) HandleTCP(ctx *tcp.Conn) tcp.Ret {
 	output, err := expr.Run(e.Program, ctx)
 	if err != nil {
 		panic(err)
 	}
 	ret, _ := output.(int)
-	return tcp.SerRet(ret)
+	return tcp.Ret(ret)
 }
 
 func init() {
@@ -43,3 +43,5 @@ func init() {
 		Desc:     "expression-based TCP backend",
 	})
 }
+
+var _ tcp.Service = (*tcpexprbased)(nil)

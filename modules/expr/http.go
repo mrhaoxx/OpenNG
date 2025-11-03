@@ -77,3 +77,5 @@ func init() {
 		},
 	})
 }
+
+var _ http.Service = (*httpexprbased)(nil)

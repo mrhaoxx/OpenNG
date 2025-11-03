@@ -17,7 +17,7 @@ type tcpproxy struct {
 	mu    sync.Mutex
 }
 
-func (tpx *tcpproxy) Handle(c *Conn) SerRet {
+func (tpx *tcpproxy) HandleTCP(c *Conn) Ret {
 	a, ok := tpx.hosts[(c.Protocols())]
 	if ok {
 		oc, err := net.Dial("tcp", a.Backend)
@@ -60,3 +60,5 @@ func NewTcpProxier() *tcpproxy {
 	}
 	return tpx
 }
+
+var _ Service = (*tcpproxy)(nil)

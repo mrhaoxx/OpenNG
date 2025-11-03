@@ -27,7 +27,7 @@ type Server struct {
 	Underlying     net.Interface
 }
 
-func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
+func (s *Server) HandleTCP(conn *tcp.Conn) tcp.Ret {
 	buf := make([]byte, 58)
 
 	var r = conn.TopConn()
@@ -249,3 +249,5 @@ func (s *Server) Handle(conn *tcp.Conn) tcp.SerRet {
 	return tcp.Close
 
 }
+
+var _ tcp.Service = (*Server)(nil)

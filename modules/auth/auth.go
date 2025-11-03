@@ -57,3 +57,5 @@ func (l *authMgr) Hosts() groupexp.GroupRegexp {
 func NewAuthMgr(h []AuthHandle, hosts groupexp.GroupRegexp) *authMgr {
 	return &authMgr{h: h, ho: hosts}
 }
+
+var _ http.Service = (*authMgr)(nil)

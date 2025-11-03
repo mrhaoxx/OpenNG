@@ -24,7 +24,7 @@ type AcmeWebRoot struct {
 	WWWRoot      string
 }
 
-func (a *AcmeWebRoot) Handle(conn *tcp.Conn) tcp.SerRet {
+func (a *AcmeWebRoot) HandleTCP(conn *tcp.Conn) tcp.Ret {
 	_req, ok := conn.Load(tcp.KeyHTTPRequest)
 	if !ok {
 		return tcp.Continue
@@ -58,10 +58,10 @@ allowed:
 type IpFilter struct {
 	allowedCIDR map[string]*net.IPNet
 	blockedCIDR map[string]*net.IPNet
-	next        tcp.ServiceHandler
+	next        tcp.Service
 }
 
-func (filter *IpFilter) Handle(c *tcp.Conn) tcp.SerRet {
+func (filter *IpFilter) HandleTCP(c *tcp.Conn) tcp.Ret {
 	// Check if the IP is allowed
 	host, _, err := net.SplitHostPort(c.Addr().String())
 	if err != nil {
@@ -81,7 +81,7 @@ func (filter *IpFilter) Handle(c *tcp.Conn) tcp.SerRet {
 	}
 
 	if filter.next != nil {
-		return filter.next.Handle(c)
+		return filter.next.HandleTCP(c)
 	}
 
 	return tcp.Close
@@ -113,10 +113,10 @@ func NewIPFilter(allowedCIDR []string, blockedCIDR []string) *IpFilter {
 
 type HostFilter struct {
 	AllowedHosts []string
-	next         tcp.ServiceHandler
+	next         tcp.Service
 }
 
-func (s *HostFilter) Handle(conn *tcp.Conn) tcp.SerRet {
+func (s *HostFilter) HandleTCP(conn *tcp.Conn) tcp.Ret {
 
 	switch conn.TopProtocol() {
 	case "HTTP1":
@@ -152,7 +152,7 @@ func (s *HostFilter) Handle(conn *tcp.Conn) tcp.SerRet {
 		}
 	}
 	if s.next != nil {
-		return s.next.Handle(conn)
+		return s.next.HandleTCP(conn)
 	}
 	return tcp.Close
 }
@@ -288,3 +288,7 @@ func NewUdpLogger(address string) *udpLogger {
 type udpLogger struct {
 	*net.UDPConn
 }
+
+var _ tcp.Service = (*AcmeWebRoot)(nil)
+var _ tcp.Service = (*IpFilter)(nil)
+var _ tcp.Service = (*HostFilter)(nil)

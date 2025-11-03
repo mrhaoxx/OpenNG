@@ -1,7 +1,10 @@
 package ui
 
 import (
+	"crypto/rand"
+	"crypto/subtle"
 	"embed"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -45,6 +48,13 @@ func (*UI) Hosts() groupexp.GroupRegexp {
 	return nil
 }
 func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
+	if isSafeHTTPMethod(ctx.Req.Method) {
+		ensureCSRFCookie(ctx)
+	} else {
+		if !requireCSRF(ctx) {
+			return http.RequestEnd
+		}
+	}
 	switch ctx.Req.URL.Path {
 
 	case "/":
@@ -62,6 +72,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
 
 	case "/api/v1/tls/reload":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		if u.TlsMgr != nil {
 			err := u.TlsMgr.Reload()
@@ -77,6 +91,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		}
 
 	case "/api/v1/cfg/reload":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		err := Reload()
 		if err != nil {
@@ -86,6 +104,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			ctx.Resp.WriteHeader(http.StatusAccepted)
 		}
 	case "/api/v1/cfg/save":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
@@ -97,6 +119,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 	case "/api/v1/cfg/validate":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
@@ -122,6 +148,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		ctx.Resp.Write(ngcmd.GenerateJsonSchema())
 
 	case "/genhash":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		b, _ := io.ReadAll(ctx.Req.Body)
 		hashed, _ := file.HashPassword(string(b))
 		ctx.Resp.Write([]byte(hashed))
@@ -143,6 +173,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		))
 
 	case "/shutdown":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			return http.RequestEnd
+		}
 		ctx.Resp.WriteHeader(http.StatusAccepted)
 		go func() {
 			zlog.Warn().
@@ -208,6 +242,88 @@ var curcfg []byte
 
 var Sselogger = NewTextStreamLogger()
 
+const (
+	csrfCookieName = "ngcsrf"
+	csrfHeaderName = "X-CSRF-Token"
+)
+
+const csrfTokenSize = 32
+
+func ensureCSRFCookie(ctx *http.HttpCtx) string {
+	if c, err := ctx.Req.Cookie(csrfCookieName); err == nil && isValidCSRFToken(c.Value) {
+		return c.Value
+	}
+	return issueCSRFCookie(ctx)
+}
+
+func requireCSRF(ctx *http.HttpCtx) bool {
+	cookie, err := ctx.Req.Cookie(csrfCookieName)
+	if err != nil || !isValidCSRFToken(cookie.Value) {
+		issueCSRFCookie(ctx)
+		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.WriteString("CSRF token missing or invalid")
+		return false
+	}
+
+	header := ctx.Req.Header.Get(csrfHeaderName)
+	if !isValidCSRFToken(header) {
+		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.WriteString("CSRF token missing or invalid")
+		return false
+	}
+
+	if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(header)) != 1 {
+		issueCSRFCookie(ctx)
+		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.WriteString("CSRF token mismatch")
+		return false
+	}
+
+	return true
+}
+
+func issueCSRFCookie(ctx *http.HttpCtx) string {
+	token := newCSRFToken()
+	ctx.SetCookie(&stdhttp.Cookie{
+		Name:     csrfCookieName,
+		Value:    token,
+		Path:     "/",
+		HttpOnly: false,
+		SameSite: stdhttp.SameSiteStrictMode,
+		Secure:   ctx.Req.TLS != nil,
+	})
+	return token
+}
+
+func newCSRFToken() string {
+	b := make([]byte, csrfTokenSize)
+	if _, err := rand.Read(b); err != nil {
+		zlog.Error().Err(err).Str("type", "csrf").Msg("failed to generate random CSRF token")
+		fallback := fmt.Sprintf("%d", time.Now().UnixNano())
+		return base64.RawURLEncoding.EncodeToString([]byte(fallback))
+	}
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func isValidCSRFToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	if _, err := base64.RawURLEncoding.DecodeString(token); err != nil {
+		return false
+	}
+	return true
+}
+
+func isSafeHTTPMethod(method string) bool {
+	switch method {
+	case stdhttp.MethodGet, stdhttp.MethodHead, stdhttp.MethodOptions:
+		return true
+	default:
+		return false
+	}
+}
+
 func Reload() error {
 
 	ReloadTime = time.Now()
@@ -226,3 +342,5 @@ func Reload() error {
 
 	return nil
 }
+
+var _ http.Service = (*UI)(nil)

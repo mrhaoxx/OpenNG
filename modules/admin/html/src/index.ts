@@ -8,6 +8,7 @@ import { configureMonacoYaml, type SchemasSettings } from 'monaco-yaml'
 import { parseDocument, LineCounter, isMap, isSeq } from 'yaml'
 
 import './index.css'
+import { csrfFetch } from './csrf'
 
 
 var gstatus = document.getElementById('status')!;
@@ -136,7 +137,7 @@ async function update() {
 
 async function save() {
   try {
-    const response = await fetch('/api/v1/cfg/save', {
+    const response = await csrfFetch('/api/v1/cfg/save', {
       method: 'POST',
       body: ed.getValue()
     });
@@ -148,7 +149,7 @@ async function save() {
 
 async function shutdown() {
   try {
-    const response = await fetch('/shutdown');
+  const response = await csrfFetch('/shutdown', { method: 'POST' });
     alert(response.status);
   } catch (error) {
     alert('Request failed');
@@ -158,7 +159,7 @@ async function shutdown() {
 async function reload() {
   await save();
   try {
-    const response = await fetch('/api/v1/cfg/reload');
+  const response = await csrfFetch('/api/v1/cfg/reload', { method: 'POST' });
     if (response.status != 202) {
       alert(await response.text());
     }else{
@@ -172,7 +173,7 @@ async function reload() {
 async function hash() {
   const ha = document.getElementById('hasky') as HTMLInputElement;
   try {
-    const response = await fetch('/genhash', {
+    const response = await csrfFetch('/genhash', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -201,7 +202,7 @@ let lastValidationRequestId = 0;
 
 async function runServerValidation(requestId: number) {
   try {
-    const response = await fetch('/api/v1/cfg/validate', {
+    const response = await csrfFetch('/api/v1/cfg/validate', {
       method: 'POST',
       body: ed.getValue()
     });

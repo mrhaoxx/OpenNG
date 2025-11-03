@@ -220,3 +220,5 @@ func insert(a []*HttpHost, index int, value *HttpHost) []*HttpHost {
 	}
 	return a
 }
+
+var _ Service = (*ReverseProxy)(nil)

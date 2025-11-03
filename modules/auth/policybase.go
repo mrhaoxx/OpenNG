@@ -327,7 +327,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 						Secure:   true,
 						Path:     "/",
 						Expires:  time.Now().Add(3 * 24 * time.Hour),
-						SameSite: stdhttp.SameSiteLaxMode,
+						SameSite: stdhttp.SameSiteNoneMode,
 					})
 					ctx.Redirect(truepath, http.StatusFound)
 
@@ -393,7 +393,7 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *http.HttpCtx, path string) http.Re
 			Secure:   true,
 			Path:     "/",
 			Expires:  time.Now().Add(-1 * time.Hour),
-			SameSite: stdhttp.SameSiteLaxMode,
+			SameSite: stdhttp.SameSiteNoneMode,
 		})
 		if session != nil {
 			mgr.rmSession(token)

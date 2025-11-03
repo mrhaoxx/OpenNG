@@ -7,12 +7,12 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func NewTCPProxyProtocolHandler(allowedsrcs []string) ServiceHandler {
+func NewTCPProxyProtocolHandler(allowedsrcs []string) Service {
 	mapallowed := make(map[string]bool)
 	for _, v := range allowedsrcs {
 		mapallowed[v] = true
 	}
-	return NewServiceFunction(func(conn *Conn) SerRet {
+	return NewServiceFunction(func(conn *Conn) Ret {
 		sorce := conn.Addr().String()
 		sourceip, _, err := net.SplitHostPort(sorce)
 		if err != nil || !mapallowed[sourceip] {

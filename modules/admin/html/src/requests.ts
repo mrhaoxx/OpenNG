@@ -1,4 +1,5 @@
 import './index.css'
+import { csrfFetch } from './csrf'
 
 type RequestInfo = Record<string, any>
 type SortKey = 'id' | 'method' | 'host' | 'uri' | 'src' | 'protocol' | 'code' | 'enc' | 'respwritten' | 'starttime'
@@ -25,7 +26,7 @@ function showResult(message: string) {
 
 async function killRequest(requestId: string) {
   try {
-    const resp = await fetch('/api/v1/http/request/kill', {
+    const resp = await csrfFetch('/api/v1/http/request/kill', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `rid=${encodeURIComponent(requestId)}`

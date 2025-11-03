@@ -47,7 +47,7 @@ func GetRootDomain(host string) string {
 
 type redirectTLS struct{}
 
-func (redirectTLS) Handle(conn *tcp.Conn) tcp.SerRet {
+func (redirectTLS) HandleTCP(conn *tcp.Conn) tcp.Ret {
 	http.Serve(net.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
 	}))
@@ -55,6 +55,8 @@ func (redirectTLS) Handle(conn *tcp.Conn) tcp.SerRet {
 }
 
 var Redirect2TLS = redirectTLS{}
+
+var _ tcp.Service = redirectTLS{}
 
 var _my_cipher_suit = []uint16{
 	tls.TLS_RSA_WITH_AES_128_CBC_SHA,

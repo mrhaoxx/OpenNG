@@ -56,7 +56,7 @@ func registerIpFilter() {
 			filter := NewIPFilter(allowed, blocked)
 
 			if next != nil {
-				nextHandler, ok := next.Value.(tcp.ServiceHandler)
+				nextHandler, ok := next.Value.(tcp.Service)
 				if !ok {
 					return nil, errors.New("ptr is not a http.HttpHandler")
 				}
@@ -104,7 +104,7 @@ func registerHostFilter() {
 			filter := &HostFilter{AllowedHosts: allowedHosts}
 
 			if next != nil {
-				nextHandler, ok := next.Value.(tcp.ServiceHandler)
+				nextHandler, ok := next.Value.(tcp.Service)
 				if !ok {
 					return nil, errors.New("ptr is not a http.HttpHandler")
 				}

@@ -6,7 +6,7 @@ import (
 	tcp "github.com/mrhaoxx/OpenNG/modules/tcp"
 )
 
-func (mgr *TlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
+func (mgr *TlsMgr) HandleTCP(c *tcp.Conn) tcp.Ret {
 	hellov, ok := c.Load(tcp.KeyTLS)
 	hello := hellov.(*tls.ClientHelloInfo)
 
@@ -55,3 +55,5 @@ func (mgr *TlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	}
 	return tcp.Close
 }
+
+var _ tcp.Service = (*TlsMgr)(nil)

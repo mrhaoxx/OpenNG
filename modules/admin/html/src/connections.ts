@@ -1,4 +1,5 @@
 import './index.css'
+import { csrfFetch } from './csrf'
 
 type Connection = {
   bytesrx: number
@@ -47,7 +48,7 @@ async function killConnection(cid: string) {
   const formData = new FormData()
   formData.append('cid', cid)
   try {
-    const resp = await fetch('/api/v1/tcp/connection/kill', { method: 'POST', body: formData })
+  const resp = await csrfFetch('/api/v1/tcp/connection/kill', { method: 'POST', body: formData })
     if (resp.ok) {
       showResult('Connection killed successfully')
       void fetchData()

@@ -199,3 +199,5 @@ func copyHeader(dst, src stdhttp.Header) {
 		}
 	}
 }
+
+var _ http.Forward = (*StdForwardProxy)(nil)
