@@ -3,7 +3,7 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
@@ -37,7 +37,7 @@ func (e *httpexprbased) Hosts() groupexp.GroupRegexp {
 }
 
 func init() {
-	ngmodules.Register("expr::http", func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("expr::http", func(spec *ng.ArgNode) (any, error) {
 		expression := spec.MustGet("exp").ToString()
 		varsNode, err := spec.Get("vars")
 
@@ -62,14 +62,14 @@ func init() {
 			Program: program,
 			Vars:    vars,
 		}, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type:     "map",
 		Required: true,
-		Sub: ngmodules.AssertMap{
+		Sub: ng.AssertMap{
 			"exp": {Type: "string", Required: true, Desc: "expression-based HTTP backend"},
 			"vars": {
 				Type: "map",
-				Sub: ngmodules.AssertMap{
+				Sub: ng.AssertMap{
 					"_": {Type: "any"},
 				},
 				Desc: "custom variables to be used in the expression",

@@ -3,7 +3,7 @@ package tls
 import (
 	"errors"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/rs/zerolog/log"
 )
 
@@ -13,8 +13,8 @@ func init() {
 }
 
 func registerTLS() {
-	ngmodules.Register("tls",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("tls",
+		func(spec *ng.ArgNode) (any, error) {
 			certs := spec.MustGet("certificates").ToList()
 
 			mgr := NewTlsMgr()
@@ -34,16 +34,16 @@ func registerTLS() {
 			}
 
 			return mgr, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type:     "map",
 			Required: true,
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"certificates": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"CertFile": {
 									Type:     "string",
 									Required: true,
@@ -64,14 +64,14 @@ func registerTLS() {
 }
 
 func registerReload() {
-	ngmodules.Register("tls::reload",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("tls::reload",
+		func(spec *ng.ArgNode) (any, error) {
 			mgr, ok := spec.Value.(*TlsMgr)
 			if !ok {
 				return nil, errors.New("ptr is not a tls.TlsMgr")
 			}
 			return nil, mgr.Reload()
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type:     "ptr",
 			Required: true,
 		},

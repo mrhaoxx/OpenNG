@@ -4,23 +4,23 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/mrhaoxx/OpenNG/log"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/pkg/log"
 )
 
 func init() {
-	ngmodules.Register("log::add", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::add", func(an *ng.ArgNode) (any, error) {
 		logger, ok := an.Value.(log.Logger)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a log.Logger")
 		}
 		log.Loggers.Add(logger)
 		return nil, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "ptr",
 	})
 
-	ngmodules.Register("log::set", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::set", func(an *ng.ArgNode) (any, error) {
 		logger := an.ToList()
 
 		loggers := []log.Logger{}
@@ -35,32 +35,32 @@ func init() {
 
 		log.Loggers.Set(loggers)
 		return nil, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "list",
-		Sub: ngmodules.AssertMap{
+		Sub: ng.AssertMap{
 			"_": {Type: "ptr"},
 		},
 	})
 
-	ngmodules.Register("log::reset", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::reset", func(an *ng.ArgNode) (any, error) {
 		log.Loggers.Reset()
 		return nil, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "null",
 	})
 
-	ngmodules.Register("log::stdout", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::stdout", func(an *ng.ArgNode) (any, error) {
 		return os.Stdout, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "null",
 	})
-	ngmodules.Register("log::stderr", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::stderr", func(an *ng.ArgNode) (any, error) {
 		return os.Stderr, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "null",
 	})
 
-	ngmodules.Register("log::file", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("log::file", func(an *ng.ArgNode) (any, error) {
 		path, ok := an.Value.(string)
 		if !ok {
 			return nil, fmt.Errorf("argument is not a string")
@@ -70,7 +70,7 @@ func init() {
 			return nil, fmt.Errorf("cannot open log file: %v", err)
 		}
 		return f, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "string",
 	})
 

@@ -3,7 +3,7 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/rs/zerolog/log"
 )
@@ -22,7 +22,7 @@ func (e *tcpexprbased) Handle(ctx *tcp.Conn) tcp.SerRet {
 }
 
 func init() {
-	ngmodules.Register("expr::tcp", func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("expr::tcp", func(spec *ng.ArgNode) (any, error) {
 		expression := spec.ToString()
 		log.Debug().
 			Str("expression", expression).
@@ -37,7 +37,7 @@ func init() {
 		return &tcpexprbased{
 			Program: program,
 		}, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type:     "string",
 		Required: true,
 		Desc:     "expression-based TCP backend",

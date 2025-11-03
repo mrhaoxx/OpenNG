@@ -2,7 +2,7 @@ package dns
 
 import (
 	"github.com/dlclark/regexp2"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/rs/zerolog/log"
 )
 
@@ -11,8 +11,8 @@ func init() {
 }
 
 func registerServer() {
-	ngmodules.Register("dns::server",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("dns::server",
+		func(spec *ng.ArgNode) (any, error) {
 			records := spec.MustGet("Records").ToList()
 			filters := spec.MustGet("Filters").ToList()
 			binds := spec.MustGet("Binds").ToList()
@@ -72,12 +72,12 @@ func registerServer() {
 			}
 
 			return server, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"AddressBindings": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {Type: "string"},
 					},
 				},
@@ -87,10 +87,10 @@ func registerServer() {
 				},
 				"Records": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,
@@ -113,10 +113,10 @@ func registerServer() {
 				},
 				"Filters": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,
@@ -131,10 +131,10 @@ func registerServer() {
 				},
 				"Binds": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"Name": {
 									Type:     "string",
 									Required: true,

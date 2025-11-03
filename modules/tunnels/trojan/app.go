@@ -4,13 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
 func init() {
-	ngmodules.Register("trojan::server",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("trojan::server",
+		func(spec *ng.ArgNode) (any, error) {
 			passwords := spec.MustGet("passwords").ToStringList()
 			iface := spec.MustGet("interface")
 
@@ -28,12 +28,12 @@ func init() {
 				PasswordHashes: passwords,
 				Underlying:     underlying,
 			}, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"passwords": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {Type: "string"},
 					},
 				},

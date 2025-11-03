@@ -3,7 +3,7 @@ package wireguard
 import (
 	"time"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 )
 
 func init() {
@@ -12,8 +12,8 @@ func init() {
 }
 
 func registerServer() {
-	ngmodules.Register("wireguard::server",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("wireguard::server",
+		func(spec *ng.ArgNode) (any, error) {
 			listenPort := spec.MustGet("ListenPort").ToInt()
 			privateKey := spec.MustGet("PrivateKey").ToString()
 			address := spec.MustGet("Address").ToString()
@@ -44,23 +44,23 @@ func registerServer() {
 			}
 
 			return NewWireGuardServer(cfg)
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"ListenPort": {Type: "int", Required: true},
 				"PrivateKey": {Type: "string", Required: true},
 				"Address":    {Type: "string", Required: true},
 				"MTU":        {Type: "int", Default: 1420},
 				"Forwarding": {
 					Type:    "map",
-					Default: map[string]*ngmodules.ArgNode{},
-					Sub: ngmodules.AssertMap{
+					Default: map[string]*ng.ArgNode{},
+					Sub: ng.AssertMap{
 						"EnableTCP": {Type: "bool", Default: true},
 						"EnableUDP": {Type: "bool", Default: true},
 						"TCP": {
 							Type:    "map",
-							Default: map[string]*ngmodules.ArgNode{},
-							Sub: ngmodules.AssertMap{
+							Default: map[string]*ng.ArgNode{},
+							Sub: ng.AssertMap{
 								"CatchTimeout": {
 									Type:    "duration",
 									Default: time.Duration(600 * time.Millisecond),
@@ -91,8 +91,8 @@ func registerServer() {
 }
 
 func registerAddPeers() {
-	ngmodules.Register("wireguard::addpeers",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("wireguard::addpeers",
+		func(spec *ng.ArgNode) (any, error) {
 			peers := spec.MustGet("Peers").ToList()
 			server := spec.MustGet("server").Value.(*WireGuardServer)
 
@@ -106,19 +106,19 @@ func registerAddPeers() {
 			}
 
 			return nil, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"Peers": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"PublicKey": {Type: "string", Required: true},
 								"AllowedIPs": {
 									Type: "list",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "string"},
 									},
 								},

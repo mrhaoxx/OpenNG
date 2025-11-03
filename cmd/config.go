@@ -6,14 +6,14 @@ import (
 	"os"
 	"time"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
 
 func GenerateJsonSchema() []byte {
-	refs_assertions := ngmodules.AssertionsRegistry()
+	refs_assertions := ng.AssertionsRegistry()
 
 	root := ToScheme(TopLevelConfigAssertion, 0, 5).(map[string]any)
 
@@ -62,7 +62,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		return err
 	}
 
-	nodes := &ngmodules.ArgNode{}
+	nodes := &ng.ArgNode{}
 
 	err = nodes.FromAny(cfg)
 	if err != nil {
@@ -89,8 +89,8 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		Services: map[string]any{
 			"sys": &net.SysInterface{},
 		},
-		Refs:       ngmodules.Registry(),
-		AssertRefs: ngmodules.AssertionsRegistry(),
+		Refs:       ng.Registry(),
+		AssertRefs: ng.AssertionsRegistry(),
 	}
 
 	space.Services["@"] = space
@@ -100,7 +100,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	return err
 }
 
-func GlobalCfg(config *ngmodules.ArgNode) error {
+func GlobalCfg(config *ng.ArgNode) error {
 
 	if logger, err := config.Get("Logger"); err == nil {
 
@@ -132,7 +132,7 @@ func ValidateCfg(cfgs []byte) []string {
 		return []string{err.Error()}
 	}
 
-	nodes := &ngmodules.ArgNode{}
+	nodes := &ng.ArgNode{}
 	err = nodes.FromAny(cfg)
 	if err != nil {
 		return []string{err.Error()}
@@ -150,8 +150,8 @@ func ValidateCfg(cfgs []byte) []string {
 		Services: map[string]any{
 			"sys": true,
 		},
-		Refs:       ngmodules.Registry(),
-		AssertRefs: ngmodules.AssertionsRegistry(),
+		Refs:       ng.Registry(),
+		AssertRefs: ng.AssertionsRegistry(),
 	}
 
 	errs := []string{}

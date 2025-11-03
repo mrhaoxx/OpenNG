@@ -3,7 +3,7 @@ package ui
 import (
 	"errors"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/tls"
 )
 
@@ -13,8 +13,8 @@ func init() {
 }
 
 func registerWebUI() {
-	ngmodules.Register("webui",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("webui",
+		func(spec *ng.ArgNode) (any, error) {
 			tcpController, ok := spec.MustGet("tcpcontroller").Value.(Reporter)
 			if !ok {
 				return nil, errors.New("tcp controller ptr is not a Reporter")
@@ -35,9 +35,9 @@ func registerWebUI() {
 			}
 
 			return ui, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"tcpcontroller": {Type: "ptr", Required: true},
 				"httpmidware":   {Type: "ptr", Required: true},
 				"tls":           {Type: "ptr"},
@@ -47,9 +47,9 @@ func registerWebUI() {
 }
 
 func registerSSELogger() {
-	ngmodules.Register("webui::sselog", func(an *ngmodules.ArgNode) (any, error) {
+	ng.Register("webui::sselog", func(an *ng.ArgNode) (any, error) {
 		return Sselogger, nil
-	}, ngmodules.Assert{
+	}, ng.Assert{
 		Type: "null",
 	})
 }

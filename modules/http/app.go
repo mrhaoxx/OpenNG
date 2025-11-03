@@ -6,7 +6,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	netgate "github.com/mrhaoxx/OpenNG"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
@@ -21,8 +21,8 @@ func init() {
 }
 
 func registerReverseProxier() {
-	ngmodules.Register("http::reverseproxier",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("http::reverseproxier",
+		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowedHosts := spec.MustGet("allowhosts").ToStringList()
 
@@ -51,18 +51,18 @@ func registerReverseProxier() {
 			}
 
 			return proxier, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "HTTP reverse proxy configuration",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"hosts": {
 					Type: "list",
 					Desc: "reverse proxy host configurations",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -72,7 +72,7 @@ func registerReverseProxier() {
 									Type:     "list",
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -103,9 +103,9 @@ func registerReverseProxier() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
+					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -115,8 +115,8 @@ func registerReverseProxier() {
 }
 
 func registerMidware() {
-	ngmodules.Register("http::midware",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("http::midware",
+		func(spec *ng.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			cgis := spec.MustGet("cgis").ToList()
 			forwards := spec.MustGet("forward").ToList()
@@ -213,21 +213,21 @@ func registerMidware() {
 			}
 
 			return midware, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"services": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -237,17 +237,17 @@ func registerMidware() {
 				},
 				"cgis": {
 					Type:    "list",
-					Default: []*ngmodules.ArgNode{},
+					Default: []*ng.ArgNode{},
 					Desc:    "CGI handlers for /ng-cgi/* paths",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
 								"paths": {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -257,19 +257,19 @@ func registerMidware() {
 				},
 				"forward": {
 					Type:    "list",
-					Default: []*ngmodules.ArgNode{},
+					Default: []*ng.ArgNode{},
 					Desc:    "forward proxy handlers",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
-									Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
+									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -283,8 +283,8 @@ func registerMidware() {
 }
 
 func registerMidwareAddService() {
-	ngmodules.Register("http::midware::addservice",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("http::midware::addservice",
+		func(spec *ng.ArgNode) (any, error) {
 			midware, ok := spec.MustGet("midware").Value.(*Midware)
 			if !ok {
 				return nil, errors.New("ptr is not a http.Midware")
@@ -323,23 +323,23 @@ func registerMidwareAddService() {
 			}
 
 			return nil, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
 			Desc: "adds additional HTTP services to an existing HTTP middleware",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
 				"services": {
 					Type: "list",
 					Desc: "list of HTTP services to add",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
@@ -354,9 +354,9 @@ func registerMidwareAddService() {
 }
 
 func registerSecureHTTP() {
-	ngmodules.Register("tcp::securehttp",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("tcp::securehttp",
+		func(spec *ng.ArgNode) (any, error) {
 			return Redirect2TLS, nil
-		}, ngmodules.Assert{Type: "null"},
+		}, ng.Assert{Type: "null"},
 	)
 }

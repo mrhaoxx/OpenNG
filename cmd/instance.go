@@ -4,22 +4,22 @@ import (
 	"fmt"
 	"time"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/net"
 	"github.com/rs/zerolog/log"
 )
 
 type Space struct {
 	Services   map[string]any
-	AssertRefs map[string]ngmodules.Assert
-	Refs       map[string]ngmodules.Inst
+	AssertRefs map[string]ng.Assert
+	Refs       map[string]ng.Inst
 }
 
-func (space *Space) Apply(root *ngmodules.ArgNode, reload bool) error {
+func (space *Space) Apply(root *ng.ArgNode, reload bool) error {
 	reload_errors := []error{}
 	srvs := root.MustGet("Services")
 
-	for i, _srv := range srvs.Value.([]*ngmodules.ArgNode) {
+	for i, _srv := range srvs.Value.([]*ng.ArgNode) {
 		_time := time.Now()
 
 		_ref := _srv.MustGet("kind").ToString()
@@ -93,13 +93,13 @@ func (space *Space) Apply(root *ngmodules.ArgNode, reload bool) error {
 
 }
 
-func (space *Space) Deptr(root *ngmodules.ArgNode, validate bool) error {
+func (space *Space) Deptr(root *ng.ArgNode, validate bool) error {
 	if root == nil {
 		return nil
 	}
 
-	var walk func(*ngmodules.ArgNode) error
-	walk = func(node *ngmodules.ArgNode) error {
+	var walk func(*ng.ArgNode) error
+	walk = func(node *ng.ArgNode) error {
 		switch node.Type {
 		case "map":
 			for k, v := range node.ToMap() {
@@ -142,17 +142,17 @@ func (space *Space) Deptr(root *ngmodules.ArgNode, validate bool) error {
 				} else {
 					return fmt.Errorf("ptr not found: %s", v)
 				}
-			case map[string]*ngmodules.ArgNode:
+			case map[string]*ng.ArgNode:
 				inst, err := space.instantiateAnon(v, validate)
 				if err != nil {
 					return err
 				}
 				node.Value = inst
-			case *ngmodules.ArgNode:
+			case *ng.ArgNode:
 				if v.Type != "map" {
 					return fmt.Errorf("invalid anonymous ptr node type: %s", v.Type)
 				}
-				mm := v.Value.(map[string]*ngmodules.ArgNode)
+				mm := v.Value.(map[string]*ng.ArgNode)
 				inst, err := space.instantiateAnon(mm, validate)
 				if err != nil {
 					return err
@@ -168,7 +168,7 @@ func (space *Space) Deptr(root *ngmodules.ArgNode, validate bool) error {
 	return walk(root)
 }
 
-func (space *Space) instantiateAnon(m map[string]*ngmodules.ArgNode, validate bool) (any, error) {
+func (space *Space) instantiateAnon(m map[string]*ng.ArgNode, validate bool) (any, error) {
 	var kind string
 	if k, ok := m["kind"]; ok && k != nil {
 		if k.Type != "string" {
@@ -179,7 +179,7 @@ func (space *Space) instantiateAnon(m map[string]*ngmodules.ArgNode, validate bo
 		return nil, fmt.Errorf("anonymous object missing kind")
 	}
 
-	spec := &ngmodules.ArgNode{Type: "null", Value: nil}
+	spec := &ng.ArgNode{Type: "null", Value: nil}
 	if s, ok := m["spec"]; ok && s != nil {
 		spec = s
 	}
@@ -215,12 +215,12 @@ func (space *Space) instantiateAnon(m map[string]*ngmodules.ArgNode, validate bo
 	return inst, nil
 }
 
-func (space *Space) Validate(root *ngmodules.ArgNode) []error {
+func (space *Space) Validate(root *ng.ArgNode) []error {
 	errors := []error{}
 
 	srvs := root.MustGet("Services")
 
-	for i, _srv := range srvs.Value.([]*ngmodules.ArgNode) {
+	for i, _srv := range srvs.Value.([]*ng.ArgNode) {
 
 		_ref := _srv.MustGet("kind").ToString()
 		to := _srv.MustGet("name").ToString()

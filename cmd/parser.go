@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
@@ -18,16 +18,16 @@ type TopLevelConfig struct {
 	Services any `yaml:"Services,flow"`
 }
 
-var TopLevelConfigAssertion = ngmodules.Assert{
+var TopLevelConfigAssertion = ng.Assert{
 	Type: "map",
-	Sub: ngmodules.AssertMap{
+	Sub: ng.AssertMap{
 		"Services": {
 			Desc: "service functions which will be called at startup",
 			Type: "list",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"_": {
 					Type: "map",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"name": {Type: "string", Default: "_"},
 						"kind": {Type: "string", Required: true},
 						"spec": {Type: "any"},
@@ -45,10 +45,10 @@ var TopLevelConfigAssertion = ngmodules.Assert{
 		"Config": {
 			Desc: "global configurations",
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"Logger": {
 					Type: "map",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"TimeZone": {
 							Desc:         "time zone for logger",
 							Type:         "string",
@@ -83,9 +83,9 @@ type _dref struct {
 	exp  bool
 }
 
-func Dedref(nodes *ngmodules.ArgNode) error {
-	var walk func(reqtree map[string]_dref, node *ngmodules.ArgNode, path string)
-	walk = func(reqtree map[string]_dref, node *ngmodules.ArgNode, path string) {
+func Dedref(nodes *ng.ArgNode) error {
+	var walk func(reqtree map[string]_dref, node *ng.ArgNode, path string)
+	walk = func(reqtree map[string]_dref, node *ng.ArgNode, path string) {
 		switch node.Type {
 		case "map":
 			for k, v := range node.ToMap() {
@@ -121,7 +121,7 @@ _regen:
 
 	next:
 		k = upperlevel(k)
-		var n *ngmodules.ArgNode
+		var n *ng.ArgNode
 
 		if k != "" {
 			__v = k + "." + v.path
@@ -191,7 +191,7 @@ _regen:
 
 }
 
-func AssertArg(node *ngmodules.ArgNode, assertions ngmodules.Assert) error {
+func AssertArg(node *ng.ArgNode, assertions ng.Assert) error {
 	if node == nil {
 		if assertions.Type == "null" || assertions.Type == "any" {
 			return nil
@@ -220,10 +220,10 @@ func AssertArg(node *ngmodules.ArgNode, assertions ngmodules.Assert) error {
 	switch assertions.Type {
 	case "map":
 		if node.Value == nil {
-			node.Value = map[string]*ngmodules.ArgNode{}
+			node.Value = map[string]*ng.ArgNode{}
 		}
 
-		if subnodes, ok := node.Value.(map[string]*ngmodules.ArgNode); ok {
+		if subnodes, ok := node.Value.(map[string]*ng.ArgNode); ok {
 			keys := map[string]struct{}{}
 			for k := range subnodes {
 				keys[k] = struct{}{}
@@ -236,7 +236,7 @@ func AssertArg(node *ngmodules.ArgNode, assertions ngmodules.Assert) error {
 						return fmt.Errorf("missing required key: %s", strconv.Quote(k))
 					} else {
 						if v.Default != nil {
-							node := &ngmodules.ArgNode{
+							node := &ng.ArgNode{
 								Type:  v.Type,
 								Value: v.Default,
 							}
@@ -276,11 +276,11 @@ func AssertArg(node *ngmodules.ArgNode, assertions ngmodules.Assert) error {
 		}
 
 		if node.Value == nil {
-			node.Value = []*ngmodules.ArgNode{}
+			node.Value = []*ng.ArgNode{}
 			return nil
 		}
 
-		realnodes, ok := node.Value.([]*ngmodules.ArgNode)
+		realnodes, ok := node.Value.([]*ng.ArgNode)
 		if !ok {
 			return fmt.Errorf("expected list, got %T", node.Value)
 		}
@@ -358,7 +358,7 @@ func AssertArg(node *ngmodules.ArgNode, assertions ngmodules.Assert) error {
 	return nil
 }
 
-func IfCompatibleAndConvert(node *ngmodules.ArgNode, assertions ngmodules.Assert) bool {
+func IfCompatibleAndConvert(node *ng.ArgNode, assertions ng.Assert) bool {
 
 	if node.Type == assertions.Type {
 		return true
@@ -371,7 +371,7 @@ func IfCompatibleAndConvert(node *ngmodules.ArgNode, assertions ngmodules.Assert
 			return true
 		}
 		if node.Type == "map" {
-			if m, ok := node.Value.(map[string]*ngmodules.ArgNode); ok {
+			if m, ok := node.Value.(map[string]*ng.ArgNode); ok {
 				if _, ok := m["kind"]; ok {
 					node.Type = "ptr"
 					return true
@@ -425,7 +425,7 @@ func IfCompatibleAndConvert(node *ngmodules.ArgNode, assertions ngmodules.Assert
 	return false
 }
 
-func ToScheme(m ngmodules.Assert, depth, maxDepth int) any {
+func ToScheme(m ng.Assert, depth, maxDepth int) any {
 	switch m.Type {
 	case "int":
 		res := map[string]any{
@@ -472,7 +472,7 @@ func ToScheme(m ngmodules.Assert, depth, maxDepth int) any {
 		}
 
 		conds := []any{}
-		for k, v := range ngmodules.AssertionsRegistry() {
+		for k, v := range ng.AssertionsRegistry() {
 			if k == "_" {
 				continue
 			}

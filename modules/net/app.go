@@ -4,7 +4,7 @@ import (
 	"errors"
 	stdnet "net"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	netpkg "github.com/mrhaoxx/OpenNG/pkg/net"
 )
 
@@ -14,16 +14,16 @@ func init() {
 }
 
 func registerSysInterface() {
-	ngmodules.Register("net::interface::sys",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("net::interface::sys",
+		func(spec *ng.ArgNode) (any, error) {
 			return &netpkg.SysInterface{}, nil
-		}, ngmodules.Assert{Type: "null", Desc: "use system default interface"},
+		}, ng.Assert{Type: "null", Desc: "use system default interface"},
 	)
 }
 
 func registerRouteTable() {
-	ngmodules.Register("net::routetable::new",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("net::routetable::new",
+		func(spec *ng.ArgNode) (any, error) {
 			routes := spec.MustGet("routes").ToList()
 			table := &netpkg.RouteTable{}
 
@@ -42,15 +42,15 @@ func registerRouteTable() {
 			}
 
 			return table, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"routes": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"cidr":      {Type: "string", Required: true},
 								"interface": {Type: "ptr", Required: true},
 							},

@@ -8,7 +8,7 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/log"
+	"github.com/mrhaoxx/OpenNG/pkg/log"
 
 	"github.com/rs/zerolog"
 	zlog "github.com/rs/zerolog/log"

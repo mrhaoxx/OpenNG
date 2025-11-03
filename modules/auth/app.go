@@ -3,7 +3,7 @@ package auth
 import (
 	"errors"
 
-	ngmodules "github.com/mrhaoxx/OpenNG/modules"
+	ng "github.com/mrhaoxx/OpenNG"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
@@ -12,8 +12,8 @@ import (
 )
 
 func init() {
-	ngmodules.Register("auth::manager",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("auth::manager",
+		func(spec *ng.ArgNode) (any, error) {
 			backends := spec.MustGet("backends").ToList()
 			var authmethods []AuthHandle
 
@@ -31,19 +31,19 @@ func init() {
 				groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
 
 			return manager, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"backends": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ngmodules.ArgNode{{Type: "hostname", Value: "*"}},
-					Sub: ngmodules.AssertMap{
+					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+					Sub: ng.AssertMap{
 						"_": {Type: "hostname"},
 					},
 				},
@@ -51,8 +51,8 @@ func init() {
 		},
 	)
 
-	ngmodules.Register("auth::backend::file",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("auth::backend::file",
+		func(spec *ng.ArgNode) (any, error) {
 			users := spec.MustGet("users").ToList()
 			backend := authbackend.NewFileBackend()
 
@@ -81,15 +81,15 @@ func init() {
 			}
 
 			return backend, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"users": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"name": {
 									Type:     "string",
 									Required: true,
@@ -108,7 +108,7 @@ func init() {
 								"SSHAuthorizedKeys": {
 									Type: "list",
 									Desc: "SSH authorized keys",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -120,8 +120,8 @@ func init() {
 		},
 	)
 
-	ngmodules.Register("auth::backend::ldap",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("auth::backend::ldap",
+		func(spec *ng.ArgNode) (any, error) {
 			url := spec.MustGet("Url").ToURL()
 			searchBase := spec.MustGet("SearchBase").ToString()
 			bindDN := spec.MustGet("BindDN").ToString()
@@ -133,9 +133,9 @@ func init() {
 				Msg("new auth ldap backend")
 
 			return authbackend.NewLDAPBackend(url, searchBase, bindDN, bindPW), nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"Url":        {Type: "url", Required: true},
 				"SearchBase": {Type: "string", Required: true},
 				"BindDN":     {Type: "string", Required: true},
@@ -144,8 +144,8 @@ func init() {
 		},
 	)
 
-	ngmodules.Register("auth::policyd",
-		func(spec *ngmodules.ArgNode) (any, error) {
+	ng.Register("auth::policyd",
+		func(spec *ng.ArgNode) (any, error) {
 			policies := spec.MustGet("Policies").ToList()
 			backends := spec.MustGet("backends").ToList()
 
@@ -187,35 +187,35 @@ func init() {
 			policyd.AddBackends(policyBackends)
 
 			return policyd, nil
-		}, ngmodules.Assert{
+		}, ng.Assert{
 			Type: "map",
-			Sub: ngmodules.AssertMap{
+			Sub: ng.AssertMap{
 				"Policies": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
-							Sub: ngmodules.AssertMap{
+							Sub: ng.AssertMap{
 								"name":      {Type: "string", Required: true},
 								"Allowance": {Type: "bool", Required: true},
 								"Users": {
 									Type: "list",
 									Desc: "matching users,empty STRING means ALL, empty LIST means NONE",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
 								"Hosts": {
 									Type: "list",
 									Desc: "matching Hosts, empty means none",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "hostname"},
 									},
 								},
 								"Paths": {
 									Type: "list",
 									Desc: "matching Paths, empty means all",
-									Sub: ngmodules.AssertMap{
+									Sub: ng.AssertMap{
 										"_": {Type: "string"},
 									},
 								},
@@ -225,7 +225,7 @@ func init() {
 				},
 				"backends": {
 					Type: "list",
-					Sub: ngmodules.AssertMap{
+					Sub: ng.AssertMap{
 						"_": {Type: "ptr"},
 					},
 				},
