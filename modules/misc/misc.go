@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	ngnet "github.com/mrhaoxx/OpenNG/pkg/net"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"

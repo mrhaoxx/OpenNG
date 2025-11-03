@@ -1,6 +1,8 @@
 package expr
 
 import (
+	"reflect"
+
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	ng "github.com/mrhaoxx/OpenNG"
@@ -37,7 +39,25 @@ func (e *httpexprbased) Hosts() groupexp.GroupRegexp {
 }
 
 func init() {
-	ng.Register("expr::http", func(spec *ng.ArgNode) (any, error) {
+	ng.Register("expr::http", ng.Assert{
+		Type:     "map",
+		Required: true,
+		Sub: ng.AssertMap{
+			"exp": {Type: "string", Required: true, Desc: "expression-based HTTP backend"},
+			"vars": {
+				Type: "map",
+				Sub: ng.AssertMap{
+					"_": {Type: "any"},
+				},
+				Desc: "custom variables to be used in the expression",
+			},
+		},
+	}, ng.Assert{
+		Type: "ptr",
+		Impls: []reflect.Type{
+			ng.Iface[http.Service](),
+		},
+	}, func(spec *ng.ArgNode) (any, error) {
 		expression := spec.MustGet("exp").ToString()
 		varsNode, err := spec.Get("vars")
 
@@ -62,19 +82,6 @@ func init() {
 			Program: program,
 			Vars:    vars,
 		}, nil
-	}, ng.Assert{
-		Type:     "map",
-		Required: true,
-		Sub: ng.AssertMap{
-			"exp": {Type: "string", Required: true, Desc: "expression-based HTTP backend"},
-			"vars": {
-				Type: "map",
-				Sub: ng.AssertMap{
-					"_": {Type: "any"},
-				},
-				Desc: "custom variables to be used in the expression",
-			},
-		},
 	})
 }
 

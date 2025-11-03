@@ -14,27 +14,7 @@ func init() {
 
 func registerTLS() {
 	ng.Register("tls",
-		func(spec *ng.ArgNode) (any, error) {
-			certs := spec.MustGet("certificates").ToList()
-
-			mgr := NewTlsMgr()
-
-			for _, cert := range certs {
-				certfile := cert.MustGet("CertFile").ToString()
-				keyfile := cert.MustGet("KeyFile").ToString()
-
-				if err := mgr.LoadCertificate(certfile, keyfile); err != nil {
-					return nil, err
-				}
-
-				log.Debug().
-					Str("certfile", certfile).
-					Str("keyfile", keyfile).
-					Msg("new tls certificate")
-			}
-
-			return mgr, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type:     "map",
 			Required: true,
 			Sub: ng.AssertMap{
@@ -60,20 +40,44 @@ func registerTLS() {
 				},
 			},
 		},
+		ng.Assert{Type: "ptr"},
+		func(spec *ng.ArgNode) (any, error) {
+			certs := spec.MustGet("certificates").ToList()
+
+			mgr := NewTlsMgr()
+
+			for _, cert := range certs {
+				certfile := cert.MustGet("CertFile").ToString()
+				keyfile := cert.MustGet("KeyFile").ToString()
+
+				if err := mgr.LoadCertificate(certfile, keyfile); err != nil {
+					return nil, err
+				}
+
+				log.Debug().
+					Str("certfile", certfile).
+					Str("keyfile", keyfile).
+					Msg("new tls certificate")
+			}
+
+			return mgr, nil
+		},
 	)
 }
 
 func registerReload() {
 	ng.Register("tls::reload",
+		ng.Assert{
+			Type:     "ptr",
+			Required: true,
+		},
+		ng.Assert{Type: "null"},
 		func(spec *ng.ArgNode) (any, error) {
 			mgr, ok := spec.Value.(*TlsMgr)
 			if !ok {
 				return nil, errors.New("ptr is not a tls.TlsMgr")
 			}
 			return nil, mgr.Reload()
-		}, ng.Assert{
-			Type:     "ptr",
-			Required: true,
 		},
 	)
 }

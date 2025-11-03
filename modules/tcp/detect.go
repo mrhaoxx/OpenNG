@@ -9,7 +9,7 @@ import (
 	"reflect"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 const (
@@ -22,7 +22,7 @@ const (
 func readClientHello(reader io.Reader) (*tls.ClientHelloInfo, error) {
 	var hello *tls.ClientHelloInfo
 
-	err := tls.Server(&net.RoConn{Reader: reader}, &tls.Config{
+	err := tls.Server(&ngnet.RoConn{Reader: reader}, &tls.Config{
 		GetConfigForClient: func(argHello *tls.ClientHelloInfo) (*tls.Config, error) {
 			hello = new(tls.ClientHelloInfo)
 			*hello = *argHello
@@ -56,7 +56,7 @@ func (det *Detect) HandleTCP(c *Conn) Ret {
 		sniffing:   true,
 		lastErr:    nil,
 	}
-	c.Reuse(&net.RwConn{
+	c.Reuse(&ngnet.RwConn{
 		Reader:  buf,
 		Writer:  raw,
 		Rawconn: raw,

@@ -3,6 +3,7 @@ package misc
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
@@ -21,17 +22,7 @@ func init() {
 
 func registerAcmeFileProvider() {
 	ng.Register("http::acme::fileprovider",
-		func(spec *ng.ArgNode) (any, error) {
-			hosts := spec.MustGet("Hosts").ToStringList()
-			wwwroot := spec.MustGet("WWWRoot").ToString()
-			provider := &AcmeWebRoot{
-				AllowedHosts: hosts,
-				WWWRoot:      wwwroot,
-			}
-
-			log.Debug().Strs("hosts", hosts).Str("wwwroot", wwwroot).Msg("new acme file provider")
-			return provider, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"Hosts": {
@@ -43,30 +34,29 @@ func registerAcmeFileProvider() {
 				"WWWRoot": {Type: "string", Required: true},
 			},
 		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			hosts := spec.MustGet("Hosts").ToStringList()
+			wwwroot := spec.MustGet("WWWRoot").ToString()
+			provider := &AcmeWebRoot{
+				AllowedHosts: hosts,
+				WWWRoot:      wwwroot,
+			}
+
+			log.Debug().Strs("hosts", hosts).Str("wwwroot", wwwroot).Msg("new acme file provider")
+			return provider, nil
+		},
 	)
 }
 
 func registerIpFilter() {
 	ng.Register("ipfilter",
-		func(spec *ng.ArgNode) (any, error) {
-			allowed := spec.MustGet("allowedcidrs").ToStringList()
-			blocked := spec.MustGet("blockedcidrs").ToStringList()
-			next := spec.MustGet("next")
-
-			filter := NewIPFilter(allowed, blocked)
-
-			if next != nil {
-				nextHandler, ok := next.Value.(tcp.Service)
-				if !ok {
-					return nil, errors.New("ptr is not a http.HttpHandler")
-				}
-				filter.next = nextHandler
-			}
-
-			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
-
-			return filter, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on source IP CIDR ranges",
@@ -92,16 +82,18 @@ func registerIpFilter() {
 				},
 			},
 		},
-	)
-}
-
-func registerHostFilter() {
-	ng.Register("hostfilter",
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
-			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
+			allowed := spec.MustGet("allowedcidrs").ToStringList()
+			blocked := spec.MustGet("blockedcidrs").ToStringList()
 			next := spec.MustGet("next")
 
-			filter := &HostFilter{AllowedHosts: allowedHosts}
+			filter := NewIPFilter(allowed, blocked)
 
 			if next != nil {
 				nextHandler, ok := next.Value.(tcp.Service)
@@ -111,10 +103,16 @@ func registerHostFilter() {
 				filter.next = nextHandler
 			}
 
-			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
+			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
 
 			return filter, nil
-		}, ng.Assert{
+		},
+	)
+}
+
+func registerHostFilter() {
+	ng.Register("hostfilter",
+		ng.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "filter connections based on HTTP Host header or TLS SNI",
@@ -133,11 +131,62 @@ func registerHostFilter() {
 				},
 			},
 		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
+			next := spec.MustGet("next")
+
+			filter := &HostFilter{AllowedHosts: allowedHosts}
+
+			if next != nil {
+				nextHandler, ok := next.Value.(tcp.Service)
+				if !ok {
+					return nil, errors.New("ptr is not a http.HttpHandler")
+				}
+				filter.next = nextHandler
+			}
+
+			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
+
+			return filter, nil
+		},
 	)
 }
 
 func registerGitlabAuth() {
 	ng.Register("gitlabauth",
+		ng.Assert{
+			Type: "map",
+			Sub: ng.AssertMap{
+				"gitlab_url": {Type: "url", Required: true},
+				"cache_ttl":  {Type: "duration", Default: time.Duration(10 * time.Second)},
+				"matchusernames": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {Type: "string"},
+					},
+				},
+				"prefix": {
+					Type:    "string",
+					Default: "",
+				},
+				"next": {
+					Type:    "ptr",
+					Default: nil,
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[auth.PolicyBackend](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			gitlabURL := spec.MustGet("gitlab_url").ToURL()
 			cacheTTL := spec.MustGet("cache_ttl").ToDuration()
@@ -169,26 +218,6 @@ func registerGitlabAuth() {
 				Str("prefix", prefix).
 				Msg("new gitlab auth")
 			return backend, nil
-		}, ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"gitlab_url": {Type: "url", Required: true},
-				"cache_ttl":  {Type: "duration", Default: time.Duration(10 * time.Second)},
-				"matchusernames": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "string"},
-					},
-				},
-				"prefix": {
-					Type:    "string",
-					Default: "",
-				},
-				"next": {
-					Type:    "ptr",
-					Default: nil,
-				},
-			},
 		},
 	)
 }

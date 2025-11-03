@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 )
 
 type StdForwardProxy struct {
-	Underlying net.Interface
+	Underlying ngnet.Interface
 
 	transport stdhttp.RoundTripper
 	init      sync.Once
@@ -112,9 +112,9 @@ func delHopHeaders(header stdhttp.Header) {
 	}
 }
 
-func proxy(ctx context.Context, left, right net.Conn) {
+func proxy(ctx context.Context, left, right ngnet.Conn) {
 	wg := sync.WaitGroup{}
-	cpy := func(dst, src net.Conn) {
+	cpy := func(dst, src ngnet.Conn) {
 		defer wg.Done()
 		io.Copy(dst, src)
 		dst.Close()
@@ -137,9 +137,9 @@ func proxy(ctx context.Context, left, right net.Conn) {
 	<-groupdone
 }
 
-func proxyh2(ctx context.Context, leftreader io.ReadCloser, leftwriter io.Writer, right net.Conn) {
+func proxyh2(ctx context.Context, leftreader io.ReadCloser, leftwriter io.Writer, right ngnet.Conn) {
 	wg := sync.WaitGroup{}
-	ltr := func(dst net.Conn, src io.Reader) {
+	ltr := func(dst ngnet.Conn, src io.Reader) {
 		defer wg.Done()
 		io.Copy(dst, src)
 		dst.Close()

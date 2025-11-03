@@ -11,7 +11,7 @@ import (
 	"sync/atomic"
 
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	zlog "github.com/rs/zerolog/log"
 )
 
@@ -24,7 +24,7 @@ type UDPPacket struct {
 
 type Server struct {
 	PasswordHashes []string
-	Underlying     net.Interface
+	Underlying     ngnet.Interface
 }
 
 func (s *Server) HandleTCP(conn *tcp.Conn) tcp.Ret {
@@ -56,7 +56,7 @@ func (s *Server) HandleTCP(conn *tcp.Conn) tcp.Ret {
 	}
 	switch metadata.Command {
 	case 0x1: // Connect
-		var target net.Conn
+		var target ngnet.Conn
 		var address string
 		switch metadata.Address.AddressType {
 		case IPv4, IPv6:
@@ -84,7 +84,7 @@ func (s *Server) HandleTCP(conn *tcp.Conn) tcp.Ret {
 			return tcp.Close
 		}
 
-		net.ConnSync(r, target)
+		ngnet.ConnSync(r, target)
 		return tcp.Close
 
 	case 0x3: // Associate

@@ -1,9 +1,11 @@
 package wireguard
 
 import (
+	"reflect"
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
@@ -13,38 +15,7 @@ func init() {
 
 func registerServer() {
 	ng.Register("wireguard::server",
-		func(spec *ng.ArgNode) (any, error) {
-			listenPort := spec.MustGet("ListenPort").ToInt()
-			privateKey := spec.MustGet("PrivateKey").ToString()
-			address := spec.MustGet("Address").ToString()
-			mtu := spec.MustGet("MTU").ToInt()
-
-			forwarding := spec.MustGet("Forwarding")
-			enableTCP := forwarding.MustGet("EnableTCP").ToBool()
-			enableUDP := forwarding.MustGet("EnableUDP").ToBool()
-			tcpNode := forwarding.MustGet("TCP")
-			catchTimeout := tcpNode.MustGet("CatchTimeout").ToDuration()
-			connTimeout := tcpNode.MustGet("ConnTimeout").ToDuration()
-			keepaliveIdle := tcpNode.MustGet("KeepaliveIdle").ToDuration()
-			keepaliveInterval := tcpNode.MustGet("KeepaliveInterval").ToDuration()
-			keepaliveCount := tcpNode.MustGet("KeepaliveCount").ToInt()
-
-			cfg := &WireGuardConfig{
-				ListenPort:           listenPort,
-				PrivateKey:           privateKey,
-				Address:              address,
-				MTU:                  mtu,
-				EnableTCP:            enableTCP,
-				EnableUDP:            enableUDP,
-				TcpCatchTimeout:      catchTimeout,
-				TcpConnTimeout:       connTimeout,
-				TcpKeepaliveIdle:     keepaliveIdle,
-				TcpKeepaliveInterval: keepaliveInterval,
-				TcpKeepAliveCount:    keepaliveCount,
-			}
-
-			return NewWireGuardServer(cfg)
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"ListenPort": {Type: "int", Required: true},
@@ -87,26 +58,50 @@ func registerServer() {
 				},
 			},
 		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[ngnet.Interface](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			listenPort := spec.MustGet("ListenPort").ToInt()
+			privateKey := spec.MustGet("PrivateKey").ToString()
+			address := spec.MustGet("Address").ToString()
+			mtu := spec.MustGet("MTU").ToInt()
+
+			forwarding := spec.MustGet("Forwarding")
+			enableTCP := forwarding.MustGet("EnableTCP").ToBool()
+			enableUDP := forwarding.MustGet("EnableUDP").ToBool()
+			tcpNode := forwarding.MustGet("TCP")
+			catchTimeout := tcpNode.MustGet("CatchTimeout").ToDuration()
+			connTimeout := tcpNode.MustGet("ConnTimeout").ToDuration()
+			keepaliveIdle := tcpNode.MustGet("KeepaliveIdle").ToDuration()
+			keepaliveInterval := tcpNode.MustGet("KeepaliveInterval").ToDuration()
+			keepaliveCount := tcpNode.MustGet("KeepaliveCount").ToInt()
+
+			cfg := &WireGuardConfig{
+				ListenPort:           listenPort,
+				PrivateKey:           privateKey,
+				Address:              address,
+				MTU:                  mtu,
+				EnableTCP:            enableTCP,
+				EnableUDP:            enableUDP,
+				TcpCatchTimeout:      catchTimeout,
+				TcpConnTimeout:       connTimeout,
+				TcpKeepaliveIdle:     keepaliveIdle,
+				TcpKeepaliveInterval: keepaliveInterval,
+				TcpKeepAliveCount:    keepaliveCount,
+			}
+
+			return NewWireGuardServer(cfg)
+		},
 	)
 }
 
 func registerAddPeers() {
 	ng.Register("wireguard::addpeers",
-		func(spec *ng.ArgNode) (any, error) {
-			peers := spec.MustGet("Peers").ToList()
-			server := spec.MustGet("server").Value.(*WireGuardServer)
-
-			for _, peer := range peers {
-				publicKey := peer.MustGet("PublicKey").ToString()
-				allowedIPs := peer.MustGet("AllowedIPs").ToStringList()
-
-				if err := server.AddPeer(publicKey, allowedIPs); err != nil {
-					return nil, err
-				}
-			}
-
-			return nil, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"Peers": {
@@ -128,6 +123,22 @@ func registerAddPeers() {
 				},
 				"server": {Type: "ptr", Required: true},
 			},
+		},
+		ng.Assert{Type: "null"},
+		func(spec *ng.ArgNode) (any, error) {
+			peers := spec.MustGet("Peers").ToList()
+			server := spec.MustGet("server").Value.(*WireGuardServer)
+
+			for _, peer := range peers {
+				publicKey := peer.MustGet("PublicKey").ToString()
+				allowedIPs := peer.MustGet("AllowedIPs").ToStringList()
+
+				if err := server.AddPeer(publicKey, allowedIPs); err != nil {
+					return nil, err
+				}
+			}
+
+			return nil, nil
 		},
 	)
 }

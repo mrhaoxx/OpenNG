@@ -4,7 +4,7 @@ import (
 	"net"
 	"sync"
 
-	ngnet "github.com/mrhaoxx/OpenNG/pkg/net"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type tcphost struct {

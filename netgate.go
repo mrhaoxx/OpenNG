@@ -3,10 +3,11 @@ package ng
 import (
 	_ "embed"
 	"fmt"
+	"reflect"
 	"strings"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 //go:embed NetGATE.svg
@@ -20,13 +21,15 @@ const (
 	ServerSign = "OpenNG"
 )
 
-var refs_assertions = map[string]Assert{}
+var args_asserts = map[string]Assert{}
+var ret_asserts = map[string]Assert{}
 
 var refs = map[string]Inst{}
 
-func Register(name string, inst Inst, assert Assert) {
+func Register(name string, args Assert, ret Assert, inst Inst) {
 	refs[name] = inst
-	refs_assertions[name] = assert
+	args_asserts[name] = args
+	ret_asserts[name] = ret
 }
 
 func Registry() map[string]Inst {
@@ -34,7 +37,7 @@ func Registry() map[string]Inst {
 }
 
 func AssertionsRegistry() map[string]Assert {
-	return refs_assertions
+	return args_asserts
 }
 
 type Inst func(*ArgNode) (any, error)
@@ -52,6 +55,18 @@ type Assert struct {
 	Enum         []any
 	AllowNonEnum bool
 	Desc         string
+
+	Impls    []reflect.Type
+	AllowNil bool
+}
+
+func Iface[T any]() reflect.Type {
+	var z *T
+	rt := reflect.TypeOf(z).Elem()
+	if rt.Kind() != reflect.Interface {
+		panic("Iface[T]: T must be an interface")
+	}
+	return rt
 }
 
 type ArgNode struct {
@@ -144,7 +159,7 @@ func (node *ArgNode) ToDuration() time.Duration {
 	return node.Value.(time.Duration)
 }
 
-func (node *ArgNode) ToURL() *net.URL {
+func (node *ArgNode) ToURL() *ngnet.URL {
 	if node == nil {
 		panic("nil node")
 	}
@@ -152,7 +167,7 @@ func (node *ArgNode) ToURL() *net.URL {
 		return nil
 	}
 
-	return node.Value.(*net.URL)
+	return node.Value.(*ngnet.URL)
 }
 
 func (node *ArgNode) ToAny() any {

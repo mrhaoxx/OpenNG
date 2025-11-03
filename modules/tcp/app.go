@@ -2,12 +2,12 @@ package tcp
 
 import (
 	"errors"
-	"fmt"
 	"net/url"
+	"reflect"
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog/log"
 )
 
@@ -21,6 +21,37 @@ func init() {
 
 func registerDetector() {
 	ng.Register("tcp::det",
+		ng.Assert{
+			Type:     "map",
+			Required: true,
+			Sub: ng.AssertMap{
+				"protocols": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "string",
+							Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
+						},
+					},
+				},
+				"timeout": {
+					Type:    "duration",
+					Default: time.Duration(0),
+					Desc:    "timeout for detection, 0 means no timeout",
+				},
+				"timeoutprotocol": {
+					Type:    "string",
+					Default: "UNKNOWN",
+					Desc:    "protocol to assume when timeout",
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			protocols := spec.MustGet("protocols").ToStringList()
 			timeout := spec.MustGet("timeout").ToDuration()
@@ -57,69 +88,13 @@ func registerDetector() {
 				Msg("new tcp detector")
 
 			return &Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutProtocol}, nil
-		}, ng.Assert{
-			Type:     "map",
-			Required: true,
-			Sub: ng.AssertMap{
-				"protocols": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "string",
-							Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
-						},
-					},
-				},
-				"timeout": {
-					Type:    "duration",
-					Default: time.Duration(0),
-					Desc:    "timeout for detection, 0 means no timeout",
-				},
-				"timeoutprotocol": {
-					Type:    "string",
-					Default: "UNKNOWN",
-					Desc:    "protocol to assume when timeout",
-				},
-			},
 		},
 	)
 }
 
 func registerController() {
 	ng.Register("tcp::controller",
-		func(spec *ng.ArgNode) (any, error) {
-			services := spec.MustGet("services").ToMap()
-
-			controller := NewTcpController()
-
-			for name, srvs := range services {
-				var bindings []ServiceBinding
-				for i, srv := range srvs.ToList() {
-					serviceName := srv.MustGet("name").ToString()
-					logi := srv.MustGet("logi")
-					service, ok := logi.Value.(Service)
-					if !ok {
-						return nil, errors.New("ptr " + serviceName + " is not a tcp.ServiceHandler " + fmt.Sprintf("%T %#v", logi.Value, logi.Value))
-					}
-
-					bindings = append(bindings, ServiceBinding{
-						Name:    serviceName,
-						Service: service,
-					})
-
-					log.Debug().
-						Str("protocol", name).
-						Int("index", i).
-						Str("name", serviceName).
-						Type("logi", logi.Value).
-						Msg("bind tcp service")
-				}
-
-				controller.Bind(name, bindings...)
-			}
-
-			return controller, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "TCP connection controller that manages protocol detection and service routing",
@@ -143,7 +118,10 @@ func registerController() {
 										"logi": {
 											Type:     "ptr",
 											Required: true,
-											Desc:     "pointer to service handler implementation (must implement tcp.ServiceHandler)",
+											Desc:     "pointer to service",
+											Impls: []reflect.Type{
+												ng.Iface[Service](),
+											},
 										},
 									},
 								},
@@ -153,25 +131,43 @@ func registerController() {
 				},
 			},
 		},
+		ng.Assert{Type: "ptr"},
+		func(spec *ng.ArgNode) (any, error) {
+			services := spec.MustGet("services").ToMap()
+
+			controller := NewTcpController()
+
+			for name, srvs := range services {
+				var bindings []ServiceBinding
+				for i, srv := range srvs.ToList() {
+					serviceName := srv.MustGet("name").ToString()
+					logi := srv.MustGet("logi")
+					service := logi.Value.(Service)
+
+					bindings = append(bindings, ServiceBinding{
+						Name:    serviceName,
+						Service: service,
+					})
+
+					log.Debug().
+						Str("protocol", name).
+						Int("index", i).
+						Str("name", serviceName).
+						Type("logi", logi.Value).
+						Msg("bind tcp service")
+				}
+
+				controller.Bind(name, bindings...)
+			}
+
+			return controller, nil
+		},
 	)
 }
 
 func registerListener() {
 	ng.Register("tcp::listen",
-		func(spec *ng.ArgNode) (any, error) {
-			ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
-			if !ok {
-				return nil, errors.New("ptr is not a tcp.Listener")
-			}
-
-			for _, addr := range spec.MustGet("AddressBindings").ToStringList() {
-				if err := ctl.Listen(addr); err != nil {
-					return nil, err
-				}
-				log.Debug().Str("addr", addr).Msg("tcp listen")
-			}
-			return nil, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"AddressBindings": {
@@ -187,11 +183,54 @@ func registerListener() {
 				},
 			},
 		},
+		ng.Assert{Type: "null"},
+		func(spec *ng.ArgNode) (any, error) {
+			ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
+			if !ok {
+				return nil, errors.New("ptr is not a tcp.Listener")
+			}
+
+			for _, addr := range spec.MustGet("AddressBindings").ToStringList() {
+				if err := ctl.Listen(addr); err != nil {
+					return nil, err
+				}
+				log.Debug().Str("addr", addr).Msg("tcp listen")
+			}
+			return nil, nil
+		},
 	)
 }
 
 func registerProxier() {
 	ng.Register("tcp::proxier",
+		ng.Assert{
+			Type: "map",
+			Sub: ng.AssertMap{
+				"hosts": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"name": {Type: "string", Required: true},
+								"backend": {
+									Type:     "url",
+									Required: true,
+									Default:  &opennet.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
+								},
+								"protocol": {Type: "string", Required: true},
+							},
+						},
+					},
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 
@@ -214,38 +253,13 @@ func registerProxier() {
 			}
 
 			return proxier, nil
-		}, ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"hosts": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true},
-								"backend": {
-									Type:     "url",
-									Required: true,
-									Default:  &opennet.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
-								},
-								"protocol": {Type: "string", Required: true},
-							},
-						},
-					},
-				},
-			},
 		},
 	)
 }
 
 func registerProxyProtocolHandler() {
 	ng.Register("tcp::proxyprotocolhandler",
-		func(spec *ng.ArgNode) (any, error) {
-			allowedSrcs := spec.MustGet("allowedsrcs").ToStringList()
-			log.Debug().Strs("allowedsrcs", allowedSrcs).Msg("new tcp proxy protocol handler")
-			return NewTCPProxyProtocolHandler(allowedSrcs), nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"allowedsrcs": {
@@ -256,6 +270,17 @@ func registerProxyProtocolHandler() {
 					},
 				},
 			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[Service](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			allowedSrcs := spec.MustGet("allowedsrcs").ToStringList()
+			log.Debug().Strs("allowedsrcs", allowedSrcs).Msg("new tcp proxy protocol handler")
+			return NewTCPProxyProtocolHandler(allowedSrcs), nil
 		},
 	)
 }

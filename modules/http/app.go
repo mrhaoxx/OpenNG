@@ -3,13 +3,14 @@ package http
 import (
 	"errors"
 	"net/url"
+	"reflect"
 
 	"github.com/dlclark/regexp2"
-	netgate "github.com/mrhaoxx/OpenNG"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/dns"
+	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog/log"
 )
 
@@ -22,36 +23,7 @@ func init() {
 
 func registerReverseProxier() {
 	ng.Register("http::reverseproxier",
-		func(spec *ng.ArgNode) (any, error) {
-			hosts := spec.MustGet("hosts").ToList()
-			allowedHosts := spec.MustGet("allowhosts").ToStringList()
-
-			proxier := NewHTTPProxier(allowedHosts)
-
-			for id, host := range hosts {
-				name := host.MustGet("name").ToString()
-				hostnames := host.MustGet("hosts").ToStringList()
-				backend := host.MustGet("backend").ToURL()
-				maxConns := host.MustGet("MaxConnsPerHost").ToInt()
-				tlsSkip := host.MustGet("TlsSkipVerify").ToBool()
-				bypassEncoding := host.MustGet("BypassEncoding").ToBool()
-
-				if err := proxier.Insert(id, name, hostnames, backend, maxConns, tlsSkip, bypassEncoding); err != nil {
-					return nil, err
-				}
-
-				log.Debug().
-					Str("name", name).
-					Strs("hosts", hostnames).
-					Str("backend", backend.String()).
-					Int("maxconns", maxConns).
-					Bool("tlsskip", tlsSkip).
-					Bool("bypassencoding", bypassEncoding).
-					Msg("new http reverse host")
-			}
-
-			return proxier, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type:     "map",
 			Required: true,
 			Desc:     "HTTP reverse proxy configuration",
@@ -80,7 +52,7 @@ func registerReverseProxier() {
 									Type:     "url",
 									Required: true,
 									Desc:     "backend URL to proxy requests to",
-									Default:  &opennet.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
+									Default:  &ngnet.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
 								},
 								"MaxConnsPerHost": {
 									Type:    "int",
@@ -111,11 +83,119 @@ func registerReverseProxier() {
 				},
 			},
 		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[Service](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			hosts := spec.MustGet("hosts").ToList()
+			allowedHosts := spec.MustGet("allowhosts").ToStringList()
+
+			proxier := NewHTTPProxier(allowedHosts)
+
+			for id, host := range hosts {
+				name := host.MustGet("name").ToString()
+				hostnames := host.MustGet("hosts").ToStringList()
+				backend := host.MustGet("backend").ToURL()
+				maxConns := host.MustGet("MaxConnsPerHost").ToInt()
+				tlsSkip := host.MustGet("TlsSkipVerify").ToBool()
+				bypassEncoding := host.MustGet("BypassEncoding").ToBool()
+
+				if err := proxier.Insert(id, name, hostnames, backend, maxConns, tlsSkip, bypassEncoding); err != nil {
+					return nil, err
+				}
+
+				log.Debug().
+					Str("name", name).
+					Strs("hosts", hostnames).
+					Str("backend", backend.String()).
+					Int("maxconns", maxConns).
+					Bool("tlsskip", tlsSkip).
+					Bool("bypassencoding", bypassEncoding).
+					Msg("new http reverse host")
+			}
+
+			return proxier, nil
+		},
 	)
 }
 
 func registerMidware() {
 	ng.Register("http::midware",
+		ng.Assert{
+			Type: "map",
+			Sub: ng.AssertMap{
+				"services": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"name": {Type: "string", Required: true},
+								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
+								"hosts": {
+									Type: "list",
+									Desc: "hostnames this service handles",
+									Sub: ng.AssertMap{
+										"_": {Type: "hostname"},
+									},
+								},
+							},
+						},
+					},
+				},
+				"cgis": {
+					Type:    "list",
+					Default: []*ng.ArgNode{},
+					Desc:    "CGI handlers for /ng-cgi/* paths",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
+								"paths": {
+									Type: "list",
+									Desc: "URL paths this CGI handles",
+									Sub: ng.AssertMap{
+										"_": {Type: "string"},
+									},
+								},
+							},
+						},
+					},
+				},
+				"forward": {
+					Type:    "list",
+					Default: []*ng.ArgNode{},
+					Desc:    "forward proxy handlers",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
+								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
+								"hosts": {
+									Type:    "list",
+									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+									Desc:    "hostnames this forward proxy handles",
+									Sub: ng.AssertMap{
+										"_": {Type: "hostname"},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			cgis := spec.MustGet("cgis").ToList()
@@ -127,7 +207,7 @@ func registerMidware() {
 				CgiHandler: func(ctx *HttpCtx, path string) Ret {
 					ctx.Resp.Header().Set("Content-Type", "image/svg+xml")
 					ctx.Resp.Header().Set("Cache-Control", "max-age=2592000")
-					ctx.Resp.Write(netgate.Logo())
+					ctx.Resp.Write(ng.Logo())
 
 					return RequestEnd
 				},
@@ -213,17 +293,25 @@ func registerMidware() {
 			}
 
 			return midware, nil
-		}, ng.Assert{
+		},
+	)
+}
+
+func registerMidwareAddService() {
+	ng.Register("http::midware::addservice",
+		ng.Assert{
 			Type: "map",
+			Desc: "adds additional HTTP services to an existing HTTP middleware",
 			Sub: ng.AssertMap{
+				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
 				"services": {
 					Type: "list",
+					Desc: "list of HTTP services to add",
 					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true},
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to service function"},
+								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
@@ -231,59 +319,14 @@ func registerMidware() {
 										"_": {Type: "hostname"},
 									},
 								},
-							},
-						},
-					},
-				},
-				"cgis": {
-					Type:    "list",
-					Default: []*ng.ArgNode{},
-					Desc:    "CGI handlers for /ng-cgi/* paths",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to CGI handler implementation"},
-								"paths": {
-									Type: "list",
-									Desc: "URL paths this CGI handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"forward": {
-					Type:    "list",
-					Default: []*ng.ArgNode{},
-					Desc:    "forward proxy handlers",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to forward proxy implementation"},
-								"hosts": {
-									Type:    "list",
-									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
-									Desc:    "hostnames this forward proxy handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
+								"name": {Type: "string", Required: true, Desc: "name of the service (used in logs and monitoring)"},
 							},
 						},
 					},
 				},
 			},
 		},
-	)
-}
-
-func registerMidwareAddService() {
-	ng.Register("http::midware::addservice",
+		ng.Assert{Type: "null"},
 		func(spec *ng.ArgNode) (any, error) {
 			midware, ok := spec.MustGet("midware").Value.(*Midware)
 			if !ok {
@@ -323,40 +366,21 @@ func registerMidwareAddService() {
 			}
 
 			return nil, nil
-		}, ng.Assert{
-			Type: "map",
-			Desc: "adds additional HTTP services to an existing HTTP middleware",
-			Sub: ng.AssertMap{
-				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
-				"services": {
-					Type: "list",
-					Desc: "list of HTTP services to add",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Desc: "pointer to service handler implementation"},
-								"hosts": {
-									Type: "list",
-									Desc: "hostnames this service handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-								"name": {Type: "string", Required: true, Desc: "name of the service (used in logs and monitoring)"},
-							},
-						},
-					},
-				},
-			},
 		},
 	)
 }
 
 func registerSecureHTTP() {
 	ng.Register("tcp::securehttp",
+		ng.Assert{Type: "null"},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			return Redirect2TLS, nil
-		}, ng.Assert{Type: "null"},
+		},
 	)
 }

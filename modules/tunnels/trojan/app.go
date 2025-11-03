@@ -3,13 +3,36 @@ package trojan
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/modules/tcp"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
 	ng.Register("trojan::server",
+		ng.Assert{
+			Type: "map",
+			Sub: ng.AssertMap{
+				"passwords": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {Type: "string"},
+					},
+				},
+				"interface": {
+					Type:    "ptr",
+					Default: "sys",
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			passwords := spec.MustGet("passwords").ToStringList()
 			iface := spec.MustGet("interface")
@@ -28,20 +51,6 @@ func init() {
 				PasswordHashes: passwords,
 				Underlying:     underlying,
 			}, nil
-		}, ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"passwords": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "string"},
-					},
-				},
-				"interface": {
-					Type:    "ptr",
-					Default: "sys",
-				},
-			},
 		},
 	)
 }

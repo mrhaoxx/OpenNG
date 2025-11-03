@@ -2,10 +2,12 @@ package ssh
 
 import (
 	"errors"
+	"reflect"
 	"strconv"
 	"strings"
 
 	ng "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
@@ -18,6 +20,54 @@ func init() {
 
 func registerMidware() {
 	ng.Register("ssh::midware",
+		ng.Assert{
+			Type: "map",
+			Sub: ng.AssertMap{
+				"services": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"name": {Type: "string", Required: true},
+								"logi": {Type: "ptr", Required: true},
+							},
+						},
+					},
+				},
+				"banner": {
+					Type:    "string",
+					Default: "Welcome to OpenNG SSH Server\n",
+					Desc:    "Dynamic Strings:\n%t: time\n%h: remote ip\n%u: username\n",
+				},
+				"quotes": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {Type: "string"},
+					},
+				},
+				"privatekeys": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {Type: "string"},
+					},
+				},
+				"policyd": {
+					Type:     "ptr",
+					Required: true,
+				},
+				"logpassword": {
+					Type:    "bool",
+					Default: false,
+				},
+			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[tcp.Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			services := spec.MustGet("services").ToList()
 			banner := spec.MustGet("banner").ToString()
@@ -71,31 +121,42 @@ func registerMidware() {
 				log.Debug().Str("name", name).Type("logi", logi.Value).Msg("new ssh service")
 			}
 			return midware, nil
-		}, ng.Assert{
+		},
+	)
+}
+
+func registerReverseProxier() {
+	ng.Register("ssh::reverseproxier",
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
-				"services": {
+				"hosts": {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true},
-								"logi": {Type: "ptr", Required: true},
+								"name":     {Type: "string", Required: true},
+								"HostName": {Type: "hostname", Required: true},
+								"Port":     {Type: "int", Default: 22},
+								"Pubkey":   {Type: "string"},
+								"Identity": {Type: "string"},
+								"User":     {Type: "string"},
+								"Password": {Type: "string"},
+								"AllowedUsers": {
+									Type: "list",
+									Desc: "empty means all, when set, only matched users are allowed",
+									Sub: ng.AssertMap{
+										"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
+									},
+								},
 							},
 						},
 					},
 				},
-				"banner": {
-					Type:    "string",
-					Default: "Welcome to OpenNG SSH Server\n",
-					Desc:    "Dynamic Strings:\n%t: time\n%h: remote ip\n%u: username\n",
-				},
-				"quotes": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "string"},
-					},
+				"allowdnsquery": {
+					Type:    "bool",
+					Default: false,
 				},
 				"privatekeys": {
 					Type: "list",
@@ -103,21 +164,14 @@ func registerMidware() {
 						"_": {Type: "string"},
 					},
 				},
-				"policyd": {
-					Type:     "ptr",
-					Required: true,
-				},
-				"logpassword": {
-					Type:    "bool",
-					Default: false,
-				},
 			},
 		},
-	)
-}
-
-func registerReverseProxier() {
-	ng.Register("ssh::reverseproxier",
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[Service](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
 			allowDNSQuery := spec.MustGet("allowdnsquery").ToBool()
@@ -192,44 +246,6 @@ func registerReverseProxier() {
 			srv.AllowDnsQuery = allowDNSQuery
 
 			return srv, nil
-		}, ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"hosts": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name":     {Type: "string", Required: true},
-								"HostName": {Type: "hostname", Required: true},
-								"Port":     {Type: "int", Default: 22},
-								"Pubkey":   {Type: "string"},
-								"Identity": {Type: "string"},
-								"User":     {Type: "string"},
-								"Password": {Type: "string"},
-								"AllowedUsers": {
-									Type: "list",
-									Desc: "empty means all, when set, only matched users are allowed",
-									Sub: ng.AssertMap{
-										"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"allowdnsquery": {
-					Type:    "bool",
-					Default: false,
-				},
-				"privatekeys": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "string"},
-					},
-				},
-			},
 		},
 	)
 }

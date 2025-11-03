@@ -20,7 +20,7 @@ import (
 
 	gnet "net"
 
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/netstack"
 
@@ -106,7 +106,7 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 		defer srcConn.Close()
 
 		// netgate.ConnSync(dstConn, srcConn)
-		net.ConnSync(srcConn, dstConn)
+		ngnet.ConnSync(srcConn, dstConn)
 
 		path += fmt.Sprintf(" accept %s", time.Since(now))
 
@@ -123,11 +123,11 @@ func Handler(c Config) func(*tcp.ForwarderRequest) {
 // Returns the connection on success,
 // a channel for the caller to populate when the connection is used,
 // and whether or not to send RST to source.
-func checkDst(config *Config, s stack.TransportEndpointID) (net.Conn, bool) {
+func checkDst(config *Config, s stack.TransportEndpointID) (ngnet.Conn, bool) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), config.ConnTimeout)
 	defer cancel()
-	c, err := net.DefaultRouteTable.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
+	c, err := ngnet.DefaultRouteTable.DialContext(ctx, "tcp", gnet.JoinHostPort(s.LocalAddress.String(), fmt.Sprint(s.LocalPort)))
 
 	// c, err := gonet.DialTCPWithBind(ctx, netgate.Tnet.Stack(), tcpip.FullAddress{
 	// 	NIC:  1,

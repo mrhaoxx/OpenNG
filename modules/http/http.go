@@ -20,7 +20,7 @@ import (
 
 	netgate "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	"github.com/andybalholm/brotli"
 )
@@ -160,7 +160,7 @@ func (h *Midware) preparetls(_ http.ResponseWriter, r *http.Request, conn *tcp.C
 		head := conn.Head()
 		if head > 1 {
 			if conn.Protocol()[head-1] == "TLS" {
-				if conn, ok := conn.TopConn().(*net.RwConn); ok {
+				if conn, ok := conn.TopConn().(*ngnet.RwConn); ok {
 					r.TLS = new(tls.ConnectionState)
 					*r.TLS = conn.Rawconn.(*tls.Conn).ConnectionState()
 				}

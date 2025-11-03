@@ -7,7 +7,7 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
@@ -15,7 +15,7 @@ import (
 func GenerateJsonSchema() []byte {
 	refs_assertions := ng.AssertionsRegistry()
 
-	root := ToScheme(TopLevelConfigAssertion, 0, 5).(map[string]any)
+	root := ToSchema(TopLevelConfigAssertion, 0, 5).(map[string]any)
 
 	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 
@@ -39,7 +39,7 @@ func GenerateJsonSchema() []byte {
 			},
 			"then": map[string]any{
 				"properties": map[string]any{
-					"spec": ToScheme(v, 0, 5),
+					"spec": ToSchema(v, 0, 5),
 				},
 				"description": v.Desc,
 			},
@@ -87,7 +87,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 
 	space := Space{
 		Services: map[string]any{
-			"sys": &net.SysInterface{},
+			"sys": &ngnet.SysInterface{},
 		},
 		Refs:       ng.Registry(),
 		AssertRefs: ng.AssertionsRegistry(),

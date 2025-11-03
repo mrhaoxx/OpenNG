@@ -1,8 +1,8 @@
 package tunnels
 
-import "github.com/mrhaoxx/OpenNG/pkg/net"
+import "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 type Overlay interface {
-	Underlying() net.Interface
-	Overlying(net.Interface)
+	Underlying() ngnet.Interface
+	Overlying(ngnet.Interface)
 }

@@ -3,9 +3,10 @@ package net
 import (
 	"errors"
 	stdnet "net"
+	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	netpkg "github.com/mrhaoxx/OpenNG/pkg/net"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
@@ -15,34 +16,22 @@ func init() {
 
 func registerSysInterface() {
 	ng.Register("net::interface::sys",
+		ng.Assert{Type: "null", Desc: "use system default interface"},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[ngnet.Interface](),
+			},
+		},
 		func(spec *ng.ArgNode) (any, error) {
-			return &netpkg.SysInterface{}, nil
-		}, ng.Assert{Type: "null", Desc: "use system default interface"},
+			return &ngnet.SysInterface{}, nil
+		},
 	)
 }
 
 func registerRouteTable() {
 	ng.Register("net::routetable::new",
-		func(spec *ng.ArgNode) (any, error) {
-			routes := spec.MustGet("routes").ToList()
-			table := &netpkg.RouteTable{}
-
-			for _, route := range routes {
-				cidr := route.MustGet("cidr").ToString()
-				ifaceNode := route.MustGet("interface")
-				iface, ok := ifaceNode.Value.(netpkg.Interface)
-				if !ok {
-					return nil, errors.New("interface ptr is not a net.Interface")
-				}
-				_, ipnet, err := stdnet.ParseCIDR(cidr)
-				if err != nil {
-					return nil, err
-				}
-				table.Routes = append(table.Routes, netpkg.Route{IPNet: *ipnet, Interface: iface})
-			}
-
-			return table, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"routes": {
@@ -58,6 +47,32 @@ func registerRouteTable() {
 					},
 				},
 			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[ngnet.Interface](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			routes := spec.MustGet("routes").ToList()
+			table := &ngnet.RouteTable{}
+
+			for _, route := range routes {
+				cidr := route.MustGet("cidr").ToString()
+				ifaceNode := route.MustGet("interface")
+				iface, ok := ifaceNode.Value.(ngnet.Interface)
+				if !ok {
+					return nil, errors.New("interface ptr is not a net.Interface")
+				}
+				_, ipnet, err := stdnet.ParseCIDR(cidr)
+				if err != nil {
+					return nil, err
+				}
+				table.Routes = append(table.Routes, ngnet.Route{IPNet: *ipnet, Interface: iface})
+			}
+
+			return table, nil
 		},
 	)
 }

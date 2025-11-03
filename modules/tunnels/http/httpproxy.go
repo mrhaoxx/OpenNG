@@ -9,16 +9,16 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type HttpProxyInterface struct {
-	Proxyurl *net.URL
+	Proxyurl *ngnet.URL
 }
 
 func (s *HttpProxyInterface) DialContext(ctx context.Context, network, addr string) (gonet.Conn, error) {
 	if network != "tcp" {
-		return nil, net.ErrTCPOnly
+		return nil, ngnet.ErrTCPOnly
 	}
 
 	c, err := s.Proxyurl.Underlying.DialContext(ctx, "tcp", s.Proxyurl.Host)
@@ -72,7 +72,7 @@ func (s *HttpProxyInterface) Dial(network, addr string) (gonet.Conn, error) {
 }
 
 func (s *HttpProxyInterface) Listen(network, address string) (gonet.Listener, error) {
-	return nil, net.ErrListenNotSupport
+	return nil, ngnet.ErrListenNotSupport
 }
 
 func basicAuth(username, password string) string {

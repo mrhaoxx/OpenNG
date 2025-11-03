@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func IsDoubleTailDomainSuffix(domain string) bool {
@@ -48,7 +48,7 @@ func GetRootDomain(host string) string {
 type redirectTLS struct{}
 
 func (redirectTLS) HandleTCP(conn *tcp.Conn) tcp.Ret {
-	http.Serve(net.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	http.Serve(ngnet.ConnGetSocket(conn.TopConn()), http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "https://"+r.Host+r.RequestURI, http.StatusPermanentRedirect)
 	}))
 	return tcp.Close

@@ -14,7 +14,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	zlog "github.com/rs/zerolog/log"
 )
@@ -22,11 +22,11 @@ import (
 type HttpHost struct {
 	Id                 string
 	ServerName         groupexp.GroupRegexp
-	Backend            *net.URL
+	Backend            *ngnet.URL
 	InsecureSkipVerify bool
 	MaxConnsPerHost    int
 	BypassEncoding     bool
-	Underlying         net.Interface
+	Underlying         ngnet.Interface
 
 	proxy   *httputil.ReverseProxy
 	wsproxy *WebsocketProxy
@@ -193,7 +193,7 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 	return hpx.hosts
 }
 
-func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *net.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
+func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *ngnet.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
 	buf := HttpHost{
 		Id:                 id,
 		ServerName:         groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),

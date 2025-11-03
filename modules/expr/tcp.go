@@ -1,6 +1,8 @@
 package expr
 
 import (
+	"reflect"
+
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
 	ng "github.com/mrhaoxx/OpenNG"
@@ -22,7 +24,16 @@ func (e *tcpexprbased) HandleTCP(ctx *tcp.Conn) tcp.Ret {
 }
 
 func init() {
-	ng.Register("expr::tcp", func(spec *ng.ArgNode) (any, error) {
+	ng.Register("expr::tcp", ng.Assert{
+		Type:     "string",
+		Required: true,
+		Desc:     "expression-based TCP backend",
+	}, ng.Assert{
+		Type: "ptr",
+		Impls: []reflect.Type{
+			ng.Iface[tcp.Service](),
+		},
+	}, func(spec *ng.ArgNode) (any, error) {
 		expression := spec.ToString()
 		log.Debug().
 			Str("expression", expression).
@@ -37,10 +48,6 @@ func init() {
 		return &tcpexprbased{
 			Program: program,
 		}, nil
-	}, ng.Assert{
-		Type:     "string",
-		Required: true,
-		Desc:     "expression-based TCP backend",
 	})
 }
 

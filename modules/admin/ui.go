@@ -30,6 +30,8 @@ import (
 //go:embed html/dist
 var index embed.FS
 
+var cachedSchema []byte
+
 type Reporter interface {
 	Report() map[string]interface{}
 }
@@ -146,7 +148,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/api/v1/cfg/schema":
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		ctx.Resp.Write(ngcmd.GenerateJsonSchema())
+		if cachedSchema == nil {
+			cachedSchema = ngcmd.GenerateJsonSchema()
+		}
+		ctx.Resp.Write(cachedSchema)
 
 	case "/genhash":
 		if ctx.Req.Method != stdhttp.MethodPost {

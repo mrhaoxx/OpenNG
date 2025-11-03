@@ -1,16 +1,16 @@
 package http
 
 import (
+	"reflect"
+
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/net"
+	httpmodule "github.com/mrhaoxx/OpenNG/modules/http"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
 	ng.Register("http::proxy",
-		func(spec *ng.ArgNode) (any, error) {
-			proxyURL := spec.MustGet("url").ToURL()
-			return &HttpProxyInterface{Proxyurl: proxyURL}, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"url": {
@@ -20,12 +20,19 @@ func init() {
 				},
 			},
 		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[opennet.Interface](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			proxyURL := spec.MustGet("url").ToURL()
+			return &HttpProxyInterface{Proxyurl: proxyURL}, nil
+		},
 	)
 	ng.Register("http::forwardproxier",
-		func(spec *ng.ArgNode) (any, error) {
-			underlying := spec.MustGet("interface").Value.(opennet.Interface)
-			return &StdForwardProxy{Underlying: underlying}, nil
-		}, ng.Assert{
+		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
 				"interface": {
@@ -33,6 +40,16 @@ func init() {
 					Default: "sys",
 				},
 			},
+		},
+		ng.Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				ng.Iface[httpmodule.Forward](),
+			},
+		},
+		func(spec *ng.ArgNode) (any, error) {
+			underlying := spec.MustGet("interface").Value.(opennet.Interface)
+			return &StdForwardProxy{Underlying: underlying}, nil
 		},
 	)
 }

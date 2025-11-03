@@ -10,7 +10,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type TopLevelConfig struct {
@@ -291,16 +291,16 @@ func AssertArg(node *ng.ArgNode, assertions ng.Assert) error {
 		}
 	case "url":
 		if node.Value == nil {
-			node.Value = []*net.URL{}
+			node.Value = []*ngnet.URL{}
 			return nil
 		}
-		realnode, ok := node.Value.(*net.URL)
+		realnode, ok := node.Value.(*ngnet.URL)
 		if !ok {
 			return fmt.Errorf("expected url, got %T", node.Value)
 		}
 
 		if assertions.Default != nil {
-			assertnode := assertions.Default.(*net.URL)
+			assertnode := assertions.Default.(*ngnet.URL)
 
 			if assertions.Forced && realnode.Interface != assertnode.Interface {
 				return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
@@ -406,7 +406,7 @@ func IfCompatibleAndConvert(node *ng.ArgNode, assertions ng.Assert) bool {
 			}
 
 			node.Type = "url"
-			node.Value = &net.URL{
+			node.Value = &ngnet.URL{
 				Interface: iface_ptr,
 				URL:       *_url,
 			}
@@ -425,7 +425,36 @@ func IfCompatibleAndConvert(node *ng.ArgNode, assertions ng.Assert) bool {
 	return false
 }
 
-func ToScheme(m ng.Assert, depth, maxDepth int) any {
+func validateInterfaces(a ng.Assert, v any) error {
+	if v == nil {
+		if a.AllowNil {
+			return nil
+		}
+		return fmt.Errorf("nil does not implement required interfaces")
+	}
+
+	rt := reflect.TypeOf(v)
+
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Interface, reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
+		if rv.IsNil() && !a.AllowNil {
+			return fmt.Errorf("value is typed-nil for %v", rt)
+		}
+	}
+
+	for _, it := range a.Impls {
+		if it.Kind() != reflect.Interface {
+			return fmt.Errorf("GoImplements must be interface types, got %v", it)
+		}
+		if !rt.Implements(it) {
+			return fmt.Errorf("type %v does not implement %v", rt, it)
+		}
+	}
+	return nil
+}
+
+func ToSchema(m ng.Assert, depth, maxDepth int) any {
 	switch m.Type {
 	case "int":
 		res := map[string]any{
@@ -485,7 +514,7 @@ func ToScheme(m ng.Assert, depth, maxDepth int) any {
 				},
 				"then": map[string]any{
 					"properties": map[string]any{
-						"spec": ToScheme(v, depth+1, maxDepth),
+						"spec": ToSchema(v, depth+1, maxDepth),
 					},
 					"description": v.Desc,
 				},
@@ -560,7 +589,7 @@ func ToScheme(m ng.Assert, depth, maxDepth int) any {
 		if sub, ok := m.Sub["_"]; !ok {
 			result["additionalProperties"] = false
 		} else {
-			result["additionalProperties"] = ToScheme(sub, depth, maxDepth)
+			result["additionalProperties"] = ToSchema(sub, depth, maxDepth)
 		}
 
 		props := map[string]any{}
@@ -571,7 +600,7 @@ func ToScheme(m ng.Assert, depth, maxDepth int) any {
 			if key == "_" {
 				continue
 			}
-			props[key] = ToScheme(value, depth+1, maxDepth)
+			props[key] = ToSchema(value, depth+1, maxDepth)
 			if value.Required {
 				requried = append(requried, key)
 			}
@@ -593,7 +622,7 @@ func ToScheme(m ng.Assert, depth, maxDepth int) any {
 			"description": m.Desc,
 		}
 		if def, ok := m.Sub["_"]; ok {
-			result["items"] = ToScheme(def, depth+1, maxDepth)
+			result["items"] = ToSchema(def, depth+1, maxDepth)
 		}
 
 		if m.Default != nil {

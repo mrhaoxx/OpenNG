@@ -15,7 +15,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
-	"github.com/mrhaoxx/OpenNG/pkg/net"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"golang.org/x/net/http2"
 )
 
@@ -91,7 +91,7 @@ func (h *Midware) HandleTCP(c *tcp.Conn) tcp.Ret {
 	}
 	switch top {
 	case "HTTP1":
-		http.Serve(net.ConnGetSocket(c.TopConn()), http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+		http.Serve(ngnet.ConnGetSocket(c.TopConn()), http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			h.preparetls(rw, r, c)
 			h.head(rw, r, c)
 		}))
