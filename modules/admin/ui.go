@@ -6,6 +6,7 @@ import (
 	"embed"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -298,9 +299,7 @@ func issueCSRFCookie(ctx *http.HttpCtx) string {
 func newCSRFToken() string {
 	b := make([]byte, csrfTokenSize)
 	if _, err := rand.Read(b); err != nil {
-		zlog.Error().Err(err).Str("type", "csrf").Msg("failed to generate random CSRF token")
-		fallback := fmt.Sprintf("%d", time.Now().UnixNano())
-		return base64.RawURLEncoding.EncodeToString([]byte(fallback))
+		panic(errors.New("failed to generate random csrf cookie"))
 	}
 	return base64.RawURLEncoding.EncodeToString(b)
 }
