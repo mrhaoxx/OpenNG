@@ -7,19 +7,18 @@ toolchain go1.25.1
 require (
 	github.com/andybalholm/brotli v1.2.0
 	github.com/dlclark/regexp2 v1.11.5
-	github.com/go-ldap/ldap/v3 v3.4.11
+	github.com/expr-lang/expr v1.17.6
+	github.com/go-ldap/ldap/v3 v3.4.12
 	github.com/gorilla/websocket v1.5.3
 	github.com/miekg/dns v1.1.68
 	github.com/pires/go-proxyproto v0.8.1
 	github.com/rs/zerolog v1.34.0
-	golang.org/x/crypto v0.42.0
-	golang.org/x/net v0.44.0
+	golang.org/x/crypto v0.43.0
+	golang.org/x/net v0.46.0
 	golang.zx2c4.com/wireguard v0.0.0-20250521234502-f333402bd9cb
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20250820192457-dde98974cb6c
 )
-
-require github.com/expr-lang/expr v1.17.6
 
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
@@ -31,11 +30,11 @@ require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/stretchr/testify v1.11.1 // indirect
-	golang.org/x/mod v0.28.0 // indirect
+	golang.org/x/mod v0.29.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect
-	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.29.0 // indirect
-	golang.org/x/time v0.13.0 // indirect
-	golang.org/x/tools v0.36.0 // indirect
+	golang.org/x/sys v0.37.0 // indirect
+	golang.org/x/text v0.30.0 // indirect
+	golang.org/x/time v0.14.0 // indirect
+	golang.org/x/tools v0.38.0 // indirect
 	golang.zx2c4.com/wintun v0.0.0-20230126152724-0fa3db229ce2 // indirect
 )
