@@ -77,16 +77,25 @@ func (space *Space) Deptr(root *ng.ArgNode, validate bool, _assert ng.Assert) er
 					return fmt.Errorf("ptr not found: %s", v)
 				}
 			case map[string]*ng.ArgNode:
+				if validate {
+					node.Value = nil
+					break
+				}
 				inst, err := space.instantiateAnon(v, validate)
 				if err != nil {
 					return err
 				}
 				node.Value = inst
+
 			case *ng.ArgNode:
 				if v.Type != "map" {
 					return fmt.Errorf("invalid anonymous ptr node type: %s", v.Type)
 				}
 				mm := v.Value.(map[string]*ng.ArgNode)
+				if validate {
+					node.Value = nil
+					break
+				}
 				inst, err := space.instantiateAnon(mm, validate)
 				if err != nil {
 					return err
@@ -94,6 +103,10 @@ func (space *Space) Deptr(root *ng.ArgNode, validate bool, _assert ng.Assert) er
 				node.Value = inst
 			default:
 				return fmt.Errorf("ptr expects name or inline anonymous object, got %T", node.Value)
+			}
+
+			if validate {
+				return nil
 			}
 
 			err := validateInterfaces(assert, node.Value)

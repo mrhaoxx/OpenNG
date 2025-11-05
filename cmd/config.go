@@ -39,7 +39,7 @@ func GenerateJsonSchema() []byte {
 			},
 			"then": map[string]any{
 				"properties": map[string]any{
-					"spec": ToSchema(v, 0, 5),
+					"spec": ToSchema(v, 0, 6),
 				},
 				"description": v.Desc,
 			},

@@ -61,7 +61,7 @@ func registerServer() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[ngnet.Interface](),
+				ng.TypeOf[ngnet.Interface](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

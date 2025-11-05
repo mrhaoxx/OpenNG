@@ -49,7 +49,7 @@ func registerDetector() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -120,7 +120,7 @@ func registerController() {
 											Required: true,
 											Desc:     "pointer to service",
 											Impls: []reflect.Type{
-												ng.Iface[Service](),
+												ng.TypeOf[Service](),
 											},
 										},
 									},
@@ -228,7 +228,7 @@ func registerProxier() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -274,7 +274,7 @@ func registerProxyProtocolHandler() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

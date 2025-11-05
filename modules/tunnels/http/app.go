@@ -23,7 +23,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[opennet.Interface](),
+				ng.TypeOf[opennet.Interface](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -44,7 +44,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[httpmodule.Forward](),
+				ng.TypeOf[httpmodule.Forward](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

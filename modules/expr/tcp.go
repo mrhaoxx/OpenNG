@@ -31,7 +31,7 @@ func init() {
 	}, ng.Assert{
 		Type: "ptr",
 		Impls: []reflect.Type{
-			ng.Iface[tcp.Service](),
+			ng.TypeOf[tcp.Service](),
 		},
 	}, func(spec *ng.ArgNode) (any, error) {
 		expression := spec.ToString()

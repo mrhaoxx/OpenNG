@@ -60,17 +60,14 @@ type Assert struct {
 	AllowNonEnum bool
 	Desc         string
 
+	Struct   bool
 	Impls    []reflect.Type
 	AllowNil bool
 }
 
-func Iface[T any]() reflect.Type {
+func TypeOf[T any]() reflect.Type {
 	var z *T
-	rt := reflect.TypeOf(z).Elem()
-	if rt.Kind() != reflect.Interface {
-		panic("Iface[T]: T must be an interface")
-	}
-	return rt
+	return reflect.TypeOf(z).Elem()
 }
 
 type ArgNode struct {

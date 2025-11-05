@@ -21,7 +21,7 @@ func init() {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.Iface[AuthHandle](),
+							ng.TypeOf[AuthHandle](),
 						}},
 					},
 				},
@@ -37,7 +37,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[http.Service](),
+				ng.TypeOf[http.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -98,7 +98,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[PolicyBackend](),
+				ng.TypeOf[PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -146,7 +146,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[PolicyBackend](),
+				ng.TypeOf[PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -205,7 +205,7 @@ func init() {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.Iface[PolicyBackend](),
+							ng.TypeOf[PolicyBackend](),
 						}},
 					},
 				},
@@ -214,7 +214,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[AuthHandle](),
+				ng.TypeOf[AuthHandle](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

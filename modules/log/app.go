@@ -12,7 +12,7 @@ import (
 func init() {
 	ng.Register("log::add",
 		ng.Assert{Type: "ptr", Impls: []reflect.Type{
-			ng.Iface[log.Logger](),
+			ng.TypeOf[log.Logger](),
 		}},
 		ng.Assert{Type: "null"},
 		func(an *ng.ArgNode) (any, error) {
@@ -25,7 +25,7 @@ func init() {
 		ng.Assert{
 			Type: "list",
 			Sub: ng.AssertMap{
-				"_": {Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+				"_": {Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
 			},
 		},
 		ng.Assert{Type: "null"},
@@ -54,14 +54,14 @@ func init() {
 
 	ng.Register("log::stdout",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stdout, nil
 		},
 	)
 	ng.Register("log::stderr",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stderr, nil
 		},
@@ -69,7 +69,7 @@ func init() {
 
 	ng.Register("log::file",
 		ng.Assert{Type: "string"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			path := an.ToString()
 			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

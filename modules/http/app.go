@@ -86,7 +86,7 @@ func registerReverseProxier() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -134,7 +134,7 @@ func registerMidware() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true},
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Service]()}, Desc: "pointer to service function"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Service]()}, Desc: "pointer to service function"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
@@ -154,7 +154,7 @@ func registerMidware() {
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Cgi]()}, Desc: "pointer to CGI handler implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Cgi]()}, Desc: "pointer to CGI handler implementation"},
 								"paths": {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
@@ -175,7 +175,7 @@ func registerMidware() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Forward]()}, Desc: "pointer to forward proxy implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Forward]()}, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
 									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
@@ -193,7 +193,8 @@ func registerMidware() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[Midware](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -302,7 +303,7 @@ func registerMidwareAddService() {
 						"_": {
 							Type: "map",
 							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.Iface[Service]()}, Desc: "pointer to service handler implementation"},
+								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Service]()}, Desc: "pointer to service handler implementation"},
 								"hosts": {
 									Type: "list",
 									Desc: "hostnames this service handles",
@@ -364,7 +365,7 @@ func registerSecureHTTP() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

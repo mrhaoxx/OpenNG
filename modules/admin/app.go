@@ -20,13 +20,10 @@ func registerWebUI() {
 		ng.Assert{
 			Type: "map",
 			Sub: ng.AssertMap{
-				"tcpcontroller": {Type: "ptr", Impls: []reflect.Type{
-					ng.Iface[Reporter](),
-				}, Required: true},
+				"tcpcontroller": {Type: "ptr", Impls: []reflect.Type{}, Required: true},
 				"httpmidware": {Type: "ptr",
-					Impls: []reflect.Type{
-						ng.Iface[Reporter](),
-					},
+					Impls:    []reflect.Type{ng.TypeOf[http.Midware]()},
+					Struct:   true,
 					Required: true},
 				"tls": {Type: "ptr"},
 			},
@@ -34,7 +31,7 @@ func registerWebUI() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[http.Service](),
+				ng.TypeOf[http.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -58,7 +55,7 @@ func registerWebUI() {
 func registerSSELogger() {
 	ng.Register("webui::sselog",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.Iface[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return Sselogger, nil
 		})

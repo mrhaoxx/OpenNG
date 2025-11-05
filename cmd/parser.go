@@ -437,6 +437,16 @@ func validateInterfaces(a ng.Assert, v any) error {
 	rt := reflect.TypeOf(v)
 
 	rv := reflect.ValueOf(v)
+
+	if a.Struct {
+		for _, t := range a.Impls {
+			if rt == t || rt == reflect.PointerTo(t) {
+				return nil
+			}
+		}
+		return fmt.Errorf("type %v does not match required struct types", rt)
+	}
+
 	switch rv.Kind() {
 	case reflect.Interface, reflect.Ptr, reflect.Map, reflect.Slice, reflect.Func, reflect.Chan:
 		if rv.IsNil() && !a.AllowNil {

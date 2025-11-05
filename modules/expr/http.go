@@ -55,7 +55,7 @@ func init() {
 	}, ng.Assert{
 		Type: "ptr",
 		Impls: []reflect.Type{
-			ng.Iface[http.Service](),
+			ng.TypeOf[http.Service](),
 		},
 	}, func(spec *ng.ArgNode) (any, error) {
 		expression := spec.MustGet("exp").ToString()

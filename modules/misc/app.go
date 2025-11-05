@@ -37,7 +37,7 @@ func registerAcmeFileProvider() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -77,7 +77,7 @@ func registerIpFilter() {
 				},
 				"next": {
 					Type:    "ptr",
-					Impls:   []reflect.Type{ng.Iface[tcp.Service]()},
+					Impls:   []reflect.Type{ng.TypeOf[tcp.Service]()},
 					Default: nil,
 					Desc:    "next service handler if no CIDR match is found",
 				},
@@ -86,7 +86,7 @@ func registerIpFilter() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -131,7 +131,7 @@ func registerHostFilter() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -181,7 +181,7 @@ func registerGitlabAuth() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[auth.PolicyBackend](),
+				ng.TypeOf[auth.PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {

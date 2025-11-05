@@ -65,7 +65,7 @@ func registerMidware() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[tcp.Service](),
+				ng.TypeOf[tcp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -169,7 +169,7 @@ func registerReverseProxier() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.Iface[Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
