@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
@@ -142,10 +141,10 @@ func (*ReverseProxy) CgiPaths() groupexp.GroupRegexp {
 	return regexpforproxy
 }
 
-func NewHTTPProxier(allowedhosts []string) *ReverseProxy {
+func NewHTTPProxier(allowedhosts groupexp.GroupRegexp) *ReverseProxy {
 	hpx := &ReverseProxy{
 		hosts:      make([]*HttpHost, 0),
-		allowhosts: groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(allowedhosts)),
+		allowhosts: allowedhosts,
 	}
 
 	hpx.buf = lookup.NewBufferedLookup(func(host string) *HttpHost {
@@ -193,10 +192,10 @@ func (hpx *ReverseProxy) GetHosts() []*HttpHost {
 	return hpx.hosts
 }
 
-func (hpx *ReverseProxy) Insert(index int, id string, hosts []string, backend *ngnet.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
+func (hpx *ReverseProxy) Insert(index int, id string, hosts groupexp.GroupRegexp, backend *ngnet.URL, MaxConnsPerHost int, InsecureSkipVerify bool, BypassEncoding bool) error {
 	buf := HttpHost{
 		Id:                 id,
-		ServerName:         groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts)),
+		ServerName:         hosts,
 		Backend:            backend,
 		MaxConnsPerHost:    MaxConnsPerHost,
 		InsecureSkipVerify: InsecureSkipVerify,

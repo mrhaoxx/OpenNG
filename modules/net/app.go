@@ -10,11 +10,6 @@ import (
 )
 
 func init() {
-	registerSysInterface()
-	registerRouteTable()
-}
-
-func registerSysInterface() {
 	ng.Register("net::interface::sys",
 		ng.Assert{Type: "null", Desc: "use system default interface"},
 		ng.Assert{
@@ -27,9 +22,7 @@ func registerSysInterface() {
 			return &ngnet.SysInterface{}, nil
 		},
 	)
-}
 
-func registerRouteTable() {
 	ng.Register("net::routetable::new",
 		ng.Assert{
 			Type: "map",

@@ -11,7 +11,6 @@ import (
 	zlog "github.com/rs/zerolog/log"
 
 	"github.com/dlclark/regexp2"
-	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
@@ -206,7 +205,7 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 }
 
-func NewHttpMidware(sni []string) *Midware {
+func NewHttpMidware(sni groupexp.GroupRegexp) *Midware {
 	hmw := &Midware{
 		sni:            nil,
 		activeRequests: map[string]*HttpCtx{},
@@ -265,7 +264,7 @@ func NewHttpMidware(sni []string) *Midware {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 
-	hmw.sni = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(sni))
+	hmw.sni = sni
 
 	return hmw
 }

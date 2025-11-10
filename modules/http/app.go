@@ -7,7 +7,6 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/dns"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
@@ -45,7 +44,7 @@ func registerReverseProxier() {
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
+										"_": {Type: "hostmatch"},
 									},
 								},
 								"backend": {
@@ -75,10 +74,10 @@ func registerReverseProxier() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+					Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
 					Sub: ng.AssertMap{
-						"_": {Type: "hostname"},
+						"_": {Type: "hostmatch"},
 					},
 				},
 			},
@@ -91,13 +90,13 @@ func registerReverseProxier() {
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("hosts").ToList()
-			allowedHosts := spec.MustGet("allowhosts").ToStringList()
+			allowedHosts := spec.MustGet("allowhosts").ToGroupRegexp()
 
 			proxier := NewHTTPProxier(allowedHosts)
 
 			for id, host := range hosts {
 				name := host.MustGet("name").ToString()
-				hostnames := host.MustGet("hosts").ToStringList()
+				hostnames := host.MustGet("hosts").ToGroupRegexp()
 				backend := host.MustGet("backend").ToURL()
 				maxConns := host.MustGet("MaxConnsPerHost").ToInt()
 				tlsSkip := host.MustGet("TlsSkipVerify").ToBool()
@@ -106,15 +105,6 @@ func registerReverseProxier() {
 				if err := proxier.Insert(id, name, hostnames, backend, maxConns, tlsSkip, bypassEncoding); err != nil {
 					return nil, err
 				}
-
-				log.Debug().
-					Str("name", name).
-					Strs("hosts", hostnames).
-					Str("backend", backend.String()).
-					Int("maxconns", maxConns).
-					Bool("tlsskip", tlsSkip).
-					Bool("bypassencoding", bypassEncoding).
-					Msg("new http reverse host")
 			}
 
 			return proxier, nil
@@ -139,7 +129,7 @@ func registerMidware() {
 									Type: "list",
 									Desc: "hostnames this service handles",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
+										"_": {Type: "hostmatch"},
 									},
 								},
 							},
@@ -159,7 +149,7 @@ func registerMidware() {
 									Type: "list",
 									Desc: "URL paths this CGI handles",
 									Sub: ng.AssertMap{
-										"_": {Type: "string"},
+										"_": {Type: "regexp"},
 									},
 								},
 							},
@@ -178,10 +168,10 @@ func registerMidware() {
 								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Forward]()}, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
-									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+									Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
+										"_": {Type: "hostmatch"},
 									},
 								},
 							},
@@ -202,7 +192,7 @@ func registerMidware() {
 			cgis := spec.MustGet("cgis").ToList()
 			forwards := spec.MustGet("forward").ToList()
 
-			midware := NewHttpMidware([]string{"*"})
+			midware := NewHttpMidware(nil)
 
 			midware.AddCgis(&CgiStruct{
 				CgiHandler: func(ctx *HttpCtx, path string) Ret {
@@ -218,7 +208,7 @@ func registerMidware() {
 			for _, srv := range services {
 				name := srv.MustGet("name").ToString()
 				logi := srv.MustGet("logi")
-				hosts := srv.MustGet("hosts").ToStringList()
+				hosts := srv.MustGet("hosts").ToGroupRegexp()
 
 				service := logi.Value.(Service)
 
@@ -226,7 +216,7 @@ func registerMidware() {
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = hosts
 				}
 
 				midware.AddServices(&ServiceStruct{
@@ -234,12 +224,6 @@ func registerMidware() {
 					Hosts:          compiled,
 					ServiceHandler: service.HandleHTTP,
 				})
-
-				log.Debug().
-					Str("name", name).
-					Strs("hosts", compiled.String()).
-					Type("logi", logi.Value).
-					Msg("new http service")
 			}
 
 			for _, cgi := range cgis {
@@ -252,15 +236,12 @@ func registerMidware() {
 					CgiPaths:   service.CgiPaths(),
 				})
 
-				log.Debug().
-					Type("logi", logi.Value).
-					Msg("new http cgi")
 			}
 
 			for _, fwd := range forwards {
 				name := fwd.MustGet("name").ToString()
 				logi := fwd.MustGet("logi")
-				hosts := fwd.MustGet("hosts").ToStringList()
+				hosts := fwd.MustGet("hosts").ToGroupRegexp()
 
 				service := logi.Value.(Forward)
 
@@ -268,7 +249,7 @@ func registerMidware() {
 				if len(hosts) == 0 {
 					compiled = service.HostsForward()
 				} else {
-					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = hosts
 				}
 
 				midware.AddForwardServices(&ServiceStruct{
@@ -276,12 +257,6 @@ func registerMidware() {
 					Hosts:          compiled,
 					ServiceHandler: service.HandleHTTPForward,
 				})
-
-				log.Debug().
-					Str("name", name).
-					Strs("hosts", compiled.String()).
-					Type("logi", logi.Value).
-					Msg("new http forward service")
 			}
 
 			return midware, nil
@@ -330,7 +305,7 @@ func registerMidwareAddService() {
 			for _, srv := range services {
 				name := srv.MustGet("name").ToString()
 				logi := srv.MustGet("logi")
-				hosts := srv.MustGet("hosts").ToStringList()
+				hosts := srv.MustGet("hosts").ToGroupRegexp()
 
 				service := logi.Value.(Service)
 
@@ -338,7 +313,7 @@ func registerMidwareAddService() {
 				if len(hosts) == 0 {
 					compiled = service.Hosts()
 				} else {
-					compiled = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
+					compiled = hosts
 				}
 
 				midware.AddServices(&ServiceStruct{

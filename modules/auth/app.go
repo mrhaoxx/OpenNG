@@ -5,9 +5,7 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
-	"github.com/mrhaoxx/OpenNG/modules/dns"
 	http "github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -27,9 +25,9 @@ func init() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+					Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
 					Sub: ng.AssertMap{
-						"_": {Type: "hostname"},
+						"_": {Type: "hostmatch"},
 					},
 				},
 			},
@@ -48,10 +46,8 @@ func init() {
 				authmethods = append(authmethods, backend.Value.(AuthHandle))
 			}
 
-			log.Debug().Int("backend_count", len(authmethods)).Msg("new auth manager")
-
 			manager := NewAuthMgr(authmethods,
-				groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(spec.MustGet("allowhosts").ToStringList())))
+				spec.MustGet("allowhosts").ToGroupRegexp())
 
 			return manager, nil
 		},
@@ -194,7 +190,7 @@ func init() {
 									Type: "list",
 									Desc: "matching Paths, empty means all",
 									Sub: ng.AssertMap{
-										"_": {Type: "string"},
+										"_": {Type: "regexp"},
 									},
 								},
 							},
@@ -227,28 +223,17 @@ func init() {
 				name := policy.MustGet("name").ToString()
 				allowance := policy.MustGet("Allowance").ToBool()
 				users := policy.MustGet("Users").ToStringList()
-				hosts := policy.MustGet("Hosts").ToStringList()
-				paths := policy.MustGet("Paths").ToStringList()
+				hosts := policy.MustGet("Hosts").ToGroupRegexp()
+				paths := policy.MustGet("Paths").ToGroupRegexp()
 
 				if err := policyd.AddPolicy(name, allowance, users, hosts, paths); err != nil {
 					return nil, err
 				}
-
-				log.Debug().
-					Str("name", name).
-					Bool("allowance", allowance).
-					Strs("users", users).
-					Strs("hosts", hosts).
-					Strs("paths", paths).
-					Msg("new auth policy")
 			}
 
 			var policyBackends []PolicyBackend
 			for _, backend := range backends {
 				policyBackends = append(policyBackends, backend.Value.(PolicyBackend))
-				log.Debug().
-					Type("backend", backend.Value).
-					Msg("new auth policy backend")
 			}
 
 			policyd.AddBackends(policyBackends)

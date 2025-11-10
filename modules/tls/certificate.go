@@ -6,7 +6,7 @@ import (
 	"errors"
 	"sync"
 
-	"github.com/mrhaoxx/OpenNG/modules/dns"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 )
@@ -68,7 +68,7 @@ func (m *TlsMgr) LoadCertificate(certfile, keyfile string) error {
 
 		m.certs[certfile] = Cert{
 			Certificate: &c,
-			dnsnames:    groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(c.Leaf.DNSNames)),
+			dnsnames:    groupexp.MustCompileRegexp(ngdns.Dnsnames2Regexps(c.Leaf.DNSNames)),
 			certfile:    certfile,
 			keyfile:     keyfile,
 		}
@@ -107,7 +107,7 @@ func (m *TlsMgr) Reload() error {
 		cert.Leaf, _ = x509.ParseCertificate(cert.Certificate[0])
 		v.Certificate = &cert
 
-		v.dnsnames = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(cert.Leaf.DNSNames))
+		v.dnsnames = groupexp.MustCompileRegexp(ngdns.Dnsnames2Regexps(cert.Leaf.DNSNames))
 
 		m.certs[v.certfile] = v
 

@@ -1,4 +1,4 @@
-package dns
+package ngdns
 
 import (
 	"strings"
@@ -9,9 +9,7 @@ import (
 func Dnsnames2Regexps(dnsnames []string) []string {
 	var out []string
 	for _, v := range dnsnames {
-		v = strings.ReplaceAll(v, ".", "\\.")
-		v = strings.ReplaceAll(v, "*", ".*")
-		out = append(out, "^"+v+"$")
+		out = append(out, Dnsname2Regexp(v))
 	}
 	return out
 }

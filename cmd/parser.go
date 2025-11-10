@@ -11,6 +11,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
@@ -421,6 +422,31 @@ func IfCompatibleAndConvert(node *ng.ArgNode, assertions ng.Assert) bool {
 				return true
 			}
 		}
+	case "regexp":
+		if node.Type == "string" {
+			pattern := node.Value.(string)
+			exp, err := regexp2.Compile(pattern, regexp2.RE2)
+			if err != nil {
+				return false
+			}
+			node.Type = "regexp"
+			node.Value = exp
+			return true
+		}
+	case "hostmatch":
+		if node.Type == "string" || node.Type == "hostname" {
+			pattern := node.Value.(string)
+			exp, err :=
+				regexp2.Compile(ngdns.Dnsname2Regexp(pattern), regexp2.RE2)
+
+			if err != nil {
+				return false
+			}
+
+			node.Type = "regexp"
+			node.Value = exp
+			return true
+		}
 	}
 
 	return false
@@ -730,6 +756,13 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 			"description":  m.Desc,
 			"pattern":      "^(?:\\$dref.*|[A-Za-z0-9.*-]+(?::\\d{1,5})?)$",
 			"errorMessage": "Hostname must be in format like 'example.com', 'a.example.com', '*.example.com', '*'",
+		}
+
+	case "regexp":
+		return map[string]any{
+			"type":         "string",
+			"description":  m.Desc,
+			"errorMessage": "Regexp must be a valid regular expression pattern",
 		}
 	}
 

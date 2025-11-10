@@ -8,7 +8,6 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -147,7 +146,7 @@ func registerReverseProxier() {
 									Type: "list",
 									Desc: "empty means all, when set, only matched users are allowed",
 									Sub: ng.AssertMap{
-										"_": {Type: "string", Desc: "matching username by regex pattern\nexample: ^root$"},
+										"_": {Type: "regexp", Desc: "matching username by regex pattern\nexample: ^root$"},
 									},
 								},
 							},
@@ -199,11 +198,7 @@ func registerReverseProxier() {
 				user := host.MustGet("User").ToString()
 				password := host.MustGet("Password").ToString()
 
-				allowedUsersList := host.MustGet("AllowedUsers").ToStringList()
-				var allowedUsers groupexp.GroupRegexp
-				if len(allowedUsersList) > 0 {
-					allowedUsers = groupexp.MustCompileRegexp(allowedUsersList)
-				}
+				allowedUsers := host.MustGet("AllowedUsers").ToGroupRegexp()
 
 				lowered := strings.ToLower(name)
 				var parsedPubkey gossh.PublicKey
@@ -233,8 +228,6 @@ func registerReverseProxier() {
 					Password:     password,
 					AllowedUsers: allowedUsers,
 				}
-
-				log.Debug().Str("name", lowered).Str("hostname", hostname).Int("port", port).Str("pubkey", pubkey).Strs("allowedusers", allowedUsers.String()).Msg("new ssh reverse host")
 
 				if i == 0 {
 					hostMap[""] = hostMap[lowered]

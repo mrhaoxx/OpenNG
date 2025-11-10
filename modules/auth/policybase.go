@@ -12,7 +12,6 @@ import (
 	stdhttp "net/http"
 
 	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/dns"
 	http "github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/modules/ssh"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
@@ -470,12 +469,12 @@ func (mgr *policyBaseAuth) Clean() {
 	mgr.muSession.Unlock()
 }
 
-func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts []string, paths []string) error {
+func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts groupexp.GroupRegexp, paths groupexp.GroupRegexp) error {
 	p := &policy{
 		name:      name,
 		allowance: allow,
 		users:     map[string]bool{},
-		hosts:     nil,
+		hosts:     hosts,
 		// hup:       nil,
 		paths: nil,
 	}
@@ -483,17 +482,7 @@ func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, ho
 		p.users[u] = true
 	}
 
-	// p.hup = lookup.NewBufferedLookup(func(s string) interface{} {
-	// 	return p.hosts == nil || p.hosts.MatchString(s)
-	// })
-
-	if len(hosts) != 0 {
-		p.hosts = groupexp.MustCompileRegexp(dns.Dnsnames2Regexps(hosts))
-	}
-
-	if len(paths) != 0 {
-		p.paths = groupexp.MustCompileRegexp((paths))
-	}
+	p.paths = paths
 
 	LGM.policies = append(LGM.policies, p)
 	LGM.policyLookupBuf.Refresh()

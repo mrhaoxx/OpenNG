@@ -1,9 +1,8 @@
 package dns
 
 import (
-	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/rs/zerolog/log"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/dns"
 )
 
 func init() {
@@ -32,7 +31,7 @@ func registerServer() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"Name": {
-									Type:     "string",
+									Type:     "hostmatch",
 									Required: true,
 								},
 								"Type": {
@@ -58,7 +57,7 @@ func registerServer() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"Name": {
-									Type:     "string",
+									Type:     "hostmatch",
 									Required: true,
 								},
 								"Allowance": {
@@ -103,33 +102,21 @@ func registerServer() {
 			server.SetDomain(spec.MustGet("Domain").ToString())
 
 			for _, record := range records {
-				name := record.MustGet("Name").ToString()
+				name := record.MustGet("Name").ToRegexp()
 				typ := record.MustGet("Type").ToString()
 				value := record.MustGet("Value").ToString()
 				ttl := record.MustGet("TTL").ToInt()
 
-				server.AddRecord(regexp2.MustCompile(Dnsname2Regexp(name), 0), DnsStringTypeToInt(typ), value, uint32(ttl))
-
-				log.Debug().
-					Str("name", name).
-					Str("type", typ).
-					Str("value", value).
-					Int("ttl", ttl).
-					Msg("new dns record")
+				server.AddRecord(name, ngdns.DnsStringTypeToInt(typ), value, uint32(ttl))
 			}
 
 			for _, filter := range filters {
-				name := filter.MustGet("Name").ToString()
+				name := filter.MustGet("Name").ToRegexp()
 				allowance := filter.MustGet("Allowance").ToBool()
 
-				if err := server.AddFilter(regexp2.MustCompile(Dnsname2Regexp(name), 0), allowance); err != nil {
+				if err := server.AddFilter(name, allowance); err != nil {
 					return nil, err
 				}
-
-				log.Debug().
-					Str("name", name).
-					Bool("allowance", allowance).
-					Msg("new dns filter")
 			}
 
 			for _, bind := range binds {
@@ -139,16 +126,10 @@ func registerServer() {
 				if err := server.AddRecordWithIP(name, addr); err != nil {
 					return nil, err
 				}
-
-				log.Debug().
-					Str("name", name).
-					Str("addr", addr).
-					Msg("new dns bind")
 			}
 
 			for _, listen := range listens {
 				go server.Listen(listen)
-				log.Debug().Str("addr", listen).Msg("dns listen")
 			}
 
 			return server, nil

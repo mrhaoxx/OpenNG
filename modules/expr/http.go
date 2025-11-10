@@ -3,40 +3,10 @@ package expr
 import (
 	"reflect"
 
-	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	"github.com/rs/zerolog/log"
+	ngexpr "github.com/mrhaoxx/OpenNG/pkg/expr"
 )
-
-type httpexprbased struct {
-	*vm.Program
-	Vars any
-}
-
-type httpExprEnv struct {
-	Http *http.HttpCtx `expr:"http"`
-	Vars any           `expr:"vars"`
-}
-
-func (e *httpexprbased) HandleHTTP(ctx *http.HttpCtx) http.Ret {
-
-	output, err := expr.Run(e.Program, httpExprEnv{
-		Http: ctx,
-		Vars: e.Vars,
-	})
-	if err != nil {
-		panic(err)
-	}
-	ret, _ := output.(bool)
-	return http.Ret(ret)
-}
-
-func (e *httpexprbased) Hosts() groupexp.GroupRegexp {
-	return nil
-}
 
 func init() {
 	ng.Register("expr::http", ng.Assert{
@@ -65,24 +35,13 @@ func init() {
 		if err == nil {
 			vars = varsNode.ToAny()
 		}
-
-		log.Debug().
-			Str("expression", expression).
-			Msg("new http expr backend")
-
-		program, err := expr.Compile(expression, expr.Env(httpExprEnv{
+		obj := &ngexpr.HttpExpr{
 			Vars: vars,
-			Http: &http.HttpCtx{},
-		}), expr.AsBool(), expr.Patch(MethodAsFuncPatcher{}), caller)
-
+		}
+		err = obj.Compile(expression)
 		if err != nil {
 			return nil, err
 		}
-		return &httpexprbased{
-			Program: program,
-			Vars:    vars,
-		}, nil
+		return obj, nil
 	})
 }
-
-var _ http.Service = (*httpexprbased)(nil)

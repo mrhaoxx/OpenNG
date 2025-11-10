@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dlclark/regexp2"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
@@ -78,25 +80,6 @@ type ArgNode struct {
 func (node *ArgNode) MustGet(path string) *ArgNode {
 	v, _ := node.Get(path)
 	return v
-}
-
-func (node *ArgNode) ToStringList() []string {
-	if node == nil {
-		return nil
-	}
-
-	if node.Type != "list" {
-		return nil
-	}
-	var ret []string
-	for _, v := range node.ToList() {
-		if v.Value == nil {
-			ret = append(ret, "")
-		} else {
-			ret = append(ret, v.Value.(string))
-		}
-	}
-	return ret
 }
 
 func (node *ArgNode) ToString() string {
@@ -171,6 +154,17 @@ func (node *ArgNode) ToURL() *ngnet.URL {
 	return node.Value.(*ngnet.URL)
 }
 
+func (node *ArgNode) ToRegexp() *regexp2.Regexp {
+	if node == nil {
+		panic("nil node")
+	}
+	if node.Type != "regexp" {
+		return nil
+	}
+
+	return node.Value.(*regexp2.Regexp)
+}
+
 func (node *ArgNode) ToAny() any {
 	if node == nil {
 		return nil
@@ -192,6 +186,40 @@ func (node *ArgNode) ToAny() any {
 	default:
 		return node.Value
 	}
+}
+
+func (node *ArgNode) ToStringList() []string {
+	if node == nil {
+		return nil
+	}
+
+	if node.Type != "list" {
+		return nil
+	}
+	var ret []string
+	for _, v := range node.ToList() {
+		ret = append(ret, v.ToString())
+	}
+	return ret
+}
+
+func (node *ArgNode) ToGroupRegexp() groupexp.GroupRegexp {
+	if node == nil {
+		return nil
+	}
+
+	if node.Type != "list" {
+		return nil
+	}
+
+	var ret groupexp.GroupRegexp
+	for _, v := range node.ToList() {
+		if v.Value == nil || v.Type != "regexp" {
+			continue
+		}
+		ret = append(ret, v.ToRegexp())
+	}
+	return ret
 }
 
 func (m *ArgNode) FromAny(raw any) error {

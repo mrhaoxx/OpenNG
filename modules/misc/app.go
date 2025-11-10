@@ -9,7 +9,6 @@ import (
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/tcp"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -165,7 +164,7 @@ func registerGitlabAuth() {
 				"matchusernames": {
 					Type: "list",
 					Sub: ng.AssertMap{
-						"_": {Type: "string"},
+						"_": {Type: "regexp"},
 					},
 				},
 				"prefix": {
@@ -187,14 +186,14 @@ func registerGitlabAuth() {
 		func(spec *ng.ArgNode) (any, error) {
 			gitlabURL := spec.MustGet("gitlab_url").ToURL()
 			cacheTTL := spec.MustGet("cache_ttl").ToDuration()
-			matchUsernames := spec.MustGet("matchusernames").ToStringList()
+			matchUsernames := spec.MustGet("matchusernames").ToGroupRegexp()
 			prefix := spec.MustGet("prefix").ToString()
 			next := spec.MustGet("next")
 
 			backend := &GitlabEnhancedPolicydBackend{
 				gitlabUrl:     gitlabURL.String(),
 				ttl:           cacheTTL,
-				matchUsername: groupexp.MustCompileRegexp(matchUsernames),
+				matchUsername: matchUsernames,
 				cache:         make(map[string]*SSHKeyCache),
 				prefix:        prefix,
 			}

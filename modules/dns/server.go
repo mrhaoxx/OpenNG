@@ -8,6 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 
 	zlog "github.com/rs/zerolog/log"
@@ -64,7 +65,7 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 			Uint64("id", id).
 			Str("remote", w.RemoteAddr().String()).
 			Dur("duration", time.Since(startTime)).
-			Str("rcode", RcodeTypeMap[m.Rcode]).
+			Str("rcode", ngdns.RcodeTypeMap[m.Rcode]).
 			Str("types", joinTypes(req.Question)).
 			Str("names", joinNames(req.Question)).
 			Msg("")
@@ -145,8 +146,8 @@ func (s *server) AddRecordWithIP(name string, ip string) error {
 	real_subdomain := name + "." + s.domain + "."
 	real_ptr := reverseIP(ip) + ".in-addr.arpa." + s.domain + "."
 
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_subdomain), 0), dns.TypeA, ip, 60)
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain, 60)
+	s.AddRecord(regexp2.MustCompile(ngdns.Dnsname2Regexp(real_subdomain), 0), dns.TypeA, ip, 60)
+	s.AddRecord(regexp2.MustCompile(ngdns.Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain, 60)
 
 	return nil
 

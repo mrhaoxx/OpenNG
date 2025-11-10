@@ -50,10 +50,6 @@ func (l *authMgr) Hosts() groupexp.GroupRegexp {
 	return l.ho
 }
 
-// NewAuthMgr creates a new authMgr. It requires a list of AuthHandle for auth mechanism and a GroupRegexp for host matching.
-// eg. Create A new AuthMgr that matches all hosts:
-//
-//	var auth = auth.NewAuthMgr([]auth.AuthHandle{}, groupexp.GroupRegexp{regexp2.MustCompile("^.*$", 0)})
 func NewAuthMgr(h []AuthHandle, hosts groupexp.GroupRegexp) *authMgr {
 	return &authMgr{h: h, ho: hosts}
 }
