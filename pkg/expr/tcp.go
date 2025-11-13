@@ -3,24 +3,24 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	"github.com/mrhaoxx/OpenNG/modules/tcp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngtcp"
 )
 
 type TcpExpr struct {
 	*vm.Program
 }
 
-func (e *TcpExpr) HandleTCP(ctx *tcp.Conn) tcp.Ret {
+func (e *TcpExpr) HandleTCP(ctx *ngtcp.Conn) ngtcp.Ret {
 	output, err := expr.Run(e.Program, ctx)
 	if err != nil {
 		panic(err)
 	}
 	ret, _ := output.(int)
-	return tcp.Ret(ret)
+	return ngtcp.Ret(ret)
 }
 
 func (e *TcpExpr) Compile(expression string) error {
-	program, err := expr.Compile(expression, expr.Env(&tcp.Conn{}), expr.AsInt(), expr.Patch(MethodAsFuncPatcher{}), caller)
+	program, err := expr.Compile(expression, expr.Env(&ngtcp.Conn{}), expr.AsInt(), expr.Patch(MethodAsFuncPatcher{}), caller)
 	if err != nil {
 		return err
 	}
@@ -28,4 +28,4 @@ func (e *TcpExpr) Compile(expression string) error {
 	return nil
 }
 
-var _ tcp.Service = (*TcpExpr)(nil)
+var _ ngtcp.Service = (*TcpExpr)(nil)

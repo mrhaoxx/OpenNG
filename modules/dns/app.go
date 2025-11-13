@@ -2,7 +2,7 @@ package dns
 
 import (
 	ng "github.com/mrhaoxx/OpenNG"
-	ngdns "github.com/mrhaoxx/OpenNG/pkg/dns"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/ngdns"
 )
 
 func init() {
@@ -31,7 +31,7 @@ func registerServer() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"Name": {
-									Type:     "hostmatch",
+									Type:     "hostname",
 									Required: true,
 								},
 								"Type": {
@@ -57,7 +57,7 @@ func registerServer() {
 							Type: "map",
 							Sub: ng.AssertMap{
 								"Name": {
-									Type:     "hostmatch",
+									Type:     "hostname",
 									Required: true,
 								},
 								"Allowance": {
@@ -98,7 +98,7 @@ func registerServer() {
 
 			listens := spec.MustGet("AddressBindings").ToStringList()
 
-			server := NewServer()
+			server := ngdns.NewServer()
 			server.SetDomain(spec.MustGet("Domain").ToString())
 
 			for _, record := range records {

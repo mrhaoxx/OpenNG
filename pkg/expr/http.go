@@ -3,8 +3,8 @@ package expr
 import (
 	"github.com/expr-lang/expr"
 	"github.com/expr-lang/expr/vm"
-	"github.com/mrhaoxx/OpenNG/modules/http"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
 )
 
 type HttpExpr struct {
@@ -13,11 +13,11 @@ type HttpExpr struct {
 }
 
 type httpExprEnv struct {
-	Http *http.HttpCtx `expr:"http"`
-	Vars any           `expr:"vars"`
+	Http *nghttp.HttpCtx `expr:"http"`
+	Vars any             `expr:"vars"`
 }
 
-func (e *HttpExpr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
+func (e *HttpExpr) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 
 	output, err := expr.Run(e.Program, httpExprEnv{
 		Http: ctx,
@@ -27,7 +27,7 @@ func (e *HttpExpr) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 		panic(err)
 	}
 	ret, _ := output.(bool)
-	return http.Ret(ret)
+	return nghttp.Ret(ret)
 }
 
 func (e *HttpExpr) Hosts() groupexp.GroupRegexp {
@@ -37,7 +37,7 @@ func (e *HttpExpr) Hosts() groupexp.GroupRegexp {
 func (e *HttpExpr) Compile(expression string) error {
 	program, err := expr.Compile(expression, expr.Env(httpExprEnv{
 		Vars: e.Vars,
-		Http: &http.HttpCtx{},
+		Http: &nghttp.HttpCtx{},
 	}), expr.AsBool(), expr.Patch(MethodAsFuncPatcher{}), caller)
 	if err != nil {
 		return err
@@ -46,4 +46,4 @@ func (e *HttpExpr) Compile(expression string) error {
 	return nil
 }
 
-var _ http.Service = (*HttpExpr)(nil)
+var _ nghttp.Service = (*HttpExpr)(nil)

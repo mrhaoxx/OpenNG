@@ -7,8 +7,9 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/auth"
-	"github.com/mrhaoxx/OpenNG/modules/tcp"
+	authsdk "github.com/mrhaoxx/OpenNG/pkg/auth"
+	miscsdk "github.com/mrhaoxx/OpenNG/pkg/misc"
+	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -36,13 +37,13 @@ func registerAcmeFileProvider() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("Hosts").ToStringList()
 			wwwroot := spec.MustGet("WWWRoot").ToString()
-			provider := &AcmeWebRoot{
+			provider := &miscsdk.AcmeWebRoot{
 				AllowedHosts: hosts,
 				WWWRoot:      wwwroot,
 			}
@@ -76,7 +77,7 @@ func registerIpFilter() {
 				},
 				"next": {
 					Type:    "ptr",
-					Impls:   []reflect.Type{ng.TypeOf[tcp.Service]()},
+					Impls:   []reflect.Type{ng.TypeOf[tcpsdk.Service]()},
 					Default: nil,
 					Desc:    "next service handler if no CIDR match is found",
 				},
@@ -85,7 +86,7 @@ func registerIpFilter() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -93,10 +94,10 @@ func registerIpFilter() {
 			blocked := spec.MustGet("blockedcidrs").ToStringList()
 			next := spec.MustGet("next")
 
-			filter := NewIPFilter(allowed, blocked)
+			filter := miscsdk.NewIPFilter(allowed, blocked)
 
 			if next != nil {
-				filter.next = next.Value.(tcp.Service)
+				filter.SetNext(next.Value.(tcpsdk.Service))
 			}
 
 			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
@@ -130,21 +131,21 @@ func registerHostFilter() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
 			next := spec.MustGet("next")
 
-			filter := &HostFilter{AllowedHosts: allowedHosts}
+			filter := &miscsdk.HostFilter{AllowedHosts: allowedHosts}
 
 			if next != nil {
-				nextHandler, ok := next.Value.(tcp.Service)
+				nextHandler, ok := next.Value.(tcpsdk.Service)
 				if !ok {
 					return nil, errors.New("ptr is not a http.HttpHandler")
 				}
-				filter.next = nextHandler
+				filter.SetNext(nextHandler)
 			}
 
 			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
@@ -180,7 +181,7 @@ func registerGitlabAuth() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[auth.PolicyBackend](),
+				ng.TypeOf[authsdk.PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -190,29 +191,15 @@ func registerGitlabAuth() {
 			prefix := spec.MustGet("prefix").ToString()
 			next := spec.MustGet("next")
 
-			backend := &GitlabEnhancedPolicydBackend{
-				gitlabUrl:     gitlabURL.String(),
-				ttl:           cacheTTL,
-				matchUsername: matchUsernames,
-				cache:         make(map[string]*SSHKeyCache),
-				prefix:        prefix,
-			}
+			backend := miscsdk.NewGitlabEnhancedPolicydBackend(gitlabURL.String(), cacheTTL, matchUsernames, prefix)
 
 			if next != nil {
-				nextBackend, ok := next.Value.(auth.PolicyBackend)
+				nextBackend, ok := next.Value.(authsdk.PolicyBackend)
 				if !ok {
-					return nil, errors.New("ptr is not a auth.PolicyBackend" + fmt.Sprintf("%T", next.Value))
+					return nil, errors.New("ptr is not a authsdk.PolicyBackend" + fmt.Sprintf("%T", next.Value))
 				}
-				backend.PolicyBackend = nextBackend
+				backend.SetPolicyBackend(nextBackend)
 			}
-
-			log.Debug().
-				Str("gitlaburl", gitlabURL.String()).
-				Dur("cachettl", backend.ttl).
-				Strs("matchusernames", backend.matchUsername.String()).
-				Bool("has_next", next != nil).
-				Str("prefix", prefix).
-				Msg("new gitlab auth")
 			return backend, nil
 		},
 	)

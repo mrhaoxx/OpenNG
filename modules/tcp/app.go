@@ -8,6 +8,8 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngtcp"
+	. "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -17,6 +19,25 @@ func init() {
 	registerListener()
 	registerProxier()
 	registerProxyProtocolHandler()
+
+	var detectors map[string]Detector = map[string]Detector{
+		"tls":           ngtcp.DetectTLS,
+		"http":          ngtcp.DetectHTTP,
+		"socks5":        ngtcp.DetectSOCKS5,
+		"ssh":           ngtcp.DetectSSH,
+		"minecraft":     ngtcp.DetectMinecraft,
+		"rdp":           ngtcp.DetectRDP,
+		"trojan":        ngtcp.DetectTROJAN,
+		"proxyprotocol": ngtcp.DetectPROXYPROTOCOL,
+	}
+
+	for name, det := range detectors {
+		ng.Register("det::"+name, ng.Assert{Type: "null"}, ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Detector]()}}, func(*ng.ArgNode) (any, error) {
+			return det, nil
+		})
+
+	}
+
 }
 
 func registerDetector() {
@@ -29,8 +50,11 @@ func registerDetector() {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {
-							Type: "string",
-							Enum: []any{"tls", "http", "ssh", "rdp", "socks5", "proxyprotocol", "minecraft", "trojan"},
+							Type:   "ptr",
+							Struct: true,
+							Impls: []reflect.Type{
+								ng.TypeOf[Detector](),
+							},
 						},
 					},
 				},
@@ -53,40 +77,14 @@ func registerDetector() {
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
-			protocols := spec.MustGet("protocols").ToStringList()
+			// protocols := spec.MustGet("protocols").ToStringList()
 			timeout := spec.MustGet("timeout").ToDuration()
 			timeoutProtocol := spec.MustGet("timeoutprotocol").ToString()
-
+			var _dets = spec.MustGet("protocols").ToAny().([]any)
 			var dets []Detector
-			for _, p := range protocols {
-				switch p {
-				case "tls":
-					dets = append(dets, DetectTLS)
-				case "proxyprotocol":
-					dets = append(dets, DetectPROXYPROTOCOL)
-				case "ssh":
-					dets = append(dets, DetectSSH)
-				case "rdp":
-					dets = append(dets, DetectRDP)
-				case "http":
-					dets = append(dets, DetectHTTP)
-				case "socks5":
-					dets = append(dets, DetectSOCKS5)
-				case "minecraft":
-					dets = append(dets, DetectMinecraft)
-				case "trojan":
-					dets = append(dets, DetectTROJAN)
-				default:
-					return nil, errors.New("unknown protocol: " + p)
-				}
+			for _, p := range _dets {
+				dets = append(dets, p.(Detector))
 			}
-
-			log.Debug().
-				Strs("protocols", protocols).
-				Dur("timeout", timeout).
-				Str("timeoutprotocol", timeoutProtocol).
-				Msg("new tcp detector")
-
 			return &Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutProtocol}, nil
 		},
 	)

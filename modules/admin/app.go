@@ -5,9 +5,9 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/modules/tls"
 	"github.com/mrhaoxx/OpenNG/pkg/log"
+	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngtls"
 )
 
 func init() {
@@ -22,7 +22,7 @@ func registerWebUI() {
 			Sub: ng.AssertMap{
 				"tcpcontroller": {Type: "ptr", Impls: []reflect.Type{}, Required: true},
 				"httpmidware": {Type: "ptr",
-					Impls:    []reflect.Type{ng.TypeOf[http.Midware]()},
+					Impls:    []reflect.Type{ng.TypeOf[nghttp.Midware]()},
 					Struct:   true,
 					Required: true},
 				"tls": {Type: "ptr"},
@@ -31,7 +31,7 @@ func registerWebUI() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[http.Service](),
+				ng.TypeOf[nghttp.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -41,7 +41,7 @@ func registerWebUI() {
 			ui := &UI{TcpController: tcpController, HttpMidware: httpMidware}
 
 			if tlsArg, exists := spec.Get("tls"); exists == nil {
-				tlsMgr, ok := tlsArg.Value.(*tls.TlsMgr)
+				tlsMgr, ok := tlsArg.Value.(*ngtls.TlsMgr)
 				if !ok {
 					return nil, errors.New("tls ptr is not a tls.TlsMgr")
 				}

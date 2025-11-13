@@ -19,12 +19,11 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
-	"github.com/mrhaoxx/OpenNG/modules/http"
-	"github.com/mrhaoxx/OpenNG/modules/tls"
+	file "github.com/mrhaoxx/OpenNG/pkg/auth/backend"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngtls"
 	zlog "github.com/rs/zerolog/log"
-
-	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 )
 
 //go:embed html/dist
@@ -44,18 +43,18 @@ type UI struct {
 	TcpController Reporter
 	HttpMidware   Reporter
 
-	TlsMgr *tls.TlsMgr
+	TlsMgr *ngtls.TlsMgr
 }
 
 func (*UI) Hosts() groupexp.GroupRegexp {
 	return nil
 }
-func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
+func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	if isSafeHTTPMethod(ctx.Req.Method) {
 		ensureCSRFCookie(ctx)
 	} else {
 		if !requireCSRF(ctx) {
-			return http.RequestEnd
+			return nghttp.RequestEnd
 		}
 	}
 	switch ctx.Req.URL.Path {
@@ -72,64 +71,64 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
-		ctx.Resp.ErrorPage(http.StatusNotImplemented, "Not Implemented")
+		ctx.Resp.ErrorPage(nghttp.StatusNotImplemented, "Not Implemented")
 
 	case "/api/v1/tls/reload":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		if u.TlsMgr != nil {
 			err := u.TlsMgr.Reload()
 			if err != nil {
-				ctx.Resp.WriteHeader(http.StatusBadRequest)
+				ctx.Resp.WriteHeader(nghttp.StatusBadRequest)
 				ctx.WriteString(err.Error())
 			} else {
-				ctx.Resp.WriteHeader(http.StatusAccepted)
+				ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 			}
 		} else {
-			ctx.Resp.WriteHeader(http.StatusFailedDependency)
+			ctx.Resp.WriteHeader(nghttp.StatusFailedDependency)
 			ctx.WriteString("TlsMgr not set")
 		}
 
 	case "/api/v1/cfg/reload":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		err := Reload()
 		if err != nil {
-			ctx.Resp.WriteHeader(http.StatusBadRequest)
+			ctx.Resp.WriteHeader(nghttp.StatusBadRequest)
 			ctx.WriteString(err.Error())
 		} else {
-			ctx.Resp.WriteHeader(http.StatusAccepted)
+			ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 		}
 	case "/api/v1/cfg/save":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
 		if len(errors) > 0 {
-			ctx.Resp.WriteHeader(http.StatusNotAcceptable)
+			ctx.Resp.WriteHeader(nghttp.StatusNotAcceptable)
 			ctx.WriteString(strings.Join(errors, "\n"))
-			return http.RequestEnd
+			return nghttp.RequestEnd
 		}
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
-		ctx.Resp.WriteHeader(http.StatusAccepted)
+		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 	case "/api/v1/cfg/validate":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
-		ctx.Resp.WriteHeader(http.StatusAccepted)
+		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 		if len(errors) > 0 {
 			ctx.WriteString(strings.Join(errors, "\n"))
 		} else {
@@ -155,8 +154,8 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 
 	case "/genhash":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
 		b, _ := io.ReadAll(ctx.Req.Body)
 		hashed, _ := file.HashPassword(string(b))
@@ -180,10 +179,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 
 	case "/shutdown":
 		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
-			return http.RequestEnd
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
 		}
-		ctx.Resp.WriteHeader(http.StatusAccepted)
+		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 		go func() {
 			zlog.Warn().
 				Str("type", "sys").
@@ -202,13 +201,13 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			res := u.TcpController.Report()
 			byt, err := json.Marshal(res)
 			if err != nil {
-				ctx.Resp.WriteHeader(http.StatusInternalServerError)
+				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
 				ctx.Resp.Write([]byte(err.Error()))
 			} else {
 				ctx.Resp.Write(byt)
 			}
 		} else {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
 		}
 
 	case "/api/v1/http/requests": //GET json output
@@ -218,13 +217,13 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			res := u.HttpMidware.Report()
 			byt, err := json.Marshal(res)
 			if err != nil {
-				ctx.Resp.WriteHeader(http.StatusInternalServerError)
+				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
 				ctx.Resp.Write([]byte(err.Error()))
 			} else {
 				ctx.Resp.Write(byt)
 			}
 		} else {
-			ctx.Resp.ErrorPage(http.StatusMethodNotAllowed, "Method not allowed")
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
 		}
 
 	default:
@@ -234,10 +233,10 @@ func (u *UI) HandleHTTP(ctx *http.HttpCtx) http.Ret {
 			stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist"+ctx.Req.URL.Path)
 		}
 	}
-	return http.RequestEnd
+	return nghttp.RequestEnd
 }
-func (*UI) HandleHTTPInternal(ctx *http.HttpCtx) http.Ret {
-	return http.RequestEnd
+func (*UI) HandleHTTPInternal(ctx *nghttp.HttpCtx) nghttp.Ret {
+	return nghttp.RequestEnd
 }
 
 func (*UI) PathsInternal() []*regexp2.Regexp {
@@ -255,32 +254,32 @@ const (
 
 const csrfTokenSize = 32
 
-func ensureCSRFCookie(ctx *http.HttpCtx) string {
+func ensureCSRFCookie(ctx *nghttp.HttpCtx) string {
 	if c, err := ctx.Req.Cookie(csrfCookieName); err == nil && isValidCSRFToken(c.Value) {
 		return c.Value
 	}
 	return issueCSRFCookie(ctx)
 }
 
-func requireCSRF(ctx *http.HttpCtx) bool {
+func requireCSRF(ctx *nghttp.HttpCtx) bool {
 	cookie, err := ctx.Req.Cookie(csrfCookieName)
 	if err != nil || !isValidCSRFToken(cookie.Value) {
 		issueCSRFCookie(ctx)
-		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.Resp.WriteHeader(nghttp.StatusForbidden)
 		ctx.WriteString("CSRF token missing or invalid")
 		return false
 	}
 
 	header := ctx.Req.Header.Get(csrfHeaderName)
 	if !isValidCSRFToken(header) {
-		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.Resp.WriteHeader(nghttp.StatusForbidden)
 		ctx.WriteString("CSRF token missing or invalid")
 		return false
 	}
 
 	if subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(header)) != 1 {
 		issueCSRFCookie(ctx)
-		ctx.Resp.WriteHeader(http.StatusForbidden)
+		ctx.Resp.WriteHeader(nghttp.StatusForbidden)
 		ctx.WriteString("CSRF token mismatch")
 		return false
 	}
@@ -288,7 +287,7 @@ func requireCSRF(ctx *http.HttpCtx) bool {
 	return true
 }
 
-func issueCSRFCookie(ctx *http.HttpCtx) string {
+func issueCSRFCookie(ctx *nghttp.HttpCtx) string {
 	token := newCSRFToken()
 	ctx.SetCookie(&stdhttp.Cookie{
 		Name:     csrfCookieName,
@@ -347,4 +346,4 @@ func Reload() error {
 	return nil
 }
 
-var _ http.Service = (*UI)(nil)
+var _ nghttp.Service = (*UI)(nil)

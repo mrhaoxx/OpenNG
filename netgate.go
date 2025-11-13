@@ -9,6 +9,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
@@ -158,11 +159,15 @@ func (node *ArgNode) ToRegexp() *regexp2.Regexp {
 	if node == nil {
 		panic("nil node")
 	}
-	if node.Type != "regexp" {
+
+	switch node.Type {
+	case "hostname":
+		return regexp2.MustCompile(ngdns.Dnsname2Regexp(node.Value.(string)), regexp2.RE2)
+	case "regexp":
+		return node.Value.(*regexp2.Regexp)
+	default:
 		return nil
 	}
-
-	return node.Value.(*regexp2.Regexp)
 }
 
 func (node *ArgNode) ToAny() any {

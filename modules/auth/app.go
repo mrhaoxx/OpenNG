@@ -4,8 +4,9 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
-	http "github.com/mrhaoxx/OpenNG/modules/http"
+	authsdk "github.com/mrhaoxx/OpenNG/pkg/auth"
+	authbackend "github.com/mrhaoxx/OpenNG/pkg/auth/backend"
+	http "github.com/mrhaoxx/OpenNG/pkg/nghttp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -19,15 +20,15 @@ func init() {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.TypeOf[AuthHandle](),
+							ng.TypeOf[authsdk.AuthHandle](),
 						}},
 					},
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
+					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 					Sub: ng.AssertMap{
-						"_": {Type: "hostmatch"},
+						"_": {Type: "hostname"},
 					},
 				},
 			},
@@ -40,13 +41,13 @@ func init() {
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			backends := spec.MustGet("backends").ToList()
-			var authmethods []AuthHandle
+			var authmethods []authsdk.AuthHandle
 
 			for _, backend := range backends {
-				authmethods = append(authmethods, backend.Value.(AuthHandle))
+				authmethods = append(authmethods, backend.Value.(authsdk.AuthHandle))
 			}
 
-			manager := NewAuthMgr(authmethods,
+			manager := authsdk.NewAuthMgr(authmethods,
 				spec.MustGet("allowhosts").ToGroupRegexp())
 
 			return manager, nil
@@ -94,7 +95,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[PolicyBackend](),
+				ng.TypeOf[authsdk.PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -117,12 +118,6 @@ func init() {
 				}
 
 				backend.SetUser(name, pw, allowfp, parsedKeys, false)
-
-				log.Debug().
-					Str("name", name).
-					Bool("allow_forward_proxy", allowfp).
-					Int("ssh_authorized_keys", len(sshkeys)).
-					Msg("new auth file user")
 			}
 
 			return backend, nil
@@ -142,7 +137,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[PolicyBackend](),
+				ng.TypeOf[authsdk.PolicyBackend](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -201,7 +196,7 @@ func init() {
 					Type: "list",
 					Sub: ng.AssertMap{
 						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.TypeOf[PolicyBackend](),
+							ng.TypeOf[authsdk.PolicyBackend](),
 						}},
 					},
 				},
@@ -210,14 +205,14 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[AuthHandle](),
+				ng.TypeOf[authsdk.AuthHandle](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			policies := spec.MustGet("Policies").ToList()
 			backends := spec.MustGet("backends").ToList()
 
-			policyd := NewPBAuth()
+			policyd := authsdk.NewPBAuth()
 
 			for _, policy := range policies {
 				name := policy.MustGet("name").ToString()
@@ -231,9 +226,9 @@ func init() {
 				}
 			}
 
-			var policyBackends []PolicyBackend
+			var policyBackends []authsdk.PolicyBackend
 			for _, backend := range backends {
-				policyBackends = append(policyBackends, backend.Value.(PolicyBackend))
+				policyBackends = append(policyBackends, backend.Value.(authsdk.PolicyBackend))
 			}
 
 			policyd.AddBackends(policyBackends)

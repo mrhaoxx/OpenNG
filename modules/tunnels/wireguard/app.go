@@ -6,6 +6,7 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	wireguardsdk "github.com/mrhaoxx/OpenNG/pkg/tunnels/wireguard"
 )
 
 func init() {
@@ -80,7 +81,7 @@ func registerServer() {
 			keepaliveInterval := tcpNode.MustGet("KeepaliveInterval").ToDuration()
 			keepaliveCount := tcpNode.MustGet("KeepaliveCount").ToInt()
 
-			cfg := &WireGuardConfig{
+			cfg := &wireguardsdk.WireGuardConfig{
 				ListenPort:           listenPort,
 				PrivateKey:           privateKey,
 				Address:              address,
@@ -94,7 +95,7 @@ func registerServer() {
 				TcpKeepAliveCount:    keepaliveCount,
 			}
 
-			return NewWireGuardServer(cfg)
+			return wireguardsdk.NewWireGuardServer(cfg)
 		},
 	)
 }
@@ -127,7 +128,7 @@ func registerAddPeers() {
 		ng.Assert{Type: "null"},
 		func(spec *ng.ArgNode) (any, error) {
 			peers := spec.MustGet("Peers").ToList()
-			server := spec.MustGet("server").Value.(*WireGuardServer)
+			server := spec.MustGet("server").Value.(*wireguardsdk.WireGuardServer)
 
 			for _, peer := range peers {
 				publicKey := peer.MustGet("PublicKey").ToString()

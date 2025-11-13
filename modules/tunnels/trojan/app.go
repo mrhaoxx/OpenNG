@@ -6,8 +6,9 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
+	trojansdk "github.com/mrhaoxx/OpenNG/pkg/tunnels/trojan"
 )
 
 func init() {
@@ -30,7 +31,7 @@ func init() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -47,7 +48,7 @@ func init() {
 				passwords[i] = hex.EncodeToString(sum[:])
 			}
 
-			return &Server{
+			return &trojansdk.Server{
 				PasswordHashes: passwords,
 				Underlying:     underlying,
 			}, nil

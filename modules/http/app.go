@@ -7,9 +7,10 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/tcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	. "github.com/mrhaoxx/OpenNG/pkg/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -44,7 +45,7 @@ func registerReverseProxier() {
 									Required: true,
 									Desc:     "hostnames to match for this proxy",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostmatch"},
+										"_": {Type: "hostname"},
 									},
 								},
 								"backend": {
@@ -74,10 +75,10 @@ func registerReverseProxier() {
 				},
 				"allowhosts": {
 					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
+					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 					Desc:    "hostnames that this proxy will handle",
 					Sub: ng.AssertMap{
-						"_": {Type: "hostmatch"},
+						"_": {Type: "hostname"},
 					},
 				},
 			},
@@ -129,7 +130,7 @@ func registerMidware() {
 									Type: "list",
 									Desc: "hostnames this service handles",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostmatch"},
+										"_": {Type: "hostname"},
 									},
 								},
 							},
@@ -168,10 +169,10 @@ func registerMidware() {
 								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Forward]()}, Desc: "pointer to forward proxy implementation"},
 								"hosts": {
 									Type:    "list",
-									Default: []*ng.ArgNode{{Type: "hostmatch", Value: "*"}},
+									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 									Desc:    "hostnames this forward proxy handles",
 									Sub: ng.AssertMap{
-										"_": {Type: "hostmatch"},
+										"_": {Type: "hostname"},
 									},
 								},
 							},
@@ -184,7 +185,7 @@ func registerMidware() {
 			Type: "ptr",
 			Impls: []reflect.Type{
 				ng.TypeOf[Midware](),
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -340,7 +341,7 @@ func registerSecureHTTP() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[tcp.Service](),
+				ng.TypeOf[tcpsdk.Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
