@@ -23,8 +23,8 @@ type Service interface {
 }
 
 type ServiceBinding struct {
-	Service
-	Name string
+	Service `ng:"logi" desc:"pointer to service"`
+	Name    string `ng:"name" desc:"name of the service handler"`
 }
 
 type controller struct {
@@ -193,10 +193,20 @@ func (ctl *controller) KillConnection(connection_id string) error {
 	return nil
 }
 
-func NewTcpController() *controller {
-	return &controller{
+type TcpControllerConfig struct {
+	Services map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)"`
+}
+
+func NewTcpController(cfg TcpControllerConfig) (*controller, error) {
+	ctl := &controller{
 		binds:              map[string][]ServiceBinding{},
 		muActiveConnection: sync.RWMutex{},
 		activeConnections:  map[string]*Conn{},
 	}
+
+	for protocol, svcs := range cfg.Services {
+		ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
+	}
+
+	return ctl, nil
 }

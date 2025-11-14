@@ -46,4 +46,15 @@ func (e *HttpExpr) Compile(expression string) error {
 	return nil
 }
 
+func NewHttpExpr(cfg ExprConfig) (*HttpExpr, error) {
+	obj := &HttpExpr{
+		Vars: cfg.Vars,
+	}
+	err := obj.Compile(cfg.Exp)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 var _ nghttp.Service = (*HttpExpr)(nil)

@@ -28,4 +28,13 @@ func (e *TcpExpr) Compile(expression string) error {
 	return nil
 }
 
+func NewTCPExpr(cfg ExprConfig) (*TcpExpr, error) {
+	obj := &TcpExpr{}
+	err := obj.Compile(cfg.Exp)
+	if err != nil {
+		return nil, err
+	}
+	return obj, nil
+}
+
 var _ ngtcp.Service = (*TcpExpr)(nil)

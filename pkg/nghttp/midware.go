@@ -11,6 +11,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 
 	"github.com/dlclark/regexp2"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
@@ -203,6 +204,38 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		}
 	}
 
+}
+
+type Hostmatch struct {
+	Hosts groupexp.GroupRegexp `ng:"hosts"`
+}
+
+func (h *Hostmatch) UnmardhalNG(spec *ng.ArgNode) error {
+	h.Hosts = spec.ToGroupRegexp()
+	return nil
+}
+
+type MidwareServicesConfig struct {
+	Name  string    `ng:"name"`
+	Logi  Service   `ng:"logi"`
+	Hosts Hostmatch `ng:"hosts"`
+}
+
+type MidwareCgiConfig struct {
+	Logi  Cgi                  `ng:"logi"`
+	Paths groupexp.GroupRegexp `ng:"paths"`
+}
+
+type MidwareForwardConfig struct {
+	Name  string               `ng:"name"`
+	Logi  Forward              `ng:"logi"`
+	Hosts groupexp.GroupRegexp `ng:"hosts" type:"list"`
+}
+
+type MidwareConfig struct {
+	Service []MidwareServicesConfig `ng:"services"`
+	Cgi     []MidwareCgiConfig      `ng:"cgis"`
+	Forward []MidwareForwardConfig  `ng:"forward"`
 }
 
 func NewHttpMidware(sni groupexp.GroupRegexp) *Midware {

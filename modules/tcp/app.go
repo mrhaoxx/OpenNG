@@ -91,76 +91,7 @@ func registerDetector() {
 }
 
 func registerController() {
-	ng.Register("tcp::controller",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Desc:     "TCP connection controller that manages protocol detection and service routing",
-			Sub: ng.AssertMap{
-				"services": {
-					Type: "map",
-					Desc: "protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "list",
-							Desc: "ordered list of service handlers for each protocol",
-							Sub: ng.AssertMap{
-								"_": {
-									Type: "map",
-									Sub: ng.AssertMap{
-										"name": {
-											Type:     "string",
-											Required: true,
-											Desc:     "name of the service handler (used in connection logs)",
-										},
-										"logi": {
-											Type:     "ptr",
-											Required: true,
-											Desc:     "pointer to service",
-											Impls: []reflect.Type{
-												ng.TypeOf[Service](),
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{Type: "ptr"},
-		func(spec *ng.ArgNode) (any, error) {
-			services := spec.MustGet("services").ToMap()
-
-			controller := NewTcpController()
-
-			for name, srvs := range services {
-				var bindings []ServiceBinding
-				for i, srv := range srvs.ToList() {
-					serviceName := srv.MustGet("name").ToString()
-					logi := srv.MustGet("logi")
-					service := logi.Value.(Service)
-
-					bindings = append(bindings, ServiceBinding{
-						Name:    serviceName,
-						Service: service,
-					})
-
-					log.Debug().
-						Str("protocol", name).
-						Int("index", i).
-						Str("name", serviceName).
-						Type("logi", logi.Value).
-						Msg("bind tcp service")
-				}
-
-				controller.Bind(name, bindings...)
-			}
-
-			return controller, nil
-		},
-	)
+	ng.RegisterFunc("tcp::controller", ngtcp.NewTcpController)
 }
 
 func registerListener() {

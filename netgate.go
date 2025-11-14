@@ -28,6 +28,7 @@ var args_asserts = map[string]Assert{}
 var ret_asserts = map[string]Assert{}
 
 var refs = map[string]Inst{}
+var groupRegexpType = reflect.TypeOf((groupexp.GroupRegexp)(nil))
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
 	refs[name] = inst
@@ -352,3 +353,343 @@ func (node *ArgNode) Get(path string) (*ArgNode, error) {
 
 	return nil, fmt.Errorf("path not found")
 }
+
+func (node *ArgNode) Unmarshal(target any) error {
+	if target == nil {
+		return fmt.Errorf("target cannot be nil")
+	}
+
+	rv := reflect.ValueOf(target)
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
+		return fmt.Errorf("target must be a non-nil pointer")
+	}
+
+	return node.unmarshalValue(target)
+}
+
+func (node *ArgNode) unmarshalValue(dst any) error {
+	var target reflect.Value
+
+	switch v := dst.(type) {
+	case reflect.Value:
+		target = v
+	default:
+		rv := reflect.ValueOf(dst)
+		if rv.Kind() != reflect.Pointer || rv.IsNil() {
+			return fmt.Errorf("target must be a non-nil pointer or reflect.Value, got %T", dst)
+		}
+		target = rv.Elem()
+	}
+
+	return node.assignValue(target)
+}
+
+func (node *ArgNode) assignValue(dst reflect.Value) error {
+	if !dst.CanSet() {
+		return fmt.Errorf("cannot set value of type %s", dst.Type())
+	}
+
+	if node == nil || node.Type == "null" {
+		dst.SetZero()
+		return nil
+	}
+
+	if dst.Kind() == reflect.Interface {
+		dst.Set(reflect.ValueOf(node.interfaceValue()))
+		return nil
+	}
+
+	if dst.Kind() == reflect.Pointer {
+		if dst.IsNil() {
+			dst.Set(reflect.New(dst.Type().Elem()))
+		}
+		return node.assignValue(dst.Elem())
+	}
+
+	if groupRegexpType != nil && dst.Type() == groupRegexpType {
+		if node.Type != "list" {
+			return fmt.Errorf("expected list for %s, got %s", dst.Type(), node.Type)
+		}
+		dst.Set(reflect.ValueOf(node.ToGroupRegexp()))
+		return nil
+	}
+
+	switch dst.Kind() {
+	case reflect.Struct:
+		return node.unmarshalStruct(dst)
+	case reflect.Map:
+		return node.unmarshalMap(dst)
+	case reflect.Slice:
+		return node.unmarshalSlice(dst)
+	case reflect.Array:
+		return node.unmarshalArray(dst)
+	}
+
+	val := reflect.ValueOf(node.Value)
+	if !val.IsValid() {
+		dst.SetZero()
+		return nil
+	}
+	if val.Type().AssignableTo(dst.Type()) {
+		dst.Set(val)
+		return nil
+	}
+	if val.Type().ConvertibleTo(dst.Type()) {
+		dst.Set(val.Convert(dst.Type()))
+		return nil
+	}
+
+	return fmt.Errorf("cannot assign %s to %s", val.Type(), dst.Type())
+}
+
+func (node *ArgNode) unmarshalStruct(dst reflect.Value) error {
+	if node.Type != "map" {
+		return fmt.Errorf("expected map for struct %s, got %s", dst.Type(), node.Type)
+	}
+
+	fields := dst.NumField()
+	for i := 0; i < fields; i++ {
+		fieldInfo := dst.Type().Field(i)
+		if !fieldInfo.IsExported() {
+			continue
+		}
+
+		tag := fieldInfo.Tag.Get("ng")
+		if tag == "-" {
+			continue
+		}
+
+		fieldValue := dst.Field(i)
+
+		if fieldInfo.Anonymous && tag == "" {
+			if err := node.unmarshalValue(fieldValue); err != nil {
+				return err
+			}
+			continue
+		}
+
+		key := fieldInfo.Name
+		if tag != "" {
+			key = tag
+		}
+
+		subnode, ok := node.ToMap()[key]
+		if !ok || subnode == nil {
+			continue
+		}
+
+		if err := subnode.unmarshalValue(fieldValue); err != nil {
+			return fmt.Errorf("%s: %w", key, err)
+		}
+	}
+
+	return nil
+}
+
+func (node *ArgNode) unmarshalMap(dst reflect.Value) error {
+	if node.Type != "map" {
+		return fmt.Errorf("expected map for %s, got %s", dst.Type(), node.Type)
+	}
+
+	if dst.IsNil() {
+		dst.Set(reflect.MakeMap(dst.Type()))
+	}
+
+	for k, v := range node.ToMap() {
+		keyVal := reflect.ValueOf(k)
+		keyType := dst.Type().Key()
+
+		if !keyVal.Type().AssignableTo(keyType) {
+			if keyVal.Type().ConvertibleTo(keyType) {
+				keyVal = keyVal.Convert(keyType)
+			} else {
+				return fmt.Errorf("cannot convert map key %s to %s", keyVal.Type(), keyType)
+			}
+		}
+
+		elem := reflect.New(dst.Type().Elem()).Elem()
+		if v != nil {
+			if err := v.unmarshalValue(elem); err != nil {
+				return fmt.Errorf("%s: %w", k, err)
+			}
+		} else {
+			elem.SetZero()
+		}
+		dst.SetMapIndex(keyVal, elem)
+	}
+
+	return nil
+}
+
+func (node *ArgNode) unmarshalSlice(dst reflect.Value) error {
+	if node.Type != "list" {
+		return fmt.Errorf("expected list for %s, got %s", dst.Type(), node.Type)
+	}
+
+	list := node.ToList()
+	slice := reflect.MakeSlice(dst.Type(), len(list), len(list))
+	for i, v := range list {
+		if v == nil {
+			slice.Index(i).SetZero()
+			continue
+		}
+		if err := v.unmarshalValue(slice.Index(i)); err != nil {
+			return fmt.Errorf("[%d]: %w", i, err)
+		}
+	}
+	dst.Set(slice)
+	return nil
+}
+
+func (node *ArgNode) unmarshalArray(dst reflect.Value) error {
+	if node.Type != "list" {
+		return fmt.Errorf("expected list for %s, got %s", dst.Type(), node.Type)
+	}
+
+	list := node.ToList()
+	if len(list) != dst.Len() {
+		return fmt.Errorf("array length mismatch: have %d want %d", len(list), dst.Len())
+	}
+	for i, v := range list {
+		if v == nil {
+			dst.Index(i).SetZero()
+			continue
+		}
+		if err := v.unmarshalValue(dst.Index(i)); err != nil {
+			return fmt.Errorf("[%d]: %w", i, err)
+		}
+	}
+	return nil
+}
+
+func (node *ArgNode) interfaceValue() any {
+	if node == nil {
+		return nil
+	}
+
+	switch node.Type {
+	case "map", "list":
+		return node.ToAny()
+	case "null":
+		return nil
+	default:
+		return node.Value
+	}
+}
+
+func ParseStruct(refType reflect.Type) (Assert, error) {
+	switch refType.Kind() {
+	case reflect.Array, reflect.Slice:
+		elemType := refType.Elem()
+		subAssert, err := ParseStruct(elemType)
+		if err != nil {
+			return Assert{}, err
+		}
+		return Assert{
+			Type: "list",
+			Sub: AssertMap{
+				"_": subAssert,
+			},
+		}, nil
+	case reflect.Struct:
+		sub := AssertMap{}
+		numFields := refType.NumField()
+		for i := 0; i < numFields; i++ {
+			field := refType.Field(i)
+			if !field.IsExported() {
+				continue
+			}
+
+			tag := field.Tag.Get("ng")
+			if tag == "-" {
+				continue
+			}
+
+			key := field.Name
+			if tag != "" {
+				key = tag
+			}
+
+			fieldAssert, err := ParseStruct(field.Type)
+			if err != nil {
+				return Assert{}, err
+			}
+			sub[key] = fieldAssert
+		}
+		return Assert{
+			Type: "map",
+			Sub:  sub,
+		}, nil
+	case reflect.Ptr:
+		return Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				refType,
+			},
+		}, nil
+	case reflect.Map:
+		return Assert{
+			Type: "map",
+			Sub: AssertMap{
+				"_": func() Assert {
+					subAssert, _ := ParseStruct(refType.Elem())
+					return subAssert
+				}(),
+			},
+		}, nil
+	case reflect.Interface:
+		// check if it is any
+		if refType.NumMethod() == 0 {
+			return Assert{
+				Type: "any",
+			}, nil
+		}
+
+		return Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				refType,
+			},
+		}, nil
+	default:
+		// basic types
+		var atype string
+		switch refType.Kind() {
+		case reflect.String:
+			atype = "string"
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			atype = "int"
+		case reflect.Bool:
+			atype = "bool"
+		case reflect.Float32, reflect.Float64:
+			atype = "float"
+		default:
+			if refType.Implements(reflect.TypeOf((*Validator)(nil))) {
+				// call the validator to get the assertion
+				validator := reflect.New(refType).Interface().(Validator)
+				return validator()
+			}
+		}
+
+		return Assert{
+			Type: atype,
+		}, nil
+	}
+}
+
+func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) {
+
+	args, _ := ParseStruct(reflect.TypeOf((*U)(nil)).Elem())
+	ret, _ := ParseStruct(reflect.TypeOf((*V)(nil)).Elem())
+
+	Register(name,
+		args, ret, func(arg *ArgNode) (any, error) {
+			var arginst U
+			if err := arg.unmarshalValue(&arginst); err != nil {
+				return nil, err
+			}
+			return fn(arginst)
+		})
+}
+
+type Validator func() (Assert, error)

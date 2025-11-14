@@ -81,3 +81,8 @@ var caller = expr.Function(
 	},
 	new(func(any, string, ...any) any),
 )
+
+type ExprConfig struct {
+	Exp  string `ng:"exp" desc:"expression to evaluate"`
+	Vars any    `ng:"vars" desc:"custom variables to be used in the expression"`
+}
