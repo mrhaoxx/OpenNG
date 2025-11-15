@@ -30,6 +30,7 @@ var ret_asserts = map[string]Assert{}
 var refs = map[string]Inst{}
 var asserterInterfaceType = reflect.TypeFor[Asserter]()
 var unmarshalerInterfaceType = reflect.TypeFor[Unmarshaler]()
+var defaulterInterfaceType = reflect.TypeFor[Defaulter]()
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
 	refs[name] = inst
@@ -61,9 +62,9 @@ type Assert struct {
 
 	Default any
 
-	Enum         []any
-	AllowNonEnum bool
-	Desc         string
+	// Enum         []any
+	// AllowNonEnum bool
+	Desc string
 
 	Struct   bool
 	Impls    []reflect.Type
@@ -408,11 +409,16 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 		if dst.IsNil() {
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
-		return node.assignValue(dst.Elem())
+		if reflect.TypeOf(node.Value).AssignableTo(dst.Type()) {
+			dst.Set(reflect.ValueOf(node.Value))
+		} else {
+			return node.assignValue(dst.Elem())
+		}
 	}
 
 	switch dst.Kind() {
 	case reflect.Struct:
+		node.applyDefaults(dst)
 		return node.unmarshalStruct(dst)
 	case reflect.Map:
 		return node.unmarshalMap(dst)
@@ -475,6 +481,35 @@ func (node *ArgNode) tryCustomUnmarshal(dst reflect.Value) (bool, error) {
 	}
 
 	return false, nil
+}
+
+func (node *ArgNode) applyDefaults(dst reflect.Value) {
+	if defaulterInterfaceType == nil || !dst.IsValid() {
+		return
+	}
+
+	if dst.Type().Implements(defaulterInterfaceType) && dst.CanInterface() {
+		dst.Interface().(Defaulter).MakeDefault()
+		return
+	}
+
+	if dst.CanAddr() {
+		addr := dst.Addr()
+		if addr.Type().Implements(defaulterInterfaceType) {
+			addr.Interface().(Defaulter).MakeDefault()
+			return
+		}
+	}
+
+	if dst.CanSet() {
+		ptrType := reflect.PointerTo(dst.Type())
+		if ptrType.Implements(defaulterInterfaceType) {
+			tmp := reflect.New(dst.Type())
+			tmp.Elem().Set(dst)
+			tmp.Interface().(Defaulter).MakeDefault()
+			dst.Set(tmp.Elem())
+		}
+	}
 }
 
 func (node *ArgNode) unmarshalStruct(dst reflect.Value) error {
@@ -654,11 +689,18 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 			if err != nil {
 				return Assert{}, err
 			}
+
+			notype := field.Tag.Get("type")
+			if notype != "" {
+				fieldAssert.Type = notype
+			}
 			sub[key] = fieldAssert
 		}
+		defaultValue, _ := structDefaultFromMakeDefault(refType)
 		return Assert{
-			Type: "map",
-			Sub:  sub,
+			Type:    "map",
+			Sub:     sub,
+			Default: defaultValue,
 		}, nil
 	case reflect.Ptr:
 		return Assert{
@@ -666,6 +708,7 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 			Impls: []reflect.Type{
 				refType,
 			},
+			Struct: true,
 		}, nil
 	case reflect.Map:
 		return Assert{
@@ -711,8 +754,36 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 		if assert, ok := tryCustomAsserter(refType); ok {
 			return assert, nil
 		}
-		return Assert{}, fmt.Errorf("unsupported type: %s", refType)
+		// return Assert{}, fmt.Errorf("unsupported type: %s", refType)
+		return Assert{
+			Type: "ptr",
+			Impls: []reflect.Type{
+				refType,
+			},
+			Struct: true,
+		}, nil
 	}
+}
+
+func structDefaultFromMakeDefault(refType reflect.Type) (any, bool) {
+	if refType == nil || defaulterInterfaceType == nil {
+		return nil, false
+	}
+
+	ptrType := reflect.PointerTo(refType)
+	if ptrType.Implements(defaulterInterfaceType) {
+		instance := reflect.New(refType)
+		instance.Interface().(Defaulter).MakeDefault()
+		return instance.Elem().Interface(), true
+	}
+
+	if refType.Implements(defaulterInterfaceType) {
+		instance := reflect.New(refType).Elem()
+		instance.Interface().(Defaulter).MakeDefault()
+		return instance.Interface(), true
+	}
+
+	return nil, false
 }
 
 func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
@@ -721,23 +792,39 @@ func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 	}
 
 	if refType.Implements(asserterInterfaceType) {
-		return reflect.New(refType).Interface().(Asserter).Assert(), true
+		in := reflect.New(refType).Interface()
+		// apply default if possible
+		if defaulter, ok := in.(Defaulter); ok {
+			defaulter.MakeDefault()
+		}
+		return in.(Asserter).Assert(), true
 	}
 
 	if refType.Kind() != reflect.Pointer {
 		ptrType := reflect.PointerTo(refType)
 		if ptrType.Implements(asserterInterfaceType) {
-			return reflect.New(refType).Interface().(Asserter).Assert(), true
+			in := reflect.New(refType).Interface()
+			// apply default if possible
+			if defaulter, ok := in.(Defaulter); ok {
+				defaulter.MakeDefault()
+			}
+			return in.(Asserter).Assert(), true
 		}
 	}
 
 	return Assert{}, false
 }
 
-func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) {
+func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) error {
 
-	args, _ := ParseStruct(reflect.TypeOf((*U)(nil)).Elem())
-	ret, _ := ParseStruct(reflect.TypeOf((*V)(nil)).Elem())
+	args, err := ParseStruct(reflect.TypeOf((*U)(nil)).Elem())
+	if err != nil {
+		return err
+	}
+	ret, err := ParseStruct(reflect.TypeOf((*V)(nil)).Elem())
+	if err != nil {
+		return err
+	}
 
 	Register(name,
 		args, ret, func(arg *ArgNode) (any, error) {
@@ -747,6 +834,8 @@ func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) {
 			}
 			return fn(arginst)
 		})
+	return nil
+
 }
 
 type Unmarshaler interface {
@@ -755,4 +844,8 @@ type Unmarshaler interface {
 
 type Asserter interface {
 	Assert() Assert
+}
+
+type Defaulter interface {
+	MakeDefault()
 }

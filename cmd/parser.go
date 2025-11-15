@@ -40,8 +40,8 @@ var TopLevelConfigAssertion = ng.Assert{
 			Desc:     "config version",
 			Type:     "int",
 			Required: true,
-			Forced:   true,
-			Default:  6,
+			// Forced:   true,
+			Default: 6,
 		},
 		"Config": {
 			Desc: "global configurations",
@@ -51,11 +51,11 @@ var TopLevelConfigAssertion = ng.Assert{
 					Type: "map",
 					Sub: ng.AssertMap{
 						"TimeZone": {
-							Desc:         "time zone for logger",
-							Type:         "string",
-							Default:      "Local",
-							Enum:         []any{"Local", "UTC", "Asia/Shanghai"},
-							AllowNonEnum: true,
+							Desc:    "time zone for logger",
+							Type:    "string",
+							Default: "Local",
+							// Enum:         []any{"Local", "UTC", "Asia/Shanghai"},
+							// AllowNonEnum: true,
 						},
 						"Verbose": {
 							Desc:    "verbose level",
@@ -211,11 +211,11 @@ func AssertArg(node *ng.ArgNode, assertions ng.Assert) error {
 		if assertions.Type != "any" && !IfCompatibleAndConvert(node, assertions) {
 			return fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
 		}
-		if assertions.Forced && assertions.Default != nil && assertions.Type != "url" {
-			if !reflect.DeepEqual(node.Value, assertions.Default) {
-				return fmt.Errorf("forced field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
-			}
-		}
+		// if assertions.Forced && assertions.Default != nil && assertions.Type != "url" {
+		// 	if !reflect.DeepEqual(node.Value, assertions.Default) {
+		// 		return fmt.Errorf("forced field not met requirements wanted: %v, got: %v", assertions.Default, node.Value)
+		// 	}
+		// }
 	}
 
 	switch assertions.Type {
@@ -303,9 +303,9 @@ func AssertArg(node *ng.ArgNode, assertions ng.Assert) error {
 		if assertions.Default != nil {
 			assertnode := assertions.Default.(*ngnet.URL)
 
-			if assertions.Forced && realnode.Interface != assertnode.Interface {
-				return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
-			}
+			// if assertions.Forced && realnode.Interface != assertnode.Interface {
+			// 	return fmt.Errorf("url interface mismatch: %s != %s", realnode.Interface, assertnode.Interface)
+			// }
 
 			if assertnode.Interface != "" {
 
@@ -314,41 +314,41 @@ func AssertArg(node *ng.ArgNode, assertions ng.Assert) error {
 				}
 			}
 			if assertnode.URL.Scheme != "" {
-				if assertions.Forced && realnode.URL.Scheme != assertnode.URL.Scheme {
-					return fmt.Errorf("url scheme mismatch: %s != %s", realnode.URL.Scheme, assertnode.URL.Scheme)
-				}
+				// if assertions.Forced && realnode.URL.Scheme != assertnode.URL.Scheme {
+				// 	return fmt.Errorf("url scheme mismatch: %s != %s", realnode.URL.Scheme, assertnode.URL.Scheme)
+				// }
 				if realnode.URL.Scheme == "" {
 					realnode.URL.Scheme = assertnode.URL.Scheme
 				}
 			}
 			if assertnode.URL.Host != "" {
-				if assertions.Forced && realnode.URL.Host != assertnode.URL.Host {
-					return fmt.Errorf("url host mismatch: %s != %s", realnode.URL.Host, assertnode.URL.Host)
-				}
+				// if assertions.Forced && realnode.URL.Host != assertnode.URL.Host {
+				// 	return fmt.Errorf("url host mismatch: %s != %s", realnode.URL.Host, assertnode.URL.Host)
+				// }
 				if realnode.URL.Host == "" {
 					realnode.URL.Host = assertnode.URL.Host
 				}
 			}
 			if assertnode.URL.Path != "" {
-				if assertions.Forced && realnode.URL.Path != assertnode.URL.Path {
-					return fmt.Errorf("url path mismatch: %s != %s", realnode.URL.Path, assertnode.URL.Path)
-				}
+				// if assertions.Forced && realnode.URL.Path != assertnode.URL.Path {
+				// 	return fmt.Errorf("url path mismatch: %s != %s", realnode.URL.Path, assertnode.URL.Path)
+				// }
 				if realnode.URL.Path == "" {
 					realnode.URL.Path = assertnode.URL.Path
 				}
 			}
 			if assertnode.URL.RawQuery != "" {
-				if assertions.Forced && realnode.URL.RawQuery != assertnode.URL.RawQuery {
-					return fmt.Errorf("url query mismatch: %s != %s", realnode.URL.RawQuery, assertnode.URL.RawQuery)
-				}
+				// if assertions.Forced && realnode.URL.RawQuery != assertnode.URL.RawQuery {
+				// 	return fmt.Errorf("url query mismatch: %s != %s", realnode.URL.RawQuery, assertnode.URL.RawQuery)
+				// }
 				if realnode.URL.RawQuery == "" {
 					realnode.URL.RawQuery = assertnode.URL.RawQuery
 				}
 			}
 			if assertnode.URL.RawFragment != "" {
-				if assertions.Forced && realnode.URL.RawFragment != assertnode.URL.RawFragment {
-					return fmt.Errorf("url fragment mismatch: %s != %s", realnode.URL.RawFragment, assertnode.URL.RawFragment)
-				}
+				// if assertions.Forced && realnode.URL.RawFragment != assertnode.URL.RawFragment {
+				// 	return fmt.Errorf("url fragment mismatch: %s != %s", realnode.URL.RawFragment, assertnode.URL.RawFragment)
+				// }
 				if realnode.URL.RawFragment == "" {
 					realnode.URL.RawFragment = assertnode.URL.RawFragment
 				}
@@ -487,21 +487,6 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 			res["default"] = m.Default
 		}
 
-		if len(m.Enum) > 0 {
-			if m.AllowNonEnum {
-				res["anyOf"] = []any{
-					map[string]any{
-						"type": "integer",
-					},
-					map[string]any{
-						"enum": m.Enum,
-					},
-				}
-			} else {
-				res["enum"] = m.Enum
-			}
-		}
-
 		return res
 	case "ptr":
 		argsRegistry := ng.AssertionsRegistry()
@@ -521,7 +506,12 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 				for _, required := range m.Impls {
 					found := false
 					for _, implemented := range ret.Impls {
-						if implemented == required {
+						if required.Kind() == reflect.Interface {
+							if implemented.Implements(required) {
+								found = true
+								break
+							}
+						} else if implemented.AssignableTo(required) {
 							found = true
 							break
 						}
@@ -630,20 +620,20 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 			res["default"] = m.Default
 		}
 
-		if len(m.Enum) > 0 {
-			if m.AllowNonEnum {
-				res["anyOf"] = []any{
-					map[string]any{
-						"type": "string",
-					},
-					map[string]any{
-						"enum": m.Enum,
-					},
-				}
-			} else {
-				res["enum"] = m.Enum
-			}
-		}
+		// if len(m.Enum) > 0 {
+		// 	if m.AllowNonEnum {
+		// 		res["anyOf"] = []any{
+		// 			map[string]any{
+		// 				"type": "string",
+		// 			},
+		// 			map[string]any{
+		// 				"enum": m.Enum,
+		// 			},
+		// 		}
+		// 	} else {
+		// 		res["enum"] = m.Enum
+		// 	}
+		// }
 
 		return res
 	case "bool":

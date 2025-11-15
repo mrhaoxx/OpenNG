@@ -253,6 +253,14 @@ type MidwareConfig struct {
 	Sni     Hostmatch               `ng:"sni"`
 }
 
+func (h *MidwareConfig) MakeDefault() {
+	h.Sni = Hostmatch{
+		Hosts: groupexp.GroupRegexp{
+			regexp2.MustCompile("^.*$", regexp2.None),
+		},
+	}
+}
+
 func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 	hmw := &Midware{
 		sni:            nil,

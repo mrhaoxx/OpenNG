@@ -86,6 +86,25 @@ func (det *Detect) HandleTCP(c *Conn) Ret {
 	return Upgrade
 }
 
+type DetectConfig struct {
+	Protocols       []Detector    `ng:"protocols"`
+	Timeout         time.Duration `ng:"timeout" type:"duration"`
+	TimeoutProtocol string        `ng:"timeoutprotocol"`
+}
+
+func (cfg *DetectConfig) MakeDefault() {
+	cfg.Timeout = 0
+	cfg.TimeoutProtocol = "UNKNOWN"
+}
+
+func NewDetect(cfg DetectConfig) (*Detect, error) {
+	return &Detect{
+		Dets:            cfg.Protocols,
+		Timeout:         cfg.Timeout,
+		TimeoutProtocol: cfg.TimeoutProtocol,
+	}, nil
+}
+
 func DetectHTTP(r io.Reader, c *Conn) string {
 	rr, err := http.ReadRequest(bufio.NewReader(r))
 	if err != nil {

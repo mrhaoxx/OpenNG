@@ -1,10 +1,8 @@
 package tcp
 
 import (
-	"errors"
 	"net/url"
 	"reflect"
-	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
 	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
@@ -41,93 +39,31 @@ func init() {
 }
 
 func registerDetector() {
-	ng.Register("tcp::det",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Sub: ng.AssertMap{
-				"protocols": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type:   "ptr",
-							Struct: true,
-							Impls: []reflect.Type{
-								ng.TypeOf[Detector](),
-							},
-						},
-					},
-				},
-				"timeout": {
-					Type:    "duration",
-					Default: time.Duration(0),
-					Desc:    "timeout for detection, 0 means no timeout",
-				},
-				"timeoutprotocol": {
-					Type:    "string",
-					Default: "UNKNOWN",
-					Desc:    "protocol to assume when timeout",
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			// protocols := spec.MustGet("protocols").ToStringList()
-			timeout := spec.MustGet("timeout").ToDuration()
-			timeoutProtocol := spec.MustGet("timeoutprotocol").ToString()
-			var _dets = spec.MustGet("protocols").ToAny().([]any)
-			var dets []Detector
-			for _, p := range _dets {
-				dets = append(dets, p.(Detector))
-			}
-			return &Detect{Dets: dets, Timeout: timeout, TimeoutProtocol: timeoutProtocol}, nil
-		},
-	)
+	ng.RegisterFunc("tcp::det", ngtcp.NewDetect)
 }
 
 func registerController() {
 	ng.RegisterFunc("tcp::controller", ngtcp.NewTcpController)
 }
 
-func registerListener() {
-	ng.Register("tcp::listen",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"AddressBindings": {
-					Type: "list",
-					Desc: "tcp listen address",
-					Sub: ng.AssertMap{
-						"_": {Type: "string", Enum: []any{"0.0.0.0:443", "0.0.0.0:80", "0.0.0.0:22"}, AllowNonEnum: true},
-					},
-				},
-				"ptr": {
-					Type:     "ptr",
-					Required: true,
-				},
-			},
-		},
-		ng.Assert{Type: "null"},
-		func(spec *ng.ArgNode) (any, error) {
-			ctl, ok := spec.MustGet("ptr").Value.(interface{ Listen(addr string) error })
-			if !ok {
-				return nil, errors.New("ptr is not a tcp.Listener")
-			}
+type ListenConfig struct {
+	AddressBindings []string          `ng:"AddressBindings"`
+	Ptr             *ngtcp.Controller `ng:"ptr"`
+}
 
-			for _, addr := range spec.MustGet("AddressBindings").ToStringList() {
-				if err := ctl.Listen(addr); err != nil {
-					return nil, err
-				}
-				log.Debug().Str("addr", addr).Msg("tcp listen")
-			}
-			return nil, nil
-		},
-	)
+func Listen(cfg ListenConfig) (any, error) {
+	ctl := cfg.Ptr
+
+	for _, addr := range cfg.AddressBindings {
+		if err := ctl.Listen(addr); err != nil {
+			return nil, err
+		}
+	}
+	return nil, nil
+}
+
+func registerListener() {
+	ng.RegisterFunc("tcp::listen", Listen)
 }
 
 func registerProxier() {

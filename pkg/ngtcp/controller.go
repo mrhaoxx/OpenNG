@@ -27,7 +27,7 @@ type ServiceBinding struct {
 	Name    string `ng:"name" desc:"name of the service handler"`
 }
 
-type controller struct {
+type Controller struct {
 	binds map[string][]ServiceBinding
 
 	listeners []*net.Listener
@@ -36,7 +36,7 @@ type controller struct {
 	activeConnections  map[string]*Conn
 }
 
-func (c *controller) Deliver(conn *Conn) {
+func (c *Controller) Deliver(conn *Conn) {
 
 	c.muActiveConnection.Lock()
 	c.activeConnections[conn.Id] = conn
@@ -110,7 +110,7 @@ _restart:
 var listeners map[string]net.Listener = make(map[string]net.Listener)
 var listenerlock sync.Mutex
 
-func (ctl *controller) Listen(addr string) error {
+func (ctl *Controller) Listen(addr string) error {
 	listenerlock.Lock()
 	if lc, ok := listeners[addr]; ok {
 		zlog.Warn().Str("type", "tcp/listen").Str("addr", addr).Msg("rebind tcp listen")
@@ -160,11 +160,11 @@ func NewServiceFunction(f func(*Conn) Ret) Service {
 	return funcInterface(f)
 }
 
-func (ctl *controller) Bind(protocol string, svcs ...ServiceBinding) {
+func (ctl *Controller) Bind(protocol string, svcs ...ServiceBinding) {
 	ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
 }
 
-func (ctl *controller) Report() map[string]interface{} {
+func (ctl *Controller) Report() map[string]interface{} {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	ret := make(map[string]interface{})
@@ -181,7 +181,7 @@ func (ctl *controller) Report() map[string]interface{} {
 	return ret
 }
 
-func (ctl *controller) KillConnection(connection_id string) error {
+func (ctl *Controller) KillConnection(connection_id string) error {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	conn, ok := ctl.activeConnections[connection_id]
@@ -197,8 +197,8 @@ type TcpControllerConfig struct {
 	Services map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)"`
 }
 
-func NewTcpController(cfg TcpControllerConfig) (*controller, error) {
-	ctl := &controller{
+func NewTcpController(cfg TcpControllerConfig) (*Controller, error) {
+	ctl := &Controller{
 		binds:              map[string][]ServiceBinding{},
 		muActiveConnection: sync.RWMutex{},
 		activeConnections:  map[string]*Conn{},
