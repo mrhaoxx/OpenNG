@@ -5,9 +5,9 @@ import (
 	"net/url"
 	"reflect"
 
-	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
 	. "github.com/mrhaoxx/OpenNG/pkg/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
@@ -114,155 +114,156 @@ func registerReverseProxier() {
 }
 
 func registerMidware() {
-	ng.Register("http::midware",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"services": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true},
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Service]()}, Desc: "pointer to service function"},
-								"hosts": {
-									Type: "list",
-									Desc: "hostnames this service handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"cgis": {
-					Type:    "list",
-					Default: []*ng.ArgNode{},
-					Desc:    "CGI handlers for /ng-cgi/* paths",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Cgi]()}, Desc: "pointer to CGI handler implementation"},
-								"paths": {
-									Type: "list",
-									Desc: "URL paths this CGI handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "regexp"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"forward": {
-					Type:    "list",
-					Default: []*ng.ArgNode{},
-					Desc:    "forward proxy handlers",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Forward]()}, Desc: "pointer to forward proxy implementation"},
-								"hosts": {
-									Type:    "list",
-									Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
-									Desc:    "hostnames this forward proxy handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[Midware](),
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			services := spec.MustGet("services").ToList()
-			cgis := spec.MustGet("cgis").ToList()
-			forwards := spec.MustGet("forward").ToList()
+	ng.RegisterFunc("http::midware", nghttp.NewHttpMidware)
+	// ng.Register("http::midware",
+	// 	ng.Assert{
+	// 		Type: "map",
+	// 		Sub: ng.AssertMap{
+	// 			"services": {
+	// 				Type: "list",
+	// 				Sub: ng.AssertMap{
+	// 					"_": {
+	// 						Type: "map",
+	// 						Sub: ng.AssertMap{
+	// 							"name": {Type: "string", Required: true},
+	// 							"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Service]()}, Desc: "pointer to service function"},
+	// 							"hosts": {
+	// 								Type: "list",
+	// 								Desc: "hostnames this service handles",
+	// 								Sub: ng.AssertMap{
+	// 									"_": {Type: "hostname"},
+	// 								},
+	// 							},
+	// 						},
+	// 					},
+	// 				},
+	// 			},
+	// 			"cgis": {
+	// 				Type:    "list",
+	// 				Default: []*ng.ArgNode{},
+	// 				Desc:    "CGI handlers for /ng-cgi/* paths",
+	// 				Sub: ng.AssertMap{
+	// 					"_": {
+	// 						Type: "map",
+	// 						Sub: ng.AssertMap{
+	// 							"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Cgi]()}, Desc: "pointer to CGI handler implementation"},
+	// 							"paths": {
+	// 								Type: "list",
+	// 								Desc: "URL paths this CGI handles",
+	// 								Sub: ng.AssertMap{
+	// 									"_": {Type: "regexp"},
+	// 								},
+	// 							},
+	// 						},
+	// 					},
+	// 				},
+	// 			},
+	// 			"forward": {
+	// 				Type:    "list",
+	// 				Default: []*ng.ArgNode{},
+	// 				Desc:    "forward proxy handlers",
+	// 				Sub: ng.AssertMap{
+	// 					"_": {
+	// 						Type: "map",
+	// 						Sub: ng.AssertMap{
+	// 							"name": {Type: "string", Required: true, Desc: "name of the forward proxy handler"},
+	// 							"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Forward]()}, Desc: "pointer to forward proxy implementation"},
+	// 							"hosts": {
+	// 								Type:    "list",
+	// 								Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
+	// 								Desc:    "hostnames this forward proxy handles",
+	// 								Sub: ng.AssertMap{
+	// 									"_": {Type: "hostname"},
+	// 								},
+	// 							},
+	// 						},
+	// 					},
+	// 				},
+	// 			},
+	// 		},
+	// 	},
+	// 	ng.Assert{
+	// 		Type: "ptr",
+	// 		Impls: []reflect.Type{
+	// 			ng.TypeOf[Midware](),
+	// 			ng.TypeOf[tcpsdk.Service](),
+	// 		},
+	// 	},
+	// 	func(spec *ng.ArgNode) (any, error) {
+	// 		services := spec.MustGet("services").ToList()
+	// 		cgis := spec.MustGet("cgis").ToList()
+	// 		forwards := spec.MustGet("forward").ToList()
 
-			midware := NewHttpMidware(nil)
+	// 		midware := NewHttpMidware(nil)
 
-			midware.AddCgis(&CgiStruct{
-				CgiHandler: func(ctx *HttpCtx, path string) Ret {
-					ctx.Resp.Header().Set("Content-Type", "image/svg+xml")
-					ctx.Resp.Header().Set("Cache-Control", "max-age=2592000")
-					ctx.Resp.Write(ng.Logo())
+	// 		midware.AddCgis(&CgiStruct{
+	// 			CgiHandler: func(ctx *HttpCtx, path string) Ret {
+	// 				ctx.Resp.Header().Set("Content-Type", "image/svg+xml")
+	// 				ctx.Resp.Header().Set("Cache-Control", "max-age=2592000")
+	// 				ctx.Resp.Write(ng.Logo())
 
-					return RequestEnd
-				},
-				CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
-			})
+	// 				return RequestEnd
+	// 			},
+	// 			CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
+	// 		})
 
-			for _, srv := range services {
-				name := srv.MustGet("name").ToString()
-				logi := srv.MustGet("logi")
-				hosts := srv.MustGet("hosts").ToGroupRegexp()
+	// 		for _, srv := range services {
+	// 			name := srv.MustGet("name").ToString()
+	// 			logi := srv.MustGet("logi")
+	// 			hosts := srv.MustGet("hosts").ToGroupRegexp()
 
-				service := logi.Value.(Service)
+	// 			service := logi.Value.(Service)
 
-				var compiled groupexp.GroupRegexp
-				if len(hosts) == 0 {
-					compiled = service.Hosts()
-				} else {
-					compiled = hosts
-				}
+	// 			var compiled groupexp.GroupRegexp
+	// 			if len(hosts) == 0 {
+	// 				compiled = service.Hosts()
+	// 			} else {
+	// 				compiled = hosts
+	// 			}
 
-				midware.AddServices(&ServiceStruct{
-					Id:             name,
-					Hosts:          compiled,
-					ServiceHandler: service.HandleHTTP,
-				})
-			}
+	// 			midware.AddServices(&ServiceStruct{
+	// 				Id:             name,
+	// 				Hosts:          compiled,
+	// 				ServiceHandler: service.HandleHTTP,
+	// 			})
+	// 		}
 
-			for _, cgi := range cgis {
-				logi := cgi.MustGet("logi")
+	// 		for _, cgi := range cgis {
+	// 			logi := cgi.MustGet("logi")
 
-				service := logi.Value.(Cgi)
+	// 			service := logi.Value.(Cgi)
 
-				midware.AddCgis(&CgiStruct{
-					CgiHandler: service.HandleHTTPCgi,
-					CgiPaths:   service.CgiPaths(),
-				})
+	// 			midware.AddCgis(&CgiStruct{
+	// 				CgiHandler: service.HandleHTTPCgi,
+	// 				CgiPaths:   service.CgiPaths(),
+	// 			})
 
-			}
+	// 		}
 
-			for _, fwd := range forwards {
-				name := fwd.MustGet("name").ToString()
-				logi := fwd.MustGet("logi")
-				hosts := fwd.MustGet("hosts").ToGroupRegexp()
+	// 		for _, fwd := range forwards {
+	// 			name := fwd.MustGet("name").ToString()
+	// 			logi := fwd.MustGet("logi")
+	// 			hosts := fwd.MustGet("hosts").ToGroupRegexp()
 
-				service := logi.Value.(Forward)
+	// 			service := logi.Value.(Forward)
 
-				var compiled groupexp.GroupRegexp
-				if len(hosts) == 0 {
-					compiled = service.HostsForward()
-				} else {
-					compiled = hosts
-				}
+	// 			var compiled groupexp.GroupRegexp
+	// 			if len(hosts) == 0 {
+	// 				compiled = service.HostsForward()
+	// 			} else {
+	// 				compiled = hosts
+	// 			}
 
-				midware.AddForwardServices(&ServiceStruct{
-					Id:             name,
-					Hosts:          compiled,
-					ServiceHandler: service.HandleHTTPForward,
-				})
-			}
+	// 			midware.AddForwardServices(&ServiceStruct{
+	// 				Id:             name,
+	// 				Hosts:          compiled,
+	// 				ServiceHandler: service.HandleHTTPForward,
+	// 			})
+	// 		}
 
-			return midware, nil
-		},
-	)
+	// 		return midware, nil
+	// 	},
+	// )
 }
 
 func registerMidwareAddService() {

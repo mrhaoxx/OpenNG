@@ -28,7 +28,8 @@ var args_asserts = map[string]Assert{}
 var ret_asserts = map[string]Assert{}
 
 var refs = map[string]Inst{}
-var groupRegexpType = reflect.TypeOf((groupexp.GroupRegexp)(nil))
+var asserterInterfaceType = reflect.TypeFor[Asserter]()
+var unmarshalerInterfaceType = reflect.TypeFor[Unmarshaler]()
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
 	refs[name] = inst
@@ -394,6 +395,10 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 		return nil
 	}
 
+	if handled, err := node.tryCustomUnmarshal(dst); handled {
+		return err
+	}
+
 	if dst.Kind() == reflect.Interface {
 		dst.Set(reflect.ValueOf(node.interfaceValue()))
 		return nil
@@ -404,14 +409,6 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 			dst.Set(reflect.New(dst.Type().Elem()))
 		}
 		return node.assignValue(dst.Elem())
-	}
-
-	if groupRegexpType != nil && dst.Type() == groupRegexpType {
-		if node.Type != "list" {
-			return fmt.Errorf("expected list for %s, got %s", dst.Type(), node.Type)
-		}
-		dst.Set(reflect.ValueOf(node.ToGroupRegexp()))
-		return nil
 	}
 
 	switch dst.Kind() {
@@ -440,6 +437,44 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 	}
 
 	return fmt.Errorf("cannot assign %s to %s", val.Type(), dst.Type())
+}
+
+func (node *ArgNode) tryCustomUnmarshal(dst reflect.Value) (bool, error) {
+	if !dst.IsValid() {
+		return false, nil
+	}
+
+	if dst.Kind() == reflect.Pointer && dst.Type().Implements(unmarshalerInterfaceType) {
+		if dst.IsNil() {
+			dst.Set(reflect.New(dst.Type().Elem()))
+		}
+		return true, dst.Interface().(Unmarshaler).UnmarshalArgNode(node)
+	}
+
+	if dst.CanInterface() && dst.Type().Implements(unmarshalerInterfaceType) {
+		return true, dst.Interface().(Unmarshaler).UnmarshalArgNode(node)
+	}
+
+	if dst.CanAddr() {
+		addr := dst.Addr()
+		if addr.Type().Implements(unmarshalerInterfaceType) {
+			return true, addr.Interface().(Unmarshaler).UnmarshalArgNode(node)
+		}
+	}
+
+	if dst.CanSet() && dst.Kind() != reflect.Pointer {
+		ptrType := reflect.PointerTo(dst.Type())
+		if ptrType.Implements(unmarshalerInterfaceType) {
+			temp := reflect.New(dst.Type())
+			if err := temp.Interface().(Unmarshaler).UnmarshalArgNode(node); err != nil {
+				return true, err
+			}
+			dst.Set(temp.Elem())
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 func (node *ArgNode) unmarshalStruct(dst reflect.Value) error {
@@ -592,6 +627,11 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 			},
 		}, nil
 	case reflect.Struct:
+		// check custom asserter
+		if assert, ok := tryCustomAsserter(refType); ok {
+			return assert, nil
+		}
+
 		sub := AssertMap{}
 		numFields := refType.NumField()
 		for i := 0; i < numFields; i++ {
@@ -651,30 +691,47 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 				refType,
 			},
 		}, nil
-	default:
-		// basic types
-		var atype string
-		switch refType.Kind() {
-		case reflect.String:
-			atype = "string"
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			atype = "int"
-		case reflect.Bool:
-			atype = "bool"
-		case reflect.Float32, reflect.Float64:
-			atype = "float"
-		default:
-			if refType.Implements(reflect.TypeOf((*Validator)(nil))) {
-				// call the validator to get the assertion
-				validator := reflect.New(refType).Interface().(Validator)
-				return validator()
-			}
-		}
-
+	case reflect.String:
 		return Assert{
-			Type: atype,
+			Type: "string",
 		}, nil
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return Assert{
+			Type: "int",
+		}, nil
+	case reflect.Bool:
+		return Assert{
+			Type: "bool",
+		}, nil
+	case reflect.Float32, reflect.Float64:
+		return Assert{
+			Type: "float",
+		}, nil
+	default:
+		if assert, ok := tryCustomAsserter(refType); ok {
+			return assert, nil
+		}
+		return Assert{}, fmt.Errorf("unsupported type: %s", refType)
 	}
+}
+
+func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
+	if refType == nil {
+		return Assert{}, false
+	}
+
+	if refType.Implements(asserterInterfaceType) {
+		return reflect.New(refType).Interface().(Asserter).Assert(), true
+	}
+
+	if refType.Kind() != reflect.Pointer {
+		ptrType := reflect.PointerTo(refType)
+		if ptrType.Implements(asserterInterfaceType) {
+			return reflect.New(refType).Interface().(Asserter).Assert(), true
+		}
+	}
+
+	return Assert{}, false
 }
 
 func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) {
@@ -692,4 +749,10 @@ func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) {
 		})
 }
 
-type Validator func() (Assert, error)
+type Unmarshaler interface {
+	UnmarshalArgNode(*ArgNode) error
+}
+
+type Asserter interface {
+	Assert() Assert
+}

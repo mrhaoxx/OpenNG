@@ -210,10 +210,24 @@ type Hostmatch struct {
 	Hosts groupexp.GroupRegexp `ng:"hosts"`
 }
 
-func (h *Hostmatch) UnmardhalNG(spec *ng.ArgNode) error {
-	h.Hosts = spec.ToGroupRegexp()
+func (h *Hostmatch) UnmarshalArgNode(spec *ng.ArgNode) error {
+	h.Hosts = groupexp.GroupRegexp{}
+	for _, v := range spec.ToList() {
+		h.Hosts = append(h.Hosts, v.ToRegexp())
+	}
 	return nil
 }
+
+func (h *Hostmatch) Assert() ng.Assert {
+	return ng.Assert{
+		Type: "list",
+		Sub: ng.AssertMap{
+			"_": {Type: "hostname"},
+		},
+	}
+}
+
+var _ ng.Asserter = (*Hostmatch)(nil)
 
 type MidwareServicesConfig struct {
 	Name  string    `ng:"name"`
@@ -222,23 +236,24 @@ type MidwareServicesConfig struct {
 }
 
 type MidwareCgiConfig struct {
-	Logi  Cgi                  `ng:"logi"`
-	Paths groupexp.GroupRegexp `ng:"paths"`
+	Logi  Cgi       `ng:"logi"`
+	Paths Hostmatch `ng:"paths"`
 }
 
 type MidwareForwardConfig struct {
-	Name  string               `ng:"name"`
-	Logi  Forward              `ng:"logi"`
-	Hosts groupexp.GroupRegexp `ng:"hosts" type:"list"`
+	Name  string    `ng:"name"`
+	Logi  Forward   `ng:"logi"`
+	Hosts Hostmatch `ng:"hosts" type:"list"`
 }
 
 type MidwareConfig struct {
 	Service []MidwareServicesConfig `ng:"services"`
 	Cgi     []MidwareCgiConfig      `ng:"cgis"`
 	Forward []MidwareForwardConfig  `ng:"forward"`
+	Sni     Hostmatch               `ng:"sni"`
 }
 
-func NewHttpMidware(sni groupexp.GroupRegexp) *Midware {
+func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 	hmw := &Midware{
 		sni:            nil,
 		activeRequests: map[string]*HttpCtx{},
@@ -297,9 +312,32 @@ func NewHttpMidware(sni groupexp.GroupRegexp) *Midware {
 		return hmw.sni == nil || hmw.sni.MatchString(s)
 	})
 
-	hmw.sni = sni
+	hmw.sni = cfg.Sni.Hosts
 
-	return hmw
+	for _, svc := range cfg.Service {
+		hmw.AddServices(&ServiceStruct{
+			Id:             svc.Name,
+			Hosts:          svc.Hosts.Hosts,
+			ServiceHandler: svc.Logi.HandleHTTP,
+		})
+	}
+
+	for _, cgi := range cfg.Cgi {
+		hmw.AddCgis(&CgiStruct{
+			CgiHandler: cgi.Logi.HandleHTTPCgi,
+			CgiPaths:   cgi.Paths.Hosts,
+		})
+	}
+
+	for _, fwd := range cfg.Forward {
+		hmw.AddForwardServices(&ServiceStruct{
+			Id:             fwd.Name,
+			Hosts:          fwd.Hosts.Hosts,
+			ServiceHandler: fwd.Logi.HandleHTTPForward,
+		})
+	}
+
+	return hmw, nil
 }
 
 func (ctl *Midware) Report() map[string]interface{} {
