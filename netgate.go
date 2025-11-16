@@ -26,11 +26,13 @@ const (
 
 var args_asserts = map[string]Assert{}
 var ret_asserts = map[string]Assert{}
+var member_func_registry = map[string]map[string]MemberFunction{}
 
 var refs = map[string]Inst{}
 var asserterInterfaceType = reflect.TypeFor[Asserter]()
 var unmarshalerInterfaceType = reflect.TypeFor[Unmarshaler]()
 var defaulterInterfaceType = reflect.TypeFor[Defaulter]()
+var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
 	refs[name] = inst
@@ -48,6 +50,10 @@ func AssertionsRegistry() map[string]Assert {
 
 func ReturnAssertionsRegistry() map[string]Assert {
 	return ret_asserts
+}
+
+func MemberFunctionRegistry() map[string]map[string]MemberFunction {
+	return member_func_registry
 }
 
 type Inst func(*ArgNode) (any, error)
@@ -69,6 +75,12 @@ type Assert struct {
 	Struct   bool
 	Impls    []reflect.Type
 	AllowNil bool
+}
+
+type MemberFunction struct {
+	FullName string
+	Args     Assert
+	Ret      Assert
 }
 
 func TypeOf[T any]() reflect.Type {
@@ -833,12 +845,14 @@ func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 }
 
 func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) error {
+	argType := reflect.TypeOf((*U)(nil)).Elem()
+	retType := reflect.TypeOf((*V)(nil)).Elem()
 
-	args, err := ParseStruct(reflect.TypeOf((*U)(nil)).Elem())
+	args, err := ParseStruct(argType)
 	if err != nil {
 		return err
 	}
-	ret, err := ParseStruct(reflect.TypeOf((*V)(nil)).Elem())
+	ret, err := ParseStruct(retType)
 	if err != nil {
 		return err
 	}
@@ -851,6 +865,11 @@ func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) error {
 			}
 			return fn(arginst)
 		})
+
+	if err := registerMemberMethods(name, retType); err != nil {
+		return err
+	}
+
 	return nil
 
 }
@@ -865,4 +884,174 @@ type Asserter interface {
 
 type Defaulter interface {
 	MakeDefault()
+}
+
+func DiscoverErrorMethods(refType reflect.Type) map[string]reflect.Method {
+	if refType == nil {
+		return nil
+	}
+
+	switch refType.Kind() {
+	case reflect.Pointer, reflect.Interface:
+	default:
+		refType = reflect.PointerTo(refType)
+	}
+
+	methods := make(map[string]reflect.Method)
+
+	for i := 0; i < refType.NumMethod(); i++ {
+		m := refType.Method(i)
+		if m.PkgPath != "" {
+			continue
+		}
+
+		mt := m.Type
+		numOut := mt.NumOut()
+		if numOut == 0 {
+			continue
+		}
+
+		lastOut := mt.Out(numOut - 1)
+		if lastOut != errorType {
+			continue
+		}
+
+		methods[m.Name] = m
+	}
+
+	return methods
+}
+
+func registerMemberMethods(name string, retType reflect.Type) error {
+	methods := DiscoverErrorMethods(retType)
+	if len(methods) == 0 {
+		return nil
+	}
+
+	for methodName, method := range methods {
+		methodName := methodName
+		method := method
+		if err := registerMemberMethod(name, method); err != nil {
+			return fmt.Errorf("%s::%s: %w", name, methodName, err)
+		}
+	}
+
+	return nil
+}
+
+func registerMemberMethod(name string, method reflect.Method) error {
+	if method.Type.IsVariadic() {
+		return nil
+	}
+
+	specType, err := buildMemberSpecType(method)
+	if err != nil {
+		return err
+	}
+
+	argsAssert, err := ParseStruct(specType)
+	if err != nil {
+		return err
+	}
+
+	retAssert, err := buildMemberReturnAssert(method)
+	if err != nil {
+		return err
+	}
+
+	fullName := fmt.Sprintf("%s::%s", name, method.Name)
+	if _, exists := refs[fullName]; exists {
+		return nil
+	}
+
+	Register(fullName, argsAssert, retAssert, buildMemberMethodInst(method, specType))
+
+	if _, ok := member_func_registry[name]; !ok {
+		member_func_registry[name] = map[string]MemberFunction{}
+	}
+	member_func_registry[name][method.Name] = MemberFunction{
+		FullName: fullName,
+		Args:     argsAssert,
+		Ret:      retAssert,
+	}
+
+	return nil
+}
+
+func buildMemberSpecType(method reflect.Method) (reflect.Type, error) {
+	numIn := method.Type.NumIn()
+	if numIn == 0 {
+		return nil, fmt.Errorf("method %s has no receiver", method.Name)
+	}
+
+	fields := make([]reflect.StructField, 0, numIn)
+	fields = append(fields, reflect.StructField{
+		Name: "Ptr",
+		Type: method.Type.In(0),
+		Tag:  `ng:"ptr"`,
+	})
+
+	for i := 1; i < numIn; i++ {
+		fields = append(fields, reflect.StructField{
+			Name: fmt.Sprintf("Arg%d", i-1),
+			Type: method.Type.In(i),
+			Tag:  reflect.StructTag(fmt.Sprintf(`ng:"arg%d"`, i-1)),
+		})
+	}
+
+	return reflect.StructOf(fields), nil
+}
+
+func buildMemberReturnAssert(method reflect.Method) (Assert, error) {
+	switch method.Type.NumOut() {
+	case 1:
+		return Assert{Type: "null"}, nil
+	case 2:
+		return ParseStruct(method.Type.Out(0))
+	default:
+		return Assert{}, fmt.Errorf("method %s has unsupported return values", method.Name)
+	}
+}
+
+func buildMemberMethodInst(method reflect.Method, specType reflect.Type) Inst {
+	return func(arg *ArgNode) (any, error) {
+		specValue := reflect.New(specType)
+		if err := arg.unmarshalValue(specValue.Interface()); err != nil {
+			return nil, err
+		}
+
+		val := specValue.Elem()
+		recv := val.Field(0)
+		if !recv.IsValid() || recv.IsZero() {
+			return nil, fmt.Errorf("ptr is nil")
+		}
+
+		receiver := recv.Interface()
+		methodValue := reflect.ValueOf(receiver).MethodByName(method.Name)
+		if !methodValue.IsValid() {
+			return nil, fmt.Errorf("method %s not found on receiver", method.Name)
+		}
+
+		numIn := method.Type.NumIn()
+		args := make([]reflect.Value, numIn-1)
+		for i := 1; i < numIn; i++ {
+			args[i-1] = val.Field(i)
+		}
+
+		result := methodValue.Call(args)
+		numOut := method.Type.NumOut()
+
+		if numOut == 1 {
+			if errVal, _ := result[0].Interface().(error); errVal != nil {
+				return nil, errVal
+			}
+			return nil, nil
+		}
+
+		if errVal, _ := result[numOut-1].Interface().(error); errVal != nil {
+			return nil, errVal
+		}
+
+		return result[0].Interface(), nil
+	}
 }

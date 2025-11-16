@@ -1,7 +1,6 @@
 package ngcmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"time"
@@ -11,49 +10,6 @@ import (
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )
-
-func GenerateJsonSchema() []byte {
-	refs_assertions := ng.AssertionsRegistry()
-
-	root := ToSchema(TopLevelConfigAssertion, 0, 5).(map[string]any)
-
-	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-
-	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
-
-	allOf := []any{}
-
-	for k, v := range refs_assertions {
-
-		if k == "_" {
-			continue
-		}
-
-		allOf = append(allOf, map[string]any{
-			"if": map[string]any{
-				"properties": map[string]any{
-					"kind": map[string]any{
-						"const": k,
-					},
-				},
-			},
-			"then": map[string]any{
-				"properties": map[string]any{
-					"spec": ToSchema(v, 0, 6),
-				},
-				"description": v.Desc,
-			},
-		})
-	}
-
-	if len(allOf) > 0 {
-		services["allOf"] = allOf
-	}
-
-	s, _ := json.Marshal(root)
-
-	return s
-}
 
 func LoadCfg(cfgs []byte, reload bool) error {
 	var cfg any
@@ -73,7 +29,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		return err
 	}
 
-	if err := AssertArg(nodes, TopLevelConfigAssertion); err != nil {
+	if err := ng.AssertArg(nodes, TopLevelConfigAssertion); err != nil {
 		return err
 	}
 
@@ -85,7 +41,7 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		}
 	}
 
-	space := Space{
+	space := ng.Space{
 		Services: map[string]any{
 			"sys": &ngnet.SysInterface{},
 		},
@@ -142,11 +98,11 @@ func ValidateCfg(cfgs []byte) []string {
 		return []string{err.Error()}
 	}
 
-	if err := AssertArg(nodes, TopLevelConfigAssertion); err != nil {
+	if err := ng.AssertArg(nodes, TopLevelConfigAssertion); err != nil {
 		return []string{err.Error()}
 	}
 
-	space := Space{
+	space := ng.Space{
 		Services: map[string]any{
 			"sys": true,
 		},

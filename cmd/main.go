@@ -17,7 +17,6 @@ import (
 var Configfile = flag.String("config", "config.yaml", "the config file to load")
 var printversion = flag.Bool("version", false, "print version and exit")
 var helpmessage = flag.Bool("help", false, "print help message")
-var printjsonschema = flag.Bool("jsonschema", false, "print json schema to stdout")
 
 func Main() {
 
@@ -61,9 +60,6 @@ config: %s
 		vcs, binaryInfo.Main.Version, runtime.Version(), runtime.GOOS, runtime.GOARCH, runtime.Compiler, *Configfile)
 
 	switch {
-	case *printjsonschema:
-		os.Stdout.Write(GenerateJsonSchema())
-		return
 	case *printversion:
 		return
 	}

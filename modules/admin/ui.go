@@ -148,7 +148,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		if cachedSchema == nil {
-			cachedSchema = ngcmd.GenerateJsonSchema()
+			cachedSchema = GenerateJsonSchema()
 		}
 		ctx.Resp.Write(cachedSchema)
 
