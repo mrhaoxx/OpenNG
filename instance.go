@@ -207,6 +207,8 @@ func (space *Space) Validate(root *ArgNode) []error {
 			}
 		}
 
+		normalizeFuncSpec(resolvedKind, spec)
+
 		spec_assert, ok := space.AssertRefs[resolvedKind]
 		if !ok {
 			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
@@ -290,6 +292,8 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		if !ok {
 			return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
+
+		normalizeFuncSpec(resolvedKind, spec)
 
 		spec_assert, ok := space.AssertRefs[resolvedKind]
 		if !ok {
@@ -406,6 +410,8 @@ func (space *Space) resolveMemberFunction(targetName, memberName string, spec *A
 		return "", fmt.Errorf("member function %s not found for %s (%s)", memberName, targetName, baseKind)
 	}
 
+	normalizeFuncSpec(member.FullName, spec)
+
 	if err := ensureMemberSpecHasPtr(spec, targetName); err != nil {
 		return "", err
 	}
@@ -421,18 +427,8 @@ func ensureMemberSpecHasPtr(spec *ArgNode, target string) error {
 		spec.Type = "map"
 		spec.Value = map[string]*ArgNode{}
 	}
-	if spec.Type == "list" {
-		listNodes := spec.ToList()
-		converted := make(map[string]*ArgNode, len(listNodes))
-		for i, arg := range listNodes {
-			key := fmt.Sprintf("arg%d", i)
-			converted[key] = arg
-		}
-		spec.Type = "map"
-		spec.Value = converted
-	}
 	if spec.Type != "map" {
-		return fmt.Errorf("member function call expects map or list spec, got %s", spec.Type)
+		return fmt.Errorf("member function call expects structured spec, got %s", spec.Type)
 	}
 	if spec.Value == nil {
 		spec.Value = map[string]*ArgNode{}

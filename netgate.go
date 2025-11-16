@@ -27,6 +27,7 @@ const (
 var args_asserts = map[string]Assert{}
 var ret_asserts = map[string]Assert{}
 var member_func_registry = map[string]map[string]MemberFunction{}
+var func_arg_layouts = map[string]FuncArgLayout{}
 
 var refs = map[string]Inst{}
 var asserterInterfaceType = reflect.TypeFor[Asserter]()
@@ -81,6 +82,10 @@ type MemberFunction struct {
 	FullName string
 	Args     Assert
 	Ret      Assert
+}
+
+type FuncArgLayout struct {
+	Fields []string
 }
 
 func TypeOf[T any]() reflect.Type {
@@ -844,34 +849,68 @@ func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 	return Assert{}, false
 }
 
-func RegisterFunc[U any, V any](name string, fn func(U) (V, error)) error {
-	argType := reflect.TypeOf((*U)(nil)).Elem()
-	retType := reflect.TypeOf((*V)(nil)).Elem()
-
-	args, err := ParseStruct(argType)
-	if err != nil {
-		return err
+func RegisterFunc(name string, fn any) error {
+	fnValue := reflect.ValueOf(fn)
+	if !fnValue.IsValid() || fnValue.Kind() != reflect.Func {
+		return fmt.Errorf("RegisterFunc expects a function for %s", name)
 	}
-	ret, err := ParseStruct(retType)
+
+	fnType := fnValue.Type()
+	numOut := fnType.NumOut()
+	if numOut == 0 {
+		return fmt.Errorf("%s: function must return error", name)
+	}
+	if fnType.Out(numOut-1) != errorType {
+		return fmt.Errorf("%s: last return value must be error", name)
+	}
+
+	var retType reflect.Type
+	var retAssert Assert
+	var err error
+	switch numOut {
+	case 1:
+		retAssert = Assert{Type: "null"}
+	case 2:
+		retType = fnType.Out(0)
+		retAssert, err = ParseStruct(retType)
+		if err != nil {
+			return err
+		}
+	default:
+		return fmt.Errorf("%s: unsupported return signature", name)
+	}
+
+	argsAssert, layoutFields, err := buildFuncArgsAssert(fnType)
 	if err != nil {
 		return err
 	}
 
 	Register(name,
-		args, ret, func(arg *ArgNode) (any, error) {
-			var arginst U
-			if err := arg.unmarshalValue(&arginst); err != nil {
+		argsAssert, retAssert, func(arg *ArgNode) (any, error) {
+			callArgs, err := buildFuncCallArgs(fnType, arg)
+			if err != nil {
 				return nil, err
 			}
-			return fn(arginst)
+			results := fnValue.Call(callArgs)
+			errVal, _ := results[numOut-1].Interface().(error)
+			if errVal != nil {
+				return nil, errVal
+			}
+			if numOut == 2 {
+				return results[0].Interface(), nil
+			}
+			return nil, nil
 		})
 
-	if err := registerMemberMethods(name, retType); err != nil {
-		return err
+	registerFuncArgLayout(name, layoutFields)
+
+	if retType != nil {
+		if err := registerMemberMethods(name, retType); err != nil {
+			return err
+		}
 	}
 
 	return nil
-
 }
 
 type Unmarshaler interface {
@@ -975,7 +1014,180 @@ func registerMemberMethod(name string, method reflect.Method) error {
 		Ret:      retAssert,
 	}
 
+	fields := structFieldOrder(specType)
+	if len(fields) > 0 && fields[0] == "ptr" {
+		fields = fields[1:]
+	}
+	registerFuncArgLayout(fullName, fields)
+
 	return nil
+}
+
+func structFieldOrder(refType reflect.Type) []string {
+	if refType == nil {
+		return nil
+	}
+
+	if refType.Kind() != reflect.Struct {
+		return nil
+	}
+
+	keys := []string{}
+	for i := 0; i < refType.NumField(); i++ {
+		field := refType.Field(i)
+		if !field.IsExported() {
+			continue
+		}
+		tag := field.Tag.Get("ng")
+		if tag == "-" {
+			continue
+		}
+		key := field.Name
+		if tag != "" {
+			key = tag
+		}
+		keys = append(keys, key)
+	}
+	return keys
+}
+
+func registerFuncArgLayout(name string, fields []string) {
+	if len(fields) == 0 {
+		return
+	}
+	func_arg_layouts[name] = FuncArgLayout{Fields: fields}
+}
+
+func normalizeFuncSpec(kind string, spec *ArgNode) {
+	layout, ok := func_arg_layouts[kind]
+	if !ok {
+		return
+	}
+	layout.apply(spec)
+}
+
+func (layout FuncArgLayout) apply(spec *ArgNode) {
+	if spec == nil || len(layout.Fields) == 0 {
+		return
+	}
+
+	if spec.Type == "null" {
+		spec.Type = "map"
+		spec.Value = map[string]*ArgNode{}
+		return
+	}
+
+	if len(layout.Fields) == 1 {
+		if spec.Type == "map" {
+			return
+		}
+		valueCopy := &ArgNode{
+			Type:  spec.Type,
+			Value: spec.Value,
+		}
+		spec.Type = "map"
+		spec.Value = map[string]*ArgNode{
+			layout.Fields[0]: valueCopy,
+		}
+		return
+	}
+
+	if spec.Type == "map" {
+		return
+	}
+
+	if spec.Type == "list" {
+		list := spec.ToList()
+		converted := make(map[string]*ArgNode, len(layout.Fields))
+		for i, name := range layout.Fields {
+			if i < len(list) {
+				converted[name] = list[i]
+			}
+		}
+		spec.Type = "map"
+		spec.Value = converted
+		return
+	}
+
+	converted := map[string]*ArgNode{
+		layout.Fields[0]: {
+			Type:  spec.Type,
+			Value: spec.Value,
+		},
+	}
+	spec.Type = "map"
+	spec.Value = converted
+}
+
+func buildFuncArgsAssert(fnType reflect.Type) (Assert, []string, error) {
+	numIn := fnType.NumIn()
+	switch numIn {
+	case 0:
+		return Assert{Type: "map", Sub: AssertMap{}}, nil, nil
+	case 1:
+		argType := fnType.In(0)
+		argAssert, err := ParseStruct(argType)
+		if err != nil {
+			return Assert{}, nil, err
+		}
+		return argAssert, structFieldOrder(argType), nil
+	default:
+		sub := AssertMap{}
+		fields := make([]string, numIn)
+		for i := 0; i < numIn; i++ {
+			argType := fnType.In(i)
+			argAssert, err := ParseStruct(argType)
+			if err != nil {
+				return Assert{}, nil, err
+			}
+			key := fmt.Sprintf("arg%d", i)
+			sub[key] = argAssert
+			fields[i] = key
+		}
+		return Assert{
+			Type: "map",
+			Sub:  sub,
+		}, fields, nil
+	}
+}
+
+func buildFuncCallArgs(fnType reflect.Type, spec *ArgNode) ([]reflect.Value, error) {
+	numIn := fnType.NumIn()
+	values := make([]reflect.Value, numIn)
+	if numIn == 0 {
+		return values, nil
+	}
+
+	if spec == nil {
+		spec = &ArgNode{Type: "null"}
+	}
+
+	if numIn == 1 {
+		dst := reflect.New(fnType.In(0))
+		if err := spec.unmarshalValue(dst.Interface()); err != nil {
+			return nil, err
+		}
+		values[0] = dst.Elem()
+		return values, nil
+	}
+
+	if spec.Type != "map" {
+		return nil, fmt.Errorf("function expects map spec, got %s", spec.Type)
+	}
+	subnodes := spec.ToMap()
+	for i := 0; i < numIn; i++ {
+		key := fmt.Sprintf("arg%d", i)
+		node, ok := subnodes[key]
+		if !ok {
+			node = &ArgNode{Type: "null"}
+		}
+		dst := reflect.New(fnType.In(i))
+		if err := node.unmarshalValue(dst.Interface()); err != nil {
+			return nil, fmt.Errorf("%s: %w", key, err)
+		}
+		values[i] = dst.Elem()
+	}
+	return values, nil
 }
 
 func buildMemberSpecType(method reflect.Method) (reflect.Type, error) {
