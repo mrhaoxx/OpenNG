@@ -1,26 +1,26 @@
 package ngtcp
 
 import (
-	"net"
 	"sync"
 
 	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
-type tcphost struct {
-	ID      string `json:"id"`
-	Backend string `json:"backend"`
+type ProxyHost struct {
+	ID       string    `ng:"name"`
+	Protocol string    `ng:"protocol"`
+	Backend  ngnet.URL `ng:"backend"`
 }
 
-type tcpproxy struct {
-	hosts map[string]tcphost
+type Proxier struct {
+	hosts map[string]ProxyHost
 	mu    sync.Mutex
 }
 
-func (tpx *tcpproxy) HandleTCP(c *Conn) Ret {
+func (tpx *Proxier) HandleTCP(c *Conn) Ret {
 	a, ok := tpx.hosts[(c.Protocols())]
 	if ok {
-		oc, err := net.Dial("tcp", a.Backend)
+		oc, err := a.Backend.Underlying.Dial("tcp", a.Backend.String())
 		if err == nil {
 			ngnet.ConnSync((c.TopConn()), oc)
 		}
@@ -28,37 +28,28 @@ func (tpx *tcpproxy) HandleTCP(c *Conn) Ret {
 	return Close
 }
 
-func (tpx *tcpproxy) Get() map[string]tcphost {
+func (tpx *Proxier) Get() map[string]ProxyHost {
 	tpx.mu.Lock()
 	defer tpx.mu.Unlock()
-	ret := map[string]tcphost{}
+	ret := map[string]ProxyHost{}
 	for k, v := range tpx.hosts {
 		ret[k] = v
 	}
 	return ret
 }
 
-func (tpx *tcpproxy) Add(id string, host string, protocol string) error {
-	tpx.mu.Lock()
-	defer tpx.mu.Unlock()
-	tpx.hosts[protocol] = tcphost{
-		ID:      id,
-		Backend: host,
+type TcpProxierConfig struct {
+	Hosts []ProxyHost `ng:"hosts"`
+}
+
+func NewTcpProxier(cfg TcpProxierConfig) (*Proxier, error) {
+	tpx := &Proxier{
+		hosts: make(map[string]ProxyHost),
 	}
-	return nil
-}
-
-func (tpx *tcpproxy) Reset() {
-	tpx.mu.Lock()
-	defer tpx.mu.Unlock()
-	tpx.hosts = map[string]tcphost{}
-}
-
-func NewTcpProxier() *tcpproxy {
-	tpx := &tcpproxy{
-		hosts: make(map[string]tcphost),
+	for _, host := range cfg.Hosts {
+		tpx.hosts[host.Protocol] = host
 	}
-	return tpx
+	return tpx, nil
 }
 
-var _ Service = (*tcpproxy)(nil)
+var _ Service = (*Proxier)(nil)

@@ -7,7 +7,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func NewTCPProxyProtocolHandler(allowedsrcs []string) Service {
+func NewTCPProxyProtocolHandler(allowedsrcs []string) (Service, error) {
 	mapallowed := make(map[string]bool)
 	for _, v := range allowedsrcs {
 		mapallowed[v] = true
@@ -21,5 +21,5 @@ func NewTCPProxyProtocolHandler(allowedsrcs []string) Service {
 		}
 		conn.Upgrade(proxyproto.NewConn(conn.TopConn()), "")
 		return Continue
-	})
+	}), nil
 }

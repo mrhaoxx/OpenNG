@@ -400,6 +400,16 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 		return err
 	}
 
+	// builtin types
+	if dst.Type() == reflect.TypeFor[ngnet.URL]() {
+		urlValue, ok := node.Value.(*ngnet.URL)
+		if !ok {
+			return fmt.Errorf("expected ngnet.URL value, got %T", node.Value)
+		}
+		dst.Set(reflect.ValueOf(*urlValue))
+		return nil
+	}
+
 	if dst.Kind() == reflect.Interface {
 		dst.Set(reflect.ValueOf(node.interfaceValue()))
 		return nil
@@ -665,6 +675,13 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 		// check custom asserter
 		if assert, ok := tryCustomAsserter(refType); ok {
 			return assert, nil
+		}
+
+		// check builtin types
+		if refType == reflect.TypeFor[ngnet.URL]() {
+			return Assert{
+				Type: "url",
+			}, nil
 		}
 
 		sub := AssertMap{}
