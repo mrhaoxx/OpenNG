@@ -110,43 +110,45 @@ _restart:
 var listeners map[string]net.Listener = make(map[string]net.Listener)
 var listenerlock sync.Mutex
 
-func (ctl *Controller) Listen(addr string) error {
-	listenerlock.Lock()
-	if lc, ok := listeners[addr]; ok {
-		zlog.Warn().Str("type", "tcp/listen").Str("addr", addr).Msg("rebind tcp listen")
-		lc.Close()
-	}
+func (ctl *Controller) Listen(addrs []string) error {
+	for _, addr := range addrs {
+		listenerlock.Lock()
+		if lc, ok := listeners[addr]; ok {
+			zlog.Warn().Str("type", "tcp/listen").Str("addr", addr).Msg("rebind tcp listen")
+			lc.Close()
+		}
 
-	lc, err := net.Listen("tcp", addr)
-	if err != nil {
+		lc, err := net.Listen("tcp", addr)
+		if err != nil {
+			listenerlock.Unlock()
+			return err
+		}
+
+		listeners[addr] = lc
+
 		listenerlock.Unlock()
-		return err
-	}
 
-	listeners[addr] = lc
+		ctl.listeners = append(ctl.listeners, &lc)
+		go func() {
+			defer func() {
+				if err := recover(); err != nil {
+					zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen panic")
+				}
+			}()
+			for {
+				socket, err := lc.Accept()
+				if err != nil {
+					zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen accept")
+					break
+				}
 
-	listenerlock.Unlock()
-
-	ctl.listeners = append(ctl.listeners, &lc)
-	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen panic")
+				go func() {
+					i := head(socket)
+					ctl.Deliver(i)
+				}()
 			}
 		}()
-		for {
-			socket, err := lc.Accept()
-			if err != nil {
-				zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen accept")
-				break
-			}
-
-			go func() {
-				i := head(socket)
-				ctl.Deliver(i)
-			}()
-		}
-	}()
+	}
 	return nil
 }
 

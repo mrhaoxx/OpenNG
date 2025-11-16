@@ -14,9 +14,10 @@ import (
 )
 
 type Space struct {
-	Services   map[string]any
-	AssertRefs map[string]Assert
-	Refs       map[string]Inst
+	Services     map[string]any
+	AssertRefs   map[string]Assert
+	Refs         map[string]Inst
+	ServiceKinds map[string]string
 }
 
 func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
@@ -180,6 +181,17 @@ func (space *Space) Validate(root *ArgNode) []error {
 
 		_ref := _srv.MustGet("kind").ToString()
 		to := _srv.MustGet("name").ToString()
+		spec := _srv.MustGet("spec")
+		recv := ""
+		if tnode, err := _srv.Get("recv"); err == nil && tnode != nil {
+			recv = tnode.ToString()
+		}
+
+		resolvedKind, err := space.resolveKindReference(_ref, recv, spec)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
+			continue
+		}
 
 		for _, c := range to {
 			if (c >= 'a' && c <= 'z') ||
@@ -195,15 +207,13 @@ func (space *Space) Validate(root *ArgNode) []error {
 			}
 		}
 
-		spec := _srv.MustGet("spec")
-
-		spec_assert, ok := space.AssertRefs[_ref]
+		spec_assert, ok := space.AssertRefs[resolvedKind]
 		if !ok {
 			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
 			continue
 		}
 
-		err := AssertArg(spec, spec_assert)
+		err = AssertArg(spec, spec_assert)
 
 		if err != nil {
 			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
@@ -219,6 +229,10 @@ func (space *Space) Validate(root *ArgNode) []error {
 
 		if to != "" && to != "_" {
 			space.Services[to] = true
+			if space.ServiceKinds == nil {
+				space.ServiceKinds = map[string]string{}
+			}
+			space.ServiceKinds[to] = resolvedKind
 		}
 
 	}
@@ -231,9 +245,10 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 	srvs := root.MustGet("Services")
 
 	for i, _srv := range srvs.Value.([]*ArgNode) {
+		kind := _srv.MustGet("kind").ToString()
 		_time := time.Now()
 
-		_ref := _srv.MustGet("kind").ToString()
+		_ref := kind
 		to := _srv.MustGet("name").ToString()
 
 		// to should only contain alphanumeric, _, -
@@ -255,20 +270,33 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 			}
 		}
 
-		ref, ok := space.Refs[_ref]
+		spec := _srv.MustGet("spec")
+		recv := ""
+		if tnode, err := _srv.Get("recv"); err == nil && tnode != nil {
+			recv = tnode.ToString()
+		}
+
+		resolvedKind, err := space.resolveKindReference(_ref, recv, spec)
+		if err != nil {
+			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
+			if !reload {
+				return ret_err
+			}
+			reload_errors = append(reload_errors, ret_err)
+			continue
+		}
+
+		ref, ok := space.Refs[resolvedKind]
 		if !ok {
 			return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
 
-		spec := _srv.MustGet("spec")
-
-		spec_assert, ok := space.AssertRefs[_ref]
+		spec_assert, ok := space.AssertRefs[resolvedKind]
 		if !ok {
 			return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
 		}
 
-		err := AssertArg(spec, spec_assert)
-
+		err = AssertArg(spec, spec_assert)
 		if err != nil {
 			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
@@ -304,6 +332,12 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 		}
 
 		space.Services[to] = inst
+		if to != "" && to != "_" {
+			if space.ServiceKinds == nil {
+				space.ServiceKinds = map[string]string{}
+			}
+			space.ServiceKinds[to] = resolvedKind
+		}
 
 		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
 
@@ -321,6 +355,89 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 
 	return nil
 
+}
+
+func (space *Space) resolveKindReference(kind, recv string, spec *ArgNode) (string, error) {
+	if recv != "" {
+		return space.resolveMemberFunction(recv, kind, spec)
+	}
+
+	if !strings.Contains(kind, ".") {
+		return kind, nil
+	}
+
+	parts := strings.SplitN(kind, ".", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", fmt.Errorf("invalid member function reference: %s", kind)
+	}
+
+	return space.resolveMemberFunction(parts[0], parts[1], spec)
+}
+
+func (space *Space) resolveMemberFunction(targetName, memberName string, spec *ArgNode) (string, error) {
+	if targetName == "" {
+		return "", fmt.Errorf("member function call missing target")
+	}
+	if memberName == "" {
+		return "", fmt.Errorf("member function call missing method name")
+	}
+
+	baseKind, ok := space.ServiceKinds[targetName]
+	if !ok {
+		return "", fmt.Errorf("service not found for member call: %s", targetName)
+	}
+
+	methods, ok := member_func_registry[baseKind]
+	if !ok || len(methods) == 0 {
+		return "", fmt.Errorf("service %s (%s) has no member functions", targetName, baseKind)
+	}
+
+	member, exists := methods[memberName]
+	if !exists {
+		for key, fn := range methods {
+			if strings.EqualFold(key, memberName) {
+				member = fn
+				exists = true
+				break
+			}
+		}
+	}
+	if !exists {
+		return "", fmt.Errorf("member function %s not found for %s (%s)", memberName, targetName, baseKind)
+	}
+
+	if err := ensureMemberSpecHasPtr(spec, targetName); err != nil {
+		return "", err
+	}
+
+	return member.FullName, nil
+}
+
+func ensureMemberSpecHasPtr(spec *ArgNode, target string) error {
+	if spec == nil {
+		return fmt.Errorf("spec missing for member call on %s", target)
+	}
+	if spec.Type == "null" {
+		spec.Type = "map"
+		spec.Value = map[string]*ArgNode{}
+	}
+	if spec.Type != "map" {
+		return fmt.Errorf("member function call expects map spec, got %s", spec.Type)
+	}
+	if spec.Value == nil {
+		spec.Value = map[string]*ArgNode{}
+	}
+
+	subnodes, ok := spec.Value.(map[string]*ArgNode)
+	if !ok {
+		return fmt.Errorf("member function call spec is invalid")
+	}
+
+	subnodes["ptr"] = &ArgNode{
+		Type:  "ptr",
+		Value: target,
+	}
+	return nil
 }
 
 func AssertArg(node *ArgNode, assertions Assert) error {

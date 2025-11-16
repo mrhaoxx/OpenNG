@@ -45,8 +45,9 @@ func LoadCfg(cfgs []byte, reload bool) error {
 		Services: map[string]any{
 			"sys": &ngnet.SysInterface{},
 		},
-		Refs:       ng.Registry(),
-		AssertRefs: ng.AssertionsRegistry(),
+		Refs:         ng.Registry(),
+		AssertRefs:   ng.AssertionsRegistry(),
+		ServiceKinds: map[string]string{},
 	}
 
 	space.Services["@"] = space
@@ -106,8 +107,9 @@ func ValidateCfg(cfgs []byte) []string {
 		Services: map[string]any{
 			"sys": true,
 		},
-		Refs:       ng.Registry(),
-		AssertRefs: ng.AssertionsRegistry(),
+		Refs:         ng.Registry(),
+		AssertRefs:   ng.AssertionsRegistry(),
+		ServiceKinds: map[string]string{},
 	}
 
 	errs := []string{}

@@ -8,7 +8,6 @@ import (
 func init() {
 	ng.RegisterFunc("tcp::det", ngtcp.NewDetect)
 	ng.RegisterFunc("tcp::controller", ngtcp.NewTcpController)
-	ng.RegisterFunc("tcp::listen", Listen)
 	ng.RegisterFunc("tcp::proxier", ngtcp.NewTcpProxier)
 	ng.RegisterFunc("tcp::proxyprotocolhandler", ngtcp.NewTCPProxyProtocolHandler)
 
@@ -34,15 +33,4 @@ func init() {
 type ListenConfig struct {
 	AddressBindings []string          `ng:"AddressBindings"`
 	Ptr             *ngtcp.Controller `ng:"ptr"`
-}
-
-func Listen(cfg ListenConfig) (any, error) {
-	ctl := cfg.Ptr
-
-	for _, addr := range cfg.AddressBindings {
-		if err := ctl.Listen(addr); err != nil {
-			return nil, err
-		}
-	}
-	return nil, nil
 }
