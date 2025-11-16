@@ -421,8 +421,18 @@ func ensureMemberSpecHasPtr(spec *ArgNode, target string) error {
 		spec.Type = "map"
 		spec.Value = map[string]*ArgNode{}
 	}
+	if spec.Type == "list" {
+		listNodes := spec.ToList()
+		converted := make(map[string]*ArgNode, len(listNodes))
+		for i, arg := range listNodes {
+			key := fmt.Sprintf("arg%d", i)
+			converted[key] = arg
+		}
+		spec.Type = "map"
+		spec.Value = converted
+	}
 	if spec.Type != "map" {
-		return fmt.Errorf("member function call expects map spec, got %s", spec.Type)
+		return fmt.Errorf("member function call expects map or list spec, got %s", spec.Type)
 	}
 	if spec.Value == nil {
 		spec.Value = map[string]*ArgNode{}
