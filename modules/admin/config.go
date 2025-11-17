@@ -274,8 +274,17 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 			"type":        "array",
 			"description": m.Desc,
 		}
+		if len(m.SubList) > 0 {
+			prefix := make([]any, 0, len(m.SubList))
+			for _, sub := range m.SubList {
+				prefix = append(prefix, ToSchema(sub, depth+1, maxDepth))
+			}
+			result["prefixItems"] = prefix
+		}
 		if def, ok := m.Sub["_"]; ok {
 			result["items"] = ToSchema(def, depth+1, maxDepth)
+		} else if len(m.SubList) > 0 {
+			result["items"] = false // no default assertion means extra entries are forbidden
 		}
 
 		if m.Default != nil {

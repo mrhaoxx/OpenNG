@@ -120,20 +120,20 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		// }
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
-	// case "/api/v1/cfg/validate":
-	// 	if ctx.Req.Method != stdhttp.MethodPost {
-	// 		ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
-	// 		return nghttp.RequestEnd
-	// 	}
-	// 	ctx.Resp.Header().Set("Cache-Control", "no-cache")
-	// 	b, _ := io.ReadAll(ctx.Req.Body)
-	// 	// errors := ngcmd.ValidateCfg(b)
-	// 	ctx.Resp.WriteHeader(nghttp.StatusAccepted)
-	// 	if len(errors) > 0 {
-	// 		ctx.WriteString(strings.Join(errors, "\n"))
-	// 	} else {
-	// 		ctx.WriteString("ok")
-	// 	}
+	case "/api/v1/cfg/validate":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
+		}
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		b, _ := io.ReadAll(ctx.Req.Body)
+		errors := ngcmd.ValidateCfg(b)
+		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
+		if len(errors) > 0 {
+			ctx.WriteString(strings.Join(errors, "\n"))
+		} else {
+			ctx.WriteString("ok")
+		}
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")

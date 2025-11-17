@@ -172,75 +172,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 	return inst, nil
 }
 
-// func (space *Space) Validate(root *ArgNode) []error {
-// 	errors := []error{}
-
-// 	srvs := root.MustGet("Services")
-
-// 	for i, _srv := range srvs.Value.([]*ArgNode) {
-
-// 		_ref := _srv.MustGet("kind").ToString()
-// 		to := _srv.MustGet("name").ToString()
-// 		spec := _srv.MustGet("spec")
-// 		recv := ""
-// 		if tnode, err := _srv.Get("recv"); err == nil && tnode != nil {
-// 			recv = tnode.ToString()
-// 		}
-
-// 		resolvedKind, err := space.resolveKindReference(_ref, recv, spec)
-// 		if err != nil {
-// 			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
-// 			continue
-// 		}
-
-// 		for _, c := range to {
-// 			if (c >= 'a' && c <= 'z') ||
-// 				(c >= 'A' && c <= 'Z') ||
-// 				(c >= '0' && c <= '9') ||
-// 				c == '_' || c == '-' {
-// 				continue
-// 			} else {
-// 				ret_err := fmt.Errorf("%s: invalid service name: %s", fmt.Sprintf("[%d] ", i)+_ref, to)
-
-// 				errors = append(errors, ret_err)
-// 				break
-// 			}
-// 		}
-
-// 		spec_assert, ok := space.AssertRefs[resolvedKind]
-// 		if !ok {
-// 			errors = append(errors, fmt.Errorf("%s assert not found: %s", fmt.Sprintf("[%d]", i), _ref))
-// 			continue
-// 		}
-
-// 		err = AssertArg(spec, spec_assert)
-
-// 		if err != nil {
-// 			errors = append(errors, fmt.Errorf("%s assert failed: %s %w", fmt.Sprintf("[%d]", i), _ref, err))
-// 			continue
-// 		}
-
-// 		err = space.Deptr(spec, true, spec_assert)
-
-// 		if err != nil {
-// 			errors = append(errors, fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err))
-// 			continue
-// 		}
-
-// 		if to != "" && to != "_" {
-// 			space.Services[to] = true
-// 			if space.ServiceKinds == nil {
-// 				space.ServiceKinds = map[string]string{}
-// 			}
-// 			space.ServiceKinds[to] = resolvedKind
-// 		}
-
-// 	}
-
-// 	return errors
-// }
-
-func (space *Space) Apply(root *ArgNode, reload bool) error {
+func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 	reload_errors := []error{}
 	srvs := root.MustGet("Services")
 
@@ -275,7 +207,7 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
-		err = space.Deptr(spec, false, spec_assert)
+		err = space.Deptr(spec, dry, spec_assert)
 
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
@@ -290,7 +222,10 @@ func (space *Space) Apply(root *ArgNode, reload bool) error {
 			}
 		}
 
-		inst, err := ref(spec)
+		var inst any
+		if !dry {
+			inst, err = ref(spec)
+		}
 
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
