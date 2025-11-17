@@ -348,7 +348,7 @@ func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 	return hmw, nil
 }
 
-func (ctl *Midware) Report() map[string]interface{} {
+func (ctl *Midware) Report() (map[string]interface{}, error) {
 	ctl.muActiveRequest.RLock()
 	defer ctl.muActiveRequest.RUnlock()
 	ret := make(map[string]interface{})
@@ -366,7 +366,7 @@ func (ctl *Midware) Report() map[string]interface{} {
 			"host":        req.Req.Host,                              // unsync r
 		}
 	}
-	return ret
+	return ret, nil
 }
 
 var _ ngtcp.Service = (*Midware)(nil)

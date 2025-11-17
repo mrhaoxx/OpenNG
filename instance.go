@@ -262,6 +262,35 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 
 }
 
+func (space *Space) Call(ref string, spec *ArgNode) (any, error) {
+	ref_func, ok := space.Refs[ref]
+	if !ok {
+		return nil, fmt.Errorf("kind not found: %s", ref)
+	}
+
+	spec_assert, ok := space.AssertRefs[ref]
+	if !ok {
+		return nil, fmt.Errorf("assert not found: %s", ref)
+	}
+
+	err := AssertArg(spec, spec_assert)
+	if err != nil {
+		return nil, fmt.Errorf("%s: assert failed: %w", ref, err)
+	}
+
+	err = space.Deptr(spec, false, spec_assert)
+
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ref, err)
+	}
+
+	inst, err := ref_func(spec)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", ref, err)
+	}
+	return inst, nil
+}
+
 func AssertArg(node *ArgNode, assertions Assert) error {
 	if node == nil {
 		if assertions.Type == "null" || assertions.Type == "any" {

@@ -166,7 +166,7 @@ func (ctl *Controller) Bind(protocol string, svcs ...ServiceBinding) {
 	ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
 }
 
-func (ctl *Controller) Report() map[string]interface{} {
+func (ctl *Controller) Report() (map[string]interface{}, error) {
 	ctl.muActiveConnection.RLock()
 	defer ctl.muActiveConnection.RUnlock()
 	ret := make(map[string]interface{})
@@ -180,7 +180,7 @@ func (ctl *Controller) Report() map[string]interface{} {
 			"bytestx":   atomic.LoadUint64(&conn.bytestx),
 		}
 	}
-	return ret
+	return ret, nil
 }
 
 func (ctl *Controller) KillConnection(connection_id string) error {
@@ -188,7 +188,7 @@ func (ctl *Controller) KillConnection(connection_id string) error {
 	defer ctl.muActiveConnection.RUnlock()
 	conn, ok := ctl.activeConnections[connection_id]
 	if !ok {
-		return errors.New("connection not found")
+		return errors.New("connection not found " + connection_id)
 	}
 	conn.AppendPath(">! ")
 	conn.triggerConnectionClose()

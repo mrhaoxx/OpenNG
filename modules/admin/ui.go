@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
+	ng "github.com/mrhaoxx/OpenNG"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
 	file "github.com/mrhaoxx/OpenNG/pkg/auth/backend"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
@@ -32,7 +33,7 @@ var index embed.FS
 var cachedSchema []byte
 
 type Reporter interface {
-	Report() map[string]interface{}
+	Report() (map[string]interface{}, error)
 }
 
 var Uptime time.Time = time.Now()
@@ -44,6 +45,12 @@ type UI struct {
 	HttpMidware   Reporter
 
 	TlsMgr *ngtls.TlsMgr
+}
+
+type apiCallResponse struct {
+	Success bool        `json:"success"`
+	Result  interface{} `json:"result,omitempty"`
+	Error   string      `json:"error,omitempty"`
 }
 
 func (*UI) Hosts() groupexp.GroupRegexp {
@@ -62,6 +69,9 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	case "/":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/index.html")
+	case "/call":
+		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
+		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/call.html")
 	case "/connections":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/connections.html")
@@ -151,6 +161,63 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			cachedSchema = GenerateJsonSchema()
 		}
 		ctx.Resp.Write(cachedSchema)
+	case "/api/v1/call":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
+		}
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		ctx.Resp.Header().Set("Content-Type", "application/json; charset=utf-8")
+		if ngcmd.CurSpace == nil {
+			writeJSON(ctx, nghttp.StatusFailedDependency, apiCallResponse{
+				Success: false,
+				Error:   "runtime space is not available",
+			})
+			return nghttp.RequestEnd
+		}
+		decoder := json.NewDecoder(ctx.Req.Body)
+		decoder.UseNumber()
+		payload := map[string]interface{}{}
+		if err := decoder.Decode(&payload); err != nil {
+			writeJSON(ctx, nghttp.StatusBadRequest, apiCallResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return nghttp.RequestEnd
+		}
+		kind, _ := payload["kind"].(string)
+		if strings.TrimSpace(kind) == "" {
+			writeJSON(ctx, nghttp.StatusBadRequest, apiCallResponse{
+				Success: false,
+				Error:   "missing kind",
+			})
+			return nghttp.RequestEnd
+		}
+		specNode, err := buildArgNodeFromJSON(payload["spec"])
+		if err != nil {
+			writeJSON(ctx, nghttp.StatusBadRequest, apiCallResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return nghttp.RequestEnd
+		}
+		result, err := ngcmd.CurSpace.Call(kind, specNode)
+		if err != nil {
+			writeJSON(ctx, nghttp.StatusBadRequest, apiCallResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return nghttp.RequestEnd
+		}
+		response := apiCallResponse{
+			Success: true,
+			Result:  result,
+		}
+		if _, err := json.Marshal(response.Result); err != nil {
+			response.Result = fmt.Sprint(result)
+		}
+		writeJSON(ctx, nghttp.StatusOK, response)
+		return nghttp.RequestEnd
 
 	case "/genhash":
 		if ctx.Req.Method != stdhttp.MethodPost {
@@ -198,7 +265,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		if ctx.Req.Method == "GET" {
 			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 			ctx.Resp.Header().Set("Cache-Control", "no-cache")
-			res := u.TcpController.Report()
+			res, _ := u.TcpController.Report()
 			byt, err := json.Marshal(res)
 			if err != nil {
 				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
@@ -214,7 +281,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		if ctx.Req.Method == "GET" {
 			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
 			ctx.Resp.Header().Set("Cache-Control", "no-cache")
-			res := u.HttpMidware.Report()
+			res, _ := u.HttpMidware.Report()
 			byt, err := json.Marshal(res)
 			if err != nil {
 				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
@@ -344,6 +411,73 @@ func Reload() error {
 	}
 
 	return nil
+}
+
+func buildArgNodeFromJSON(v interface{}) (*ng.ArgNode, error) {
+	if v == nil {
+		return &ng.ArgNode{Type: "null", Value: nil}, nil
+	}
+	normalized, err := normalizeJSONValue(v)
+	if err != nil {
+		return nil, err
+	}
+	node := &ng.ArgNode{}
+	if err := node.FromAny(normalized); err != nil {
+		return nil, err
+	}
+	return node, nil
+}
+
+func normalizeJSONValue(v interface{}) (interface{}, error) {
+	switch val := v.(type) {
+	case json.Number:
+		if strings.ContainsAny(val.String(), ".eE") {
+			f, err := val.Float64()
+			if err != nil {
+				return nil, err
+			}
+			return f, nil
+		}
+		if i, err := val.Int64(); err == nil {
+			return int(i), nil
+		}
+		f, err := val.Float64()
+		if err != nil {
+			return nil, err
+		}
+		return f, nil
+	case map[string]interface{}:
+		res := make(map[string]interface{}, len(val))
+		for k, v := range val {
+			norm, err := normalizeJSONValue(v)
+			if err != nil {
+				return nil, err
+			}
+			res[k] = norm
+		}
+		return res, nil
+	case []interface{}:
+		res := make([]interface{}, len(val))
+		for i, v := range val {
+			norm, err := normalizeJSONValue(v)
+			if err != nil {
+				return nil, err
+			}
+			res[i] = norm
+		}
+		return res, nil
+	default:
+		return v, nil
+	}
+}
+
+func writeJSON(ctx *nghttp.HttpCtx, status int, payload any) {
+	ctx.Resp.WriteHeader(status)
+	enc := json.NewEncoder(ctx.Resp)
+	enc.SetEscapeHTML(false)
+	if err := enc.Encode(payload); err != nil {
+		zlog.Error().Err(err).Msg("failed to encode json response")
+	}
 }
 
 var _ nghttp.Service = (*UI)(nil)

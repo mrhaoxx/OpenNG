@@ -6,6 +6,7 @@ import HtmlInlineScriptPlugin from 'html-inline-script-webpack-plugin';
 export default {
   entry: {
     index: './src/index.ts',
+    call: './src/call.ts',
     connections: './src/connections.ts',
     requests: './src/requests.ts'
   },
@@ -49,6 +50,18 @@ export default {
       }
     }),
     new HtmlWebPackPlugin({
+      template: './src/call.ejs',
+      filename: 'call.html',
+      chunks: ['call'],
+      inject: 'body',
+      minify: {
+        collapseWhitespace: true,
+        removeComments: true,
+        removeRedundantAttributes: true,
+        useShortDoctype: true
+      }
+    }),
+    new HtmlWebPackPlugin({
       template: './src/connections.ejs',
       filename: 'connections.html',
       chunks: ['connections'],
@@ -75,4 +88,3 @@ export default {
     new MiniCssExtractPlugin({ filename: '[contenthash].css' })
   ]
 }
-

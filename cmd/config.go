@@ -11,6 +11,8 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+var CurSpace *ng.Space
+
 func LoadCfg(cfgs []byte, reload bool) error {
 	var cfg any
 	err := yaml.Unmarshal(cfgs, &cfg)
@@ -53,6 +55,10 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	space.Services["@"] = space
 
 	err = space.Apply(nodes, reload, false)
+
+	if err == nil {
+		CurSpace = &space
+	}
 
 	return err
 }

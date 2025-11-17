@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/svg+xml" href="/ng-cgi/logo" />
+  <title>NetGATE Call</title>
+  <style>
+    .disconnected { color: red; }
+  </style>
+</head>
+
+<body class="min-h-screen flex flex-col bg-white dark:bg-neutral-900">
+  <header class="border-b border-neutral-200 dark:border-neutral-800 bg-white/80 dark:bg-neutral-900/80 backdrop-blur sticky top-0 z-10">
+    <div class="px-4 py-2 flex items-center gap-2">
+      <div class="text-lg font-semibold text-neutral-800 dark:text-neutral-100">NetGATE</div>
+      <nav class="flex flex-wrap gap-2">
+        <a href="/" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Config</a>
+        <a href="/call" class="px-3 py-1.5 rounded-md text-sm font-medium bg-sky-500 text-white">Call</a>
+        <a href="/connections" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Connections</a>
+        <a href="/requests" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Requests</a>
+        <a href="/logs" class="px-3 py-1.5 rounded-md text-sm font-medium text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Logs</a>
+      </nav>
+      <div class="ml-auto text-xs text-neutral-500 dark:text-neutral-400" id="uptime">Connecting...</div>
+    </div>
+  </header>
+
+  <main class="flex-1 px-4 py-6">
+    <div class="max-w-3xl mx-auto w-full flex flex-col gap-6">
+      <section class="border border-neutral-200 dark:border-neutral-800 rounded-lg p-5 bg-white/80 dark:bg-neutral-900/80">
+        <div class="flex flex-col gap-1 mb-4">
+          <h1 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">Invoke Service</h1>
+          <p class="text-sm text-neutral-500 dark:text-neutral-400">Call any registered kind via
+            <code class="font-mono">/api/v1/call</code>. Provide the kind name and optional JSON spec.</p>
+          <div id="call-status" class="text-sm text-emerald-600 dark:text-emerald-400">No call executed.</div>
+        </div>
+
+        <label for="call-kind" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Kind</label>
+        <input id="call-kind" placeholder="example: http::server"
+          class="mt-1 w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100" />
+
+        <div class="mt-5">
+          <label for="call-spec" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300">Spec (JSON)</label>
+          <textarea id="call-spec" rows="8"
+            class="mt-1 w-full px-3 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-100 font-mono text-sm"
+            placeholder="{ }"></textarea>
+          <p class="mt-1 text-xs text-neutral-500 dark:text-neutral-400">Leave empty to send
+            <code class="font-mono">null</code>.
+          </p>
+        </div>
+
+        <div class="mt-5 flex items-center gap-3 flex-wrap">
+          <button id="call-submit" class="px-4 py-2 rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Call</button>
+          <button id="call-clear" class="px-4 py-2 rounded-md border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-200 hover:bg-neutral-100 dark:hover:bg-neutral-800">Clear</button>
+        </div>
+      </section>
+
+      <section class="border border-dashed border-neutral-300 dark:border-neutral-700 rounded-lg p-5 bg-neutral-50/60 dark:bg-neutral-900/40">
+        <div class="flex items-center justify-between mb-3">
+          <h2 class="text-base font-semibold text-neutral-900 dark:text-neutral-100">Result</h2>
+          <span class="text-xs text-neutral-500 dark:text-neutral-400">Responses are raw JSON payloads.</span>
+        </div>
+        <pre id="call-result" class="whitespace-pre-wrap text-sm font-mono bg-white dark:bg-neutral-950 rounded-md p-4 text-neutral-800 dark:text-neutral-100 overflow-auto">Result will appear here.</pre>
+      </section>
+    </div>
+  </main>
+</body>
+
+</html>

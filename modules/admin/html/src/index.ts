@@ -332,5 +332,3 @@ setInterval(updateUptime, 1000);
 gstatus.textContent = 'Updating Config...';
 
 update();
-
-
