@@ -1003,7 +1003,10 @@ func registerMemberMethod(name string, method reflect.Method) error {
 		return nil
 	}
 
-	Register(fullName, argsAssert, retAssert, buildMemberMethodInst(method, specType))
+	numIn := method.Type.NumIn()
+	numOut := method.Type.NumOut()
+
+	Register(fullName, argsAssert, retAssert, buildMemberMethodInst(method, specType, numIn, numOut))
 
 	if _, ok := member_func_registry[name]; !ok {
 		member_func_registry[name] = map[string]MemberFunction{}
@@ -1014,11 +1017,11 @@ func registerMemberMethod(name string, method reflect.Method) error {
 		Ret:      retAssert,
 	}
 
-	fields := structFieldOrder(specType)
-	if len(fields) > 0 && fields[0] == "ptr" {
-		fields = fields[1:]
-	}
-	registerFuncArgLayout(fullName, fields)
+	// fields := structFieldOrder(specType)
+	// if len(fields) > 0 && fields[0] == "ptr" {
+	// 	fields = fields[1:]
+	// }
+	// registerFuncArgLayout(fullName, fields)
 
 	return nil
 }
@@ -1225,7 +1228,7 @@ func buildMemberReturnAssert(method reflect.Method) (Assert, error) {
 	}
 }
 
-func buildMemberMethodInst(method reflect.Method, specType reflect.Type) Inst {
+func buildMemberMethodInst(method reflect.Method, specType reflect.Type, numIn int, numOut int) Inst {
 	return func(arg *ArgNode) (any, error) {
 		specValue := reflect.New(specType)
 		if err := arg.unmarshalValue(specValue.Interface()); err != nil {
@@ -1233,25 +1236,17 @@ func buildMemberMethodInst(method reflect.Method, specType reflect.Type) Inst {
 		}
 
 		val := specValue.Elem()
-		recv := val.Field(0)
-		if !recv.IsValid() || recv.IsZero() {
+
+		args := make([]reflect.Value, numIn)
+		for i := 0; i < numIn; i++ {
+			args[i] = val.Field(i)
+		}
+
+		if !args[0].IsValid() || args[0].IsZero() {
 			return nil, fmt.Errorf("ptr is nil")
 		}
 
-		receiver := recv.Interface()
-		methodValue := reflect.ValueOf(receiver).MethodByName(method.Name)
-		if !methodValue.IsValid() {
-			return nil, fmt.Errorf("method %s not found on receiver", method.Name)
-		}
-
-		numIn := method.Type.NumIn()
-		args := make([]reflect.Value, numIn-1)
-		for i := 1; i < numIn; i++ {
-			args[i-1] = val.Field(i)
-		}
-
-		result := methodValue.Call(args)
-		numOut := method.Type.NumOut()
+		result := method.Func.Call(args)
 
 		if numOut == 1 {
 			if errVal, _ := result[0].Interface().(error); errVal != nil {
