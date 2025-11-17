@@ -284,7 +284,7 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		if def, ok := m.Sub["_"]; ok {
 			result["items"] = ToSchema(def, depth+1, maxDepth)
 		} else if len(m.SubList) > 0 {
-			result["items"] = false // no default assertion means extra entries are forbidden
+			// result["items"] = false // no default assertion means extra entries are forbidden
 		}
 
 		if m.Default != nil {
