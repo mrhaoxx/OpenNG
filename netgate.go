@@ -26,8 +26,8 @@ const (
 
 var args_asserts = map[string]Assert{}
 var ret_asserts = map[string]Assert{}
-var member_func_registry = map[string]map[string]MemberFunction{}
-var func_arg_layouts = map[string]FuncArgLayout{}
+
+// var member_func_registry = map[string]map[string]MemberFunction{}
 
 var refs = map[string]Inst{}
 var asserterInterfaceType = reflect.TypeFor[Asserter]()
@@ -53,24 +53,25 @@ func ReturnAssertionsRegistry() map[string]Assert {
 	return ret_asserts
 }
 
-func MemberFunctionRegistry() map[string]map[string]MemberFunction {
-	return member_func_registry
-}
+// func MemberFunctionRegistry() map[string]map[string]MemberFunction {
+// 	return member_func_registry
+// }
 
 type Inst func(*ArgNode) (any, error)
 
 type AssertMap map[string]Assert
+type AssertList []Assert
 
 type Assert struct {
 	Type     string
 	Required bool
 	Forced   bool
-	Sub      AssertMap
+
+	Sub     AssertMap
+	SubList AssertList
 
 	Default any
 
-	// Enum         []any
-	// AllowNonEnum bool
 	Desc string
 
 	Struct   bool
@@ -82,10 +83,6 @@ type MemberFunction struct {
 	FullName string
 	Args     Assert
 	Ret      Assert
-}
-
-type FuncArgLayout struct {
-	Fields []string
 }
 
 func TypeOf[T any]() reflect.Type {
@@ -864,30 +861,22 @@ func RegisterFunc(name string, fn any) error {
 		return fmt.Errorf("%s: last return value must be error", name)
 	}
 
-	var retType reflect.Type
 	var retAssert Assert
 	var err error
-	switch numOut {
-	case 1:
-		retAssert = Assert{Type: "null"}
-	case 2:
-		retType = fnType.Out(0)
-		retAssert, err = ParseStruct(retType)
-		if err != nil {
-			return err
-		}
-	default:
-		return fmt.Errorf("%s: unsupported return signature", name)
+
+	argsAssert, listMode, err := buildFuncArgsAssert(fnType)
+	if err != nil {
+		return err
 	}
 
-	argsAssert, layoutFields, err := buildFuncArgsAssert(fnType)
+	retAssert, err = _retAssert(fnType)
 	if err != nil {
 		return err
 	}
 
 	Register(name,
 		argsAssert, retAssert, func(arg *ArgNode) (any, error) {
-			callArgs, err := buildFuncCallArgs(fnType, arg)
+			callArgs, err := _specAssert(fnType, arg, listMode)
 			if err != nil {
 				return nil, err
 			}
@@ -902,11 +891,15 @@ func RegisterFunc(name string, fn any) error {
 			return nil, nil
 		})
 
-	registerFuncArgLayout(name, layoutFields)
-
-	if retType != nil {
-		if err := registerMemberMethods(name, retType); err != nil {
-			return err
+	if fnType.NumOut() == 2 {
+		var retType reflect.Type = fnType.Out(0)
+		methods := discoverErrorMethods(retType)
+		if len(methods) != 0 {
+			for methodName, method := range methods {
+				if err := RegisterFunc(name+"::"+methodName, method.Func.Interface()); err != nil {
+					return fmt.Errorf("%s::%s: %w", name, methodName, err)
+				}
+			}
 		}
 	}
 
@@ -925,7 +918,7 @@ type Defaulter interface {
 	MakeDefault()
 }
 
-func DiscoverErrorMethods(refType reflect.Type) map[string]reflect.Method {
+func discoverErrorMethods(refType reflect.Type) map[string]reflect.Method {
 	if refType == nil {
 		return nil
 	}
@@ -961,200 +954,36 @@ func DiscoverErrorMethods(refType reflect.Type) map[string]reflect.Method {
 	return methods
 }
 
-func registerMemberMethods(name string, retType reflect.Type) error {
-	methods := DiscoverErrorMethods(retType)
-	if len(methods) == 0 {
-		return nil
-	}
-
-	for methodName, method := range methods {
-		methodName := methodName
-		method := method
-		if err := registerMemberMethod(name, method); err != nil {
-			return fmt.Errorf("%s::%s: %w", name, methodName, err)
-		}
-	}
-
-	return nil
-}
-
-func registerMemberMethod(name string, method reflect.Method) error {
-	if method.Type.IsVariadic() {
-		return nil
-	}
-
-	specType, err := buildMemberSpecType(method)
-	if err != nil {
-		return err
-	}
-
-	argsAssert, err := ParseStruct(specType)
-	if err != nil {
-		return err
-	}
-
-	retAssert, err := buildMemberReturnAssert(method)
-	if err != nil {
-		return err
-	}
-
-	fullName := fmt.Sprintf("%s::%s", name, method.Name)
-	if _, exists := refs[fullName]; exists {
-		return nil
-	}
-
-	numIn := method.Type.NumIn()
-	numOut := method.Type.NumOut()
-
-	Register(fullName, argsAssert, retAssert, buildMemberMethodInst(method, specType, numIn, numOut))
-
-	if _, ok := member_func_registry[name]; !ok {
-		member_func_registry[name] = map[string]MemberFunction{}
-	}
-	member_func_registry[name][method.Name] = MemberFunction{
-		FullName: fullName,
-		Args:     argsAssert,
-		Ret:      retAssert,
-	}
-
-	// fields := structFieldOrder(specType)
-	// if len(fields) > 0 && fields[0] == "ptr" {
-	// 	fields = fields[1:]
-	// }
-	// registerFuncArgLayout(fullName, fields)
-
-	return nil
-}
-
-func structFieldOrder(refType reflect.Type) []string {
-	if refType == nil {
-		return nil
-	}
-
-	if refType.Kind() != reflect.Struct {
-		return nil
-	}
-
-	keys := []string{}
-	for i := 0; i < refType.NumField(); i++ {
-		field := refType.Field(i)
-		if !field.IsExported() {
-			continue
-		}
-		tag := field.Tag.Get("ng")
-		if tag == "-" {
-			continue
-		}
-		key := field.Name
-		if tag != "" {
-			key = tag
-		}
-		keys = append(keys, key)
-	}
-	return keys
-}
-
-func registerFuncArgLayout(name string, fields []string) {
-	if len(fields) == 0 {
-		return
-	}
-	func_arg_layouts[name] = FuncArgLayout{Fields: fields}
-}
-
-func normalizeFuncSpec(kind string, spec *ArgNode) {
-	layout, ok := func_arg_layouts[kind]
-	if !ok {
-		return
-	}
-	layout.apply(spec)
-}
-
-func (layout FuncArgLayout) apply(spec *ArgNode) {
-	if spec == nil || len(layout.Fields) == 0 {
-		return
-	}
-
-	if spec.Type == "null" {
-		spec.Type = "map"
-		spec.Value = map[string]*ArgNode{}
-		return
-	}
-
-	if len(layout.Fields) == 1 {
-		if spec.Type == "map" {
-			return
-		}
-		valueCopy := &ArgNode{
-			Type:  spec.Type,
-			Value: spec.Value,
-		}
-		spec.Type = "map"
-		spec.Value = map[string]*ArgNode{
-			layout.Fields[0]: valueCopy,
-		}
-		return
-	}
-
-	if spec.Type == "map" {
-		return
-	}
-
-	if spec.Type == "list" {
-		list := spec.ToList()
-		converted := make(map[string]*ArgNode, len(layout.Fields))
-		for i, name := range layout.Fields {
-			if i < len(list) {
-				converted[name] = list[i]
-			}
-		}
-		spec.Type = "map"
-		spec.Value = converted
-		return
-	}
-
-	converted := map[string]*ArgNode{
-		layout.Fields[0]: {
-			Type:  spec.Type,
-			Value: spec.Value,
-		},
-	}
-	spec.Type = "map"
-	spec.Value = converted
-}
-
-func buildFuncArgsAssert(fnType reflect.Type) (Assert, []string, error) {
+func buildFuncArgsAssert(fnType reflect.Type) (Assert, bool, error) {
 	numIn := fnType.NumIn()
 	switch numIn {
 	case 0:
-		return Assert{Type: "map", Sub: AssertMap{}}, nil, nil
+		return Assert{Type: "map", Sub: AssertMap{}}, false, nil
 	case 1:
 		argType := fnType.In(0)
 		argAssert, err := ParseStruct(argType)
 		if err != nil {
-			return Assert{}, nil, err
+			return Assert{}, false, err
 		}
-		return argAssert, structFieldOrder(argType), nil
+		return argAssert, false, nil
 	default:
-		sub := AssertMap{}
-		fields := make([]string, numIn)
+		sub := make(AssertList, numIn)
 		for i := 0; i < numIn; i++ {
 			argType := fnType.In(i)
 			argAssert, err := ParseStruct(argType)
 			if err != nil {
-				return Assert{}, nil, err
+				return Assert{}, false, err
 			}
-			key := fmt.Sprintf("arg%d", i)
-			sub[key] = argAssert
-			fields[i] = key
+			sub[i] = argAssert
 		}
 		return Assert{
-			Type: "map",
-			Sub:  sub,
-		}, fields, nil
+			Type:    "list",
+			SubList: sub,
+		}, true, nil
 	}
 }
 
-func buildFuncCallArgs(fnType reflect.Type, spec *ArgNode) ([]reflect.Value, error) {
+func _specAssert(fnType reflect.Type, spec *ArgNode, listMode bool) ([]reflect.Value, error) {
 	numIn := fnType.NumIn()
 	values := make([]reflect.Value, numIn)
 	if numIn == 0 {
@@ -1163,6 +992,32 @@ func buildFuncCallArgs(fnType reflect.Type, spec *ArgNode) ([]reflect.Value, err
 
 	if spec == nil {
 		spec = &ArgNode{Type: "null"}
+	}
+
+	if listMode {
+		if spec == nil {
+			spec = &ArgNode{Type: "list", Value: []*ArgNode{}}
+		}
+		if spec.Type != "list" {
+			return nil, fmt.Errorf("function expects list, got %s", spec.Type)
+		}
+		listNodes := spec.ToList()
+		for len(listNodes) < numIn {
+			listNodes = append(listNodes, &ArgNode{Type: "null"})
+		}
+		spec.Value = listNodes
+		for i := 0; i < numIn; i++ {
+			node := listNodes[i]
+			if node == nil {
+				node = &ArgNode{Type: "null"}
+			}
+			dst := reflect.New(fnType.In(i))
+			if err := node.unmarshalValue(dst.Interface()); err != nil {
+				return nil, fmt.Errorf("index %d: %w", i, err)
+			}
+			values[i] = dst.Elem()
+		}
+		return values, nil
 	}
 
 	if numIn == 1 {
@@ -1174,91 +1029,16 @@ func buildFuncCallArgs(fnType reflect.Type, spec *ArgNode) ([]reflect.Value, err
 		return values, nil
 	}
 
-	if spec.Type != "map" {
-		return nil, fmt.Errorf("function expects map spec, got %s", spec.Type)
-	}
-	subnodes := spec.ToMap()
-	for i := 0; i < numIn; i++ {
-		key := fmt.Sprintf("arg%d", i)
-		node, ok := subnodes[key]
-		if !ok {
-			node = &ArgNode{Type: "null"}
-		}
-		dst := reflect.New(fnType.In(i))
-		if err := node.unmarshalValue(dst.Interface()); err != nil {
-			return nil, fmt.Errorf("%s: %w", key, err)
-		}
-		values[i] = dst.Elem()
-	}
 	return values, nil
 }
 
-func buildMemberSpecType(method reflect.Method) (reflect.Type, error) {
-	numIn := method.Type.NumIn()
-	if numIn == 0 {
-		return nil, fmt.Errorf("method %s has no receiver", method.Name)
-	}
-
-	fields := make([]reflect.StructField, 0, numIn)
-	fields = append(fields, reflect.StructField{
-		Name: "Ptr",
-		Type: method.Type.In(0),
-		Tag:  `ng:"ptr"`,
-	})
-
-	for i := 1; i < numIn; i++ {
-		fields = append(fields, reflect.StructField{
-			Name: fmt.Sprintf("Arg%d", i-1),
-			Type: method.Type.In(i),
-			Tag:  reflect.StructTag(fmt.Sprintf(`ng:"arg%d"`, i-1)),
-		})
-	}
-
-	return reflect.StructOf(fields), nil
-}
-
-func buildMemberReturnAssert(method reflect.Method) (Assert, error) {
-	switch method.Type.NumOut() {
+func _retAssert(method reflect.Type) (Assert, error) {
+	switch method.NumOut() {
 	case 1:
 		return Assert{Type: "null"}, nil
 	case 2:
-		return ParseStruct(method.Type.Out(0))
+		return ParseStruct(method.Out(0))
 	default:
-		return Assert{}, fmt.Errorf("method %s has unsupported return values", method.Name)
-	}
-}
-
-func buildMemberMethodInst(method reflect.Method, specType reflect.Type, numIn int, numOut int) Inst {
-	return func(arg *ArgNode) (any, error) {
-		specValue := reflect.New(specType)
-		if err := arg.unmarshalValue(specValue.Interface()); err != nil {
-			return nil, err
-		}
-
-		val := specValue.Elem()
-
-		args := make([]reflect.Value, numIn)
-		for i := 0; i < numIn; i++ {
-			args[i] = val.Field(i)
-		}
-
-		if !args[0].IsValid() || args[0].IsZero() {
-			return nil, fmt.Errorf("ptr is nil")
-		}
-
-		result := method.Func.Call(args)
-
-		if numOut == 1 {
-			if errVal, _ := result[0].Interface().(error); errVal != nil {
-				return nil, errVal
-			}
-			return nil, nil
-		}
-
-		if errVal, _ := result[numOut-1].Interface().(error); errVal != nil {
-			return nil, errVal
-		}
-
-		return result[0].Interface(), nil
+		return Assert{}, fmt.Errorf("method %s has unsupported return values", method.Name())
 	}
 }

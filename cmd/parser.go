@@ -23,7 +23,6 @@ var TopLevelConfigAssertion = ng.Assert{
 					Type: "map",
 					Sub: ng.AssertMap{
 						"name": {Type: "string", Default: "_"},
-						"recv": {Type: "string", Default: ""},
 						"kind": {Type: "string", Required: true},
 						"spec": {Type: "any"},
 					},

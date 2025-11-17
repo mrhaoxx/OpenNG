@@ -82,46 +82,46 @@ func GlobalCfg(config *ng.ArgNode) error {
 	return nil
 }
 
-func ValidateCfg(cfgs []byte) []string {
-	var cfg any
-	err := yaml.Unmarshal(cfgs, &cfg)
-	if err != nil {
-		return []string{err.Error()}
-	}
+// func ValidateCfg(cfgs []byte) []string {
+// 	var cfg any
+// 	err := yaml.Unmarshal(cfgs, &cfg)
+// 	if err != nil {
+// 		return []string{err.Error()}
+// 	}
 
-	nodes := &ng.ArgNode{}
-	err = nodes.FromAny(cfg)
-	if err != nil {
-		return []string{err.Error()}
-	}
+// 	nodes := &ng.ArgNode{}
+// 	err = nodes.FromAny(cfg)
+// 	if err != nil {
+// 		return []string{err.Error()}
+// 	}
 
-	if err := Dedref(nodes); err != nil {
-		return []string{err.Error()}
-	}
+// 	if err := Dedref(nodes); err != nil {
+// 		return []string{err.Error()}
+// 	}
 
-	if err := ng.AssertArg(nodes, TopLevelConfigAssertion); err != nil {
-		return []string{err.Error()}
-	}
+// 	if err := ng.AssertArg(nodes, TopLevelConfigAssertion); err != nil {
+// 		return []string{err.Error()}
+// 	}
 
-	space := ng.Space{
-		Services: map[string]any{
-			"sys": true,
-		},
-		Refs:         ng.Registry(),
-		AssertRefs:   ng.AssertionsRegistry(),
-		ServiceKinds: map[string]string{},
-	}
+// 	space := ng.Space{
+// 		Services: map[string]any{
+// 			"sys": true,
+// 		},
+// 		Refs:         ng.Registry(),
+// 		AssertRefs:   ng.AssertionsRegistry(),
+// 		ServiceKinds: map[string]string{},
+// 	}
 
-	errs := []string{}
+// 	errs := []string{}
 
-	errors := space.Validate(nodes)
+// 	errors := space.Validate(nodes)
 
-	if len(errors) > 0 {
-		for _, err := range errors {
-			errs = append(errs, err.Error())
-		}
-		return errs
-	}
+// 	if len(errors) > 0 {
+// 		for _, err := range errors {
+// 			errs = append(errs, err.Error())
+// 		}
+// 		return errs
+// 	}
 
-	return nil
-}
+// 	return nil
+// }
