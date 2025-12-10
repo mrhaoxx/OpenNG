@@ -191,6 +191,13 @@ var refs_assertions = map[string]Assert{
 					},
 				},
 			},
+			"snis": {
+				Type: "list",
+				Desc: "list of server names for TLS",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
 		},
 	},
 	"builtin::http::midware": {
@@ -1034,8 +1041,19 @@ var refs = map[string]Inst{
 	},
 	"builtin::tls": func(spec *ArgNode) (any, error) {
 		certs := spec.MustGet("certificates").ToList()
+		snis := spec.MustGet("snis").ToStringList()
 
-		tls := tls.NewTlsMgr()
+		var hosts utils.GroupRegexp = nil
+		if len(snis) > 0 {
+			for _, sni := range snis {
+				r, err := regexp2.Compile(sni, regexp2.RE2)
+				if err != nil {
+					return nil, err
+				}
+				hosts = append(hosts, r)
+			}
+		}
+		tls := tls.NewTlsMgr(hosts)
 
 		for _, cert := range certs {
 			certfile := cert.MustGet("CertFile").ToString()

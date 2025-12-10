@@ -10,6 +10,10 @@ func (mgr *TlsMgr) Handle(c *tcp.Conn) tcp.SerRet {
 	hellov, ok := c.Load(tcp.KeyTLS)
 	hello := hellov.(*tls.ClientHelloInfo)
 
+	if mgr.snis != nil && !mgr.snis.MatchString(hello.ServerName) {
+		return tcp.Continue
+	}
+
 	cert := mgr.getCertificate(hello.ServerName)
 	if cert != nil {
 		if !ok || len(hello.SupportedProtos) == 0 {

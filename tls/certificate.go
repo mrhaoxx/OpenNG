@@ -21,14 +21,16 @@ type Cert struct {
 type TlsMgr struct {
 	certs  map[string]Cert
 	lookup *utils.BufferedLookup[*tls.Certificate]
+	snis   utils.GroupRegexp
 
 	muCerts sync.RWMutex
 }
 
-func NewTlsMgr() *TlsMgr {
+func NewTlsMgr(snis utils.GroupRegexp) *TlsMgr {
 
 	var mgr = TlsMgr{
 		certs: make(map[string]Cert),
+		snis:  snis,
 	}
 
 	mgr.lookup = utils.NewBufferedLookup(func(s string) *tls.Certificate {
