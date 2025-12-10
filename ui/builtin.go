@@ -200,6 +200,23 @@ var refs_assertions = map[string]Assert{
 			},
 		},
 	},
+	"builtin::tls::snimatcher": {
+		Type:     "map",
+		Required: true,
+		Sub: AssertMap{
+			"snis": {
+				Type: "list",
+				Desc: "list of server name patterns to match",
+				Sub: AssertMap{
+					"_": {Type: "string"},
+				},
+			},
+			"rewrite": {
+				Type: "string",
+				Desc: "protocol rewrite string",
+			},
+		},
+	},
 	"builtin::http::midware": {
 		Type:     "map",
 		Required: true,
@@ -1877,6 +1894,26 @@ var refs = map[string]Inst{
 	},
 	"builtin::net::interface::sys": func(*ArgNode) (any, error) {
 		return &net.SysInterface{}, nil
+	},
+	"builtin::tls::snimatcher": func(spec *ArgNode) (any, error) {
+		snis := spec.MustGet("snis").ToStringList()
+		rewrite := spec.MustGet("rewrite").ToString()
+
+		var hosts utils.GroupRegexp = nil
+		if len(snis) > 0 {
+			for _, sni := range snis {
+				r, err := regexp2.Compile(sni, regexp2.RE2)
+				if err != nil {
+					return nil, err
+				}
+				hosts = append(hosts, r)
+			}
+		}
+
+		return &tls.SniMatcher{
+			Snis:    hosts,
+			Rewrite: rewrite,
+		}, nil
 	},
 }
 
