@@ -19,7 +19,7 @@ require (
 	gvisor.dev/gvisor v0.0.0-20250820192457-dde98974cb6c
 )
 
-require github.com/expr-lang/expr v1.17.6
+require github.com/expr-lang/expr v1.17.7
 
 require (
 	github.com/Azure/go-ntlmssp v0.0.0-20221128193559-754e69321358 // indirect
