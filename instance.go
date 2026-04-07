@@ -13,14 +13,20 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type Edge struct {
+	From string `json:"from"`
+	To   string `json:"to"`
+}
+
 type Space struct {
 	Services     map[string]any
 	AssertRefs   map[string]Assert
 	Refs         map[string]Inst
 	ServiceKinds map[string]string
+	Edges        []Edge
 }
 
-func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
+func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert, owner string) error {
 	if root == nil {
 		return nil
 	}
@@ -68,6 +74,9 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
 				if ok {
 					if !validate {
 						node.Value.(*ngnet.URL).Underlying = v.(ngnet.Interface)
+						if owner != "" {
+							space.Edges = append(space.Edges, Edge{From: owner, To: realnode.Interface})
+						}
 					}
 				} else {
 					return fmt.Errorf("url interface not found: %s", realnode.Interface)
@@ -78,6 +87,9 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
 			case string:
 				if svc, ok := space.Services[v]; ok {
 					node.Value = svc
+					if !validate && owner != "" && v != "" {
+						space.Edges = append(space.Edges, Edge{From: owner, To: v})
+					}
 				} else {
 					return fmt.Errorf("ptr not found: %s", v)
 				}
@@ -86,7 +98,7 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
 					node.Value = nil
 					break
 				}
-				inst, err := space.instantiateAnon(v, validate)
+				inst, err := space.instantiateAnon(v, validate, owner)
 				if err != nil {
 					return err
 				}
@@ -101,7 +113,7 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
 					node.Value = nil
 					break
 				}
-				inst, err := space.instantiateAnon(mm, validate)
+				inst, err := space.instantiateAnon(mm, validate, owner)
 				if err != nil {
 					return err
 				}
@@ -125,7 +137,7 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert) error {
 	return walk(root, _assert)
 }
 
-func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, error) {
+func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool, owner string) (any, error) {
 	var kind string
 	if k, ok := m["kind"]; ok && k != nil {
 		if k.Type != "string" {
@@ -149,7 +161,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool) (any, 
 		return nil, fmt.Errorf("%s: assert failed: %w", kind, err)
 	}
 
-	if err := space.Deptr(spec, validate, specAssert); err != nil {
+	if err := space.Deptr(spec, validate, specAssert, owner); err != nil {
 		return nil, fmt.Errorf("%s: %w", kind, err)
 	}
 
@@ -207,7 +219,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
 		}
 
-		err = space.Deptr(spec, dry, spec_assert)
+		err = space.Deptr(spec, dry, spec_assert, to)
 
 		if err != nil {
 			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
@@ -242,6 +254,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 
 		if to != "" && to != "_" {
 			space.Services[to] = inst
+			space.ServiceKinds[to] = _ref
 		}
 
 		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
@@ -278,7 +291,7 @@ func (space *Space) Call(ref string, spec *ArgNode) (any, error) {
 		return nil, fmt.Errorf("%s: assert failed: %w", ref, err)
 	}
 
-	err = space.Deptr(spec, false, spec_assert)
+	err = space.Deptr(spec, false, spec_assert, "")
 
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", ref, err)

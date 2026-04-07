@@ -30,7 +30,6 @@ type AdminProvider interface {
 }
 
 type AdminMeta struct {
-	Name     string       `json:"name"`
 	Title    string       `json:"title"`
 	Category string       `json:"category"`
 	Icon     string       `json:"icon,omitempty"`
