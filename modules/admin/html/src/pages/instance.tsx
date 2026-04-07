@@ -1,84 +1,40 @@
-import { useState, useEffect } from 'preact/hooks'
-import { renderWidget } from '../widgets/renderer'
-import type { Widget } from '../widgets/types'
+import { useEffect, useState } from 'react'
+import { Badge } from '@/components/ui/badge'
+import type { InstanceDetail } from '@/lib/api'
+import { fetchJSON } from '@/lib/api'
+import WidgetRenderer from '@/widgets/WidgetRenderer'
 
-interface InstanceMeta {
-  name: string
-  kind: string
-  admin?: {
-    title?: string
-    category?: string
-    root?: Widget
-  }
-}
-
-interface InstanceProps {
-  name: string
-}
-
-export function Instance({ name }: InstanceProps) {
-  const [meta, setMeta] = useState<InstanceMeta | null>(null)
+export default function Instance({ name }: { name: string }) {
+  const [detail, setDetail] = useState<InstanceDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setLoading(true)
+    setDetail(null)
     setError(null)
-    setMeta(null)
-    fetch(`/api/v1/instance/${encodeURIComponent(name)}`)
-      .then(r => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json()
-      })
-      .then(data => {
-        setMeta(data)
-        setLoading(false)
-      })
-      .catch(e => {
-        setError(e.message)
-        setLoading(false)
-      })
+    fetchJSON<InstanceDetail>(`/api/v1/instance/${name}`)
+      .then(setDetail)
+      .catch(e => setError(e.message))
   }, [name])
 
-  if (loading) {
-    return (
-      <div class="flex items-center justify-center h-32 text-neutral-400 text-sm">
-        Loading...
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div class="p-6">
-        <div class="text-red-500 text-sm">Error: {error}</div>
-      </div>
-    )
-  }
-
-  if (!meta) return null
-
-  const admin = meta.admin
-  const title = admin?.title || meta.name
+  if (error) return <div className="p-6 text-destructive">Error: {error}</div>
+  if (!detail) return <div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>
 
   return (
-    <div class="flex flex-col h-full">
-      <div class="px-6 py-4 border-b border-neutral-200 dark:border-neutral-800 shrink-0">
-        <h1 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100">{title}</h1>
-        <div class="flex gap-3 mt-1">
-          <span class="text-xs bg-neutral-100 dark:bg-neutral-800 text-neutral-500 px-2 py-0.5 rounded font-mono">{meta.kind}</span>
-          {admin?.category && (
-            <span class="text-xs bg-sky-50 dark:bg-sky-900/30 text-sky-600 dark:text-sky-400 px-2 py-0.5 rounded">{admin.category}</span>
-          )}
+    <div className="p-6">
+      <div className="mb-6">
+        <div className="flex items-center gap-3">
+          <h1 className="text-lg font-semibold">{detail.admin?.title || detail.name}</h1>
+          <Badge variant="secondary" className="font-mono text-xs">{detail.kind}</Badge>
         </div>
+        <p className="text-sm text-muted-foreground mt-1 font-mono">{detail.name}</p>
       </div>
-      <div class="flex-1 overflow-auto p-6">
-        {admin?.root ? (
-          renderWidget(admin.root, name)
-        ) : (
-          <div class="text-neutral-400 text-sm">This instance has no admin interface.</div>
-        )}
-      </div>
+      {detail.admin?.root ? (
+        <WidgetRenderer widget={detail.admin.root} instanceName={name} />
+      ) : (
+        <div className="text-muted-foreground border border-dashed border-border rounded-xl p-12 text-center text-sm">
+          This instance does not provide an admin interface.
+        </div>
+      )}
     </div>
   )
 }
