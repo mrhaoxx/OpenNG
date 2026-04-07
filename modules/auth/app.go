@@ -1,266 +1,119 @@
 package auth
 
 import (
-	"reflect"
-
 	ng "github.com/mrhaoxx/OpenNG"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 	nghttp "github.com/mrhaoxx/OpenNG/modules/nghttp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
 
 func init() {
-	ng.Register("auth::manager",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"backends": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.TypeOf[AuthHandle](),
-						}},
-					},
-				},
-				"allowhosts": {
-					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
-					Sub: ng.AssertMap{
-						"_": {Type: "hostname"},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[nghttp.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			backends := spec.MustGet("backends").ToList()
-			var authmethods []AuthHandle
+	ng.RegisterFunc("auth::manager", NewAuthManagerFromConfig)
+	ng.RegisterFunc("auth::backend::file", NewFileBackendFromConfig)
+	ng.RegisterFunc("auth::backend::ldap", NewLDAPBackendFromConfig)
+	ng.RegisterFunc("auth::policyd", NewPolicydFromConfig)
+}
 
-			for _, backend := range backends {
-				authmethods = append(authmethods, backend.Value.(AuthHandle))
+// --- auth::manager ---
+
+type AuthManagerConfig struct {
+	Backends   []AuthHandle             `ng:"backends"`
+	Allowhosts ng.HostnameSliceDefault  `ng:"allowhosts"`
+}
+
+func NewAuthManagerFromConfig(cfg AuthManagerConfig) (nghttp.Service, error) {
+	return NewAuthMgr(cfg.Backends, cfg.Allowhosts.GroupRegexp()), nil
+}
+
+// --- auth::backend::file ---
+
+type FileUserConfig struct {
+	Name                  string   `ng:"name,required"`
+	PasswordHash          string   `ng:"PasswordHash"`
+	AllowForwardProxy     bool     `ng:"AllowForwardProxy"`
+	SSHAuthorizedKeys     []string `ng:"SSHAuthorizedKeys"`
+	ClientCertFingerprints []string `ng:"ClientCertFingerprints"`
+}
+
+type FileBackendConfig struct {
+	Users []FileUserConfig `ng:"users"`
+}
+
+func NewFileBackendFromConfig(cfg FileBackendConfig) (PolicyBackend, error) {
+	backend := authbackend.NewFileBackend()
+
+	for _, user := range cfg.Users {
+		var parsedKeys []gossh.PublicKey
+		for _, key := range user.SSHAuthorizedKeys {
+			pk, _, _, _, err := gossh.ParseAuthorizedKey([]byte(key))
+			if err != nil {
+				return nil, err
 			}
+			parsedKeys = append(parsedKeys, pk)
+		}
 
-			manager := NewAuthMgr(authmethods,
-				spec.MustGet("allowhosts").ToGroupRegexp())
+		backend.SetUser(user.Name, user.PasswordHash, user.AllowForwardProxy, parsedKeys, false, user.ClientCertFingerprints)
+	}
 
-			return manager, nil
-		},
-	)
+	return backend, nil
+}
 
-	ng.Register("auth::backend::file",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"users": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {
-									Type:     "string",
-									Required: true,
-									Desc:     "Username",
-								},
-								"PasswordHash": {
-									Type:    "string",
-									Default: "",
-									Desc:    "Password hash using bcrypt",
-								},
-								"AllowForwardProxy": {
-									Type:    "bool",
-									Default: false,
-									Desc:    "Allow user to use forward proxy",
-								},
-								"SSHAuthorizedKeys": {
-									Type: "list",
-									Desc: "SSH authorized keys",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
-								"ClientCertFingerprints": {
-									Type: "list",
-									Desc: "SHA256 fingerprints of client TLS certificates",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[PolicyBackend](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			users := spec.MustGet("users").ToList()
-			backend := authbackend.NewFileBackend()
+// --- auth::backend::ldap ---
 
-			for _, user := range users {
-				name := user.MustGet("name").ToString()
-				pw := user.MustGet("PasswordHash").ToString()
-				allowfp := user.MustGet("AllowForwardProxy").ToBool()
-				sshkeys := user.MustGet("SSHAuthorizedKeys").ToStringList()
+type LDAPBackendConfig struct {
+	URL        ngnet.URL `ng:"Url,required"`
+	SearchBase string    `ng:"SearchBase,required"`
+	BindDN     string    `ng:"BindDN,required"`
+	BindPW     string    `ng:"BindPW,required"`
+}
 
-				var parsedKeys []gossh.PublicKey
-				for _, key := range sshkeys {
-					pk, _, _, _, err := gossh.ParseAuthorizedKey([]byte(key))
-					if err != nil {
-						return nil, err
-					}
-					parsedKeys = append(parsedKeys, pk)
-				}
+func NewLDAPBackendFromConfig(cfg LDAPBackendConfig) (PolicyBackend, error) {
+	log.Debug().
+		Str("searchbase", cfg.SearchBase).
+		Str("binddn", cfg.BindDN).
+		Msg("new auth ldap backend")
 
-				clientCertFPs := user.MustGet("ClientCertFingerprints").ToStringList()
-				backend.SetUser(name, pw, allowfp, parsedKeys, false, clientCertFPs)
-			}
+	u := cfg.URL
+	return authbackend.NewLDAPBackend(&u, cfg.SearchBase, cfg.BindDN, cfg.BindPW), nil
+}
 
-			return backend, nil
-		},
-	)
+// --- auth::policyd ---
 
-	ng.Register("auth::backend::ldap",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"Url":        {Type: "url", Required: true},
-				"SearchBase": {Type: "string", Required: true},
-				"BindDN":     {Type: "string", Required: true},
-				"BindPW":     {Type: "string", Required: true},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[PolicyBackend](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			url := spec.MustGet("Url").ToURL()
-			searchBase := spec.MustGet("SearchBase").ToString()
-			bindDN := spec.MustGet("BindDN").ToString()
-			bindPW := spec.MustGet("BindPW").ToString()
+type PolicyRuleConfig struct {
+	Name      string           `ng:"name,required"`
+	Allowance bool             `ng:"Allowance,required"`
+	Users     []string         `ng:"Users" desc:"matching users, empty STRING means ALL, empty LIST means NONE"`
+	Hosts     ng.HostnameSlice `ng:"Hosts" desc:"matching Hosts, empty means none"`
+	Paths     ng.RegexpSlice   `ng:"Paths" desc:"matching Paths, empty means all"`
+}
 
-			log.Debug().
-				Str("searchbase", searchBase).
-				Str("binddn", bindDN).
-				Msg("new auth ldap backend")
+type CertMappingConfig struct {
+	Fingerprint string `ng:"Fingerprint,required" desc:"SHA256 fingerprint of client TLS certificate"`
+	Username    string `ng:"Username,required" desc:"Username to authenticate as"`
+}
 
-			return authbackend.NewLDAPBackend(url, searchBase, bindDN, bindPW), nil
-		},
-	)
+type PolicydConfig struct {
+	Policies     []PolicyRuleConfig  `ng:"Policies"`
+	Backends     []PolicyBackend     `ng:"backends"`
+	CertMappings []CertMappingConfig `ng:"CertMappings" desc:"Client certificate fingerprint to username mappings"`
+}
 
-	ng.Register("auth::policyd",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"Policies": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name":      {Type: "string", Required: true},
-								"Allowance": {Type: "bool", Required: true},
-								"Users": {
-									Type: "list",
-									Desc: "matching users,empty STRING means ALL, empty LIST means NONE",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
-								"Hosts": {
-									Type: "list",
-									Desc: "matching Hosts, empty means none",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-								"Paths": {
-									Type: "list",
-									Desc: "matching Paths, empty means all",
-									Sub: ng.AssertMap{
-										"_": {Type: "regexp"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"backends": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "ptr", Impls: []reflect.Type{
-							ng.TypeOf[PolicyBackend](),
-						}},
-					},
-				},
-				"CertMappings": {
-					Type: "list",
-					Desc: "Client certificate fingerprint to username mappings",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"Fingerprint": {Type: "string", Required: true, Desc: "SHA256 fingerprint of client TLS certificate"},
-								"Username":    {Type: "string", Required: true, Desc: "Username to authenticate as"},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[AuthHandle](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			policies := spec.MustGet("Policies").ToList()
-			backends := spec.MustGet("backends").ToList()
+func NewPolicydFromConfig(cfg PolicydConfig) (AuthHandle, error) {
+	policyd := NewPBAuth()
 
-			policyd := NewPBAuth()
+	for _, p := range cfg.Policies {
+		if err := policyd.AddPolicy(p.Name, p.Allowance, p.Users, p.Hosts.GroupRegexp(), p.Paths.GroupRegexp()); err != nil {
+			return nil, err
+		}
+	}
 
-			for _, policy := range policies {
-				name := policy.MustGet("name").ToString()
-				allowance := policy.MustGet("Allowance").ToBool()
-				users := policy.MustGet("Users").ToStringList()
-				hosts := policy.MustGet("Hosts").ToGroupRegexp()
-				paths := policy.MustGet("Paths").ToGroupRegexp()
+	policyd.AddBackends(cfg.Backends)
 
-				if err := policyd.AddPolicy(name, allowance, users, hosts, paths); err != nil {
-					return nil, err
-				}
-			}
+	for _, m := range cfg.CertMappings {
+		policyd.AddCertMapping(m.Fingerprint, m.Username)
+	}
 
-			var policyBackends []PolicyBackend
-			for _, backend := range backends {
-				policyBackends = append(policyBackends, backend.Value.(PolicyBackend))
-			}
-
-			policyd.AddBackends(policyBackends)
-
-			for _, mapping := range spec.MustGet("CertMappings").ToList() {
-				fingerprint := mapping.MustGet("Fingerprint").ToString()
-				username := mapping.MustGet("Username").ToString()
-				policyd.AddCertMapping(fingerprint, username)
-			}
-
-			return policyd, nil
-		},
-	)
-
+	return policyd, nil
 }

@@ -3,7 +3,9 @@ package ng
 import (
 	_ "embed"
 	"fmt"
+	"net/url"
 	"reflect"
+	"strconv"
 	"strings"
 	"time"
 
@@ -32,7 +34,6 @@ var ret_asserts = map[string]Assert{}
 var refs = map[string]Inst{}
 var asserterInterfaceType = reflect.TypeFor[Asserter]()
 var unmarshalerInterfaceType = reflect.TypeFor[Unmarshaler]()
-var defaulterInterfaceType = reflect.TypeFor[Defaulter]()
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
@@ -442,7 +443,6 @@ func (node *ArgNode) assignValue(dst reflect.Value) error {
 
 	switch dst.Kind() {
 	case reflect.Struct:
-		node.applyDefaults(dst)
 		return node.unmarshalStruct(dst)
 	case reflect.Map:
 		return node.unmarshalMap(dst)
@@ -507,35 +507,6 @@ func (node *ArgNode) tryCustomUnmarshal(dst reflect.Value) (bool, error) {
 	return false, nil
 }
 
-func (node *ArgNode) applyDefaults(dst reflect.Value) {
-	if defaulterInterfaceType == nil || !dst.IsValid() {
-		return
-	}
-
-	if dst.Type().Implements(defaulterInterfaceType) && dst.CanInterface() {
-		dst.Interface().(Defaulter).MakeDefault()
-		return
-	}
-
-	if dst.CanAddr() {
-		addr := dst.Addr()
-		if addr.Type().Implements(defaulterInterfaceType) {
-			addr.Interface().(Defaulter).MakeDefault()
-			return
-		}
-	}
-
-	if dst.CanSet() {
-		ptrType := reflect.PointerTo(dst.Type())
-		if ptrType.Implements(defaulterInterfaceType) {
-			tmp := reflect.New(dst.Type())
-			tmp.Elem().Set(dst)
-			tmp.Interface().(Defaulter).MakeDefault()
-			dst.Set(tmp.Elem())
-		}
-	}
-}
-
 func (node *ArgNode) unmarshalStruct(dst reflect.Value) error {
 	if node.Type != "map" {
 		return fmt.Errorf("expected map for struct %s, got %s", dst.Type(), node.Type)
@@ -548,24 +519,21 @@ func (node *ArgNode) unmarshalStruct(dst reflect.Value) error {
 			continue
 		}
 
-		tag := fieldInfo.Tag.Get("ng")
-		if tag == "-" {
+		ngTag := parseNgTag(fieldInfo.Tag.Get("ng"), fieldInfo.Name)
+		if ngTag.skip {
 			continue
 		}
 
 		fieldValue := dst.Field(i)
 
-		if fieldInfo.Anonymous && tag == "" {
+		if fieldInfo.Anonymous && fieldInfo.Tag.Get("ng") == "" {
 			if err := node.unmarshalValue(fieldValue); err != nil {
 				return err
 			}
 			continue
 		}
 
-		key := fieldInfo.Name
-		if tag != "" {
-			key = tag
-		}
+		key := ngTag.key
 
 		subnode, ok := node.ToMap()[key]
 		if !ok || subnode == nil {
@@ -672,6 +640,11 @@ func (node *ArgNode) interfaceValue() any {
 }
 
 func ParseStruct(refType reflect.Type) (Assert, error) {
+	// Check custom Asserter first for any type (slice, struct, etc.)
+	if assert, ok := tryCustomAsserter(refType); ok {
+		return assert, nil
+	}
+
 	switch refType.Kind() {
 	case reflect.Array, reflect.Slice:
 		elemType := refType.Elem()
@@ -686,11 +659,6 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 			},
 		}, nil
 	case reflect.Struct:
-		// check custom asserter
-		if assert, ok := tryCustomAsserter(refType); ok {
-			return assert, nil
-		}
-
 		// check builtin types
 		if refType == reflect.TypeFor[ngnet.URL]() {
 			return Assert{
@@ -706,14 +674,9 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 				continue
 			}
 
-			tag := field.Tag.Get("ng")
-			if tag == "-" {
+			tag := parseNgTag(field.Tag.Get("ng"), field.Name)
+			if tag.skip {
 				continue
-			}
-
-			key := field.Name
-			if tag != "" {
-				key = tag
 			}
 
 			fieldAssert, err := ParseStruct(field.Type)
@@ -721,17 +684,30 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 				return Assert{}, err
 			}
 
-			notype := field.Tag.Get("type")
-			if notype != "" {
+			if notype := field.Tag.Get("type"); notype != "" {
 				fieldAssert.Type = notype
 			}
-			sub[key] = fieldAssert
+			if desc := field.Tag.Get("desc"); desc != "" {
+				fieldAssert.Desc = desc
+			}
+			if tag.required {
+				fieldAssert.Required = true
+			}
+			if tag.allowNil {
+				fieldAssert.AllowNil = true
+			}
+			if defTag := field.Tag.Get("default"); defTag != "" {
+				if d := parseDefaultTag(defTag, fieldAssert.Type); d != nil {
+					fieldAssert.Default = d
+				}
+			}
+
+			sub[tag.key] = fieldAssert
 		}
-		defaultValue, _ := structDefaultFromMakeDefault(refType)
 		return Assert{
 			Type:    "map",
 			Sub:     sub,
-			Default: defaultValue,
+			Default: map[string]*ArgNode{},
 		}, nil
 	case reflect.Ptr:
 		return Assert{
@@ -796,27 +772,6 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 	}
 }
 
-func structDefaultFromMakeDefault(refType reflect.Type) (any, bool) {
-	if refType == nil || defaulterInterfaceType == nil {
-		return nil, false
-	}
-
-	ptrType := reflect.PointerTo(refType)
-	if ptrType.Implements(defaulterInterfaceType) {
-		instance := reflect.New(refType)
-		instance.Interface().(Defaulter).MakeDefault()
-		return instance.Elem().Interface(), true
-	}
-
-	if refType.Implements(defaulterInterfaceType) {
-		instance := reflect.New(refType).Elem()
-		instance.Interface().(Defaulter).MakeDefault()
-		return instance.Interface(), true
-	}
-
-	return nil, false
-}
-
 func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 	if refType == nil {
 		return Assert{}, false
@@ -824,10 +779,6 @@ func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 
 	if refType.Implements(asserterInterfaceType) {
 		in := reflect.New(refType).Interface()
-		// apply default if possible
-		if defaulter, ok := in.(Defaulter); ok {
-			defaulter.MakeDefault()
-		}
 		return in.(Asserter).Assert(), true
 	}
 
@@ -835,15 +786,84 @@ func tryCustomAsserter(refType reflect.Type) (Assert, bool) {
 		ptrType := reflect.PointerTo(refType)
 		if ptrType.Implements(asserterInterfaceType) {
 			in := reflect.New(refType).Interface()
-			// apply default if possible
-			if defaulter, ok := in.(Defaulter); ok {
-				defaulter.MakeDefault()
-			}
 			return in.(Asserter).Assert(), true
 		}
 	}
 
 	return Assert{}, false
+}
+
+// --- ng tag and default helpers for ParseStruct ---
+
+type ngTagOpts struct {
+	key      string
+	skip     bool
+	required bool
+	allowNil bool
+}
+
+func parseNgTag(raw string, fieldName string) ngTagOpts {
+	if raw == "-" {
+		return ngTagOpts{skip: true}
+	}
+	opts := ngTagOpts{key: fieldName}
+	if raw == "" {
+		return opts
+	}
+	parts := strings.Split(raw, ",")
+	if parts[0] != "" {
+		opts.key = parts[0]
+	}
+	for _, p := range parts[1:] {
+		switch strings.TrimSpace(p) {
+		case "required":
+			opts.required = true
+		case "allownil":
+			opts.allowNil = true
+		}
+	}
+	return opts
+}
+
+// parseDefaultTag converts a string tag value to a typed default for the given Assert type.
+func parseDefaultTag(raw string, assertType string) any {
+	switch assertType {
+	case "string":
+		return raw
+	case "int":
+		if n, err := strconv.Atoi(raw); err == nil {
+			return n
+		}
+	case "bool":
+		if b, err := strconv.ParseBool(raw); err == nil {
+			return b
+		}
+	case "float":
+		if f, err := strconv.ParseFloat(raw, 64); err == nil {
+			return f
+		}
+	case "duration":
+		if d, err := time.ParseDuration(raw); err == nil {
+			return d
+		}
+	case "ptr":
+		return raw
+	case "url":
+		str := raw
+		iface := ""
+		if idx := strings.Index(str, "%"); idx != -1 {
+			if cidx := strings.Index(str, ":"); cidx != -1 && idx < cidx {
+				iface = str[:idx]
+				str = str[idx+1:]
+			}
+		}
+		u, err := url.Parse(str)
+		if err != nil {
+			return nil
+		}
+		return &ngnet.URL{Interface: iface, URL: *u}
+	}
+	return nil
 }
 
 func RegisterFunc(name string, fn any) error {
@@ -914,17 +934,18 @@ type Asserter interface {
 	Assert() Assert
 }
 
-type Defaulter interface {
-	MakeDefault()
-}
-
 func discoverErrorMethods(refType reflect.Type) map[string]reflect.Method {
 	if refType == nil {
 		return nil
 	}
 
+	// Interface types have zero-value Func fields on methods; skip them
+	if refType.Kind() == reflect.Interface {
+		return nil
+	}
+
 	switch refType.Kind() {
-	case reflect.Pointer, reflect.Interface:
+	case reflect.Pointer:
 	default:
 		refType = reflect.PointerTo(refType)
 	}

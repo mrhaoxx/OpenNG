@@ -220,7 +220,8 @@ func (h *Hostmatch) UnmarshalArgNode(spec *ng.ArgNode) error {
 
 func (h *Hostmatch) Assert() ng.Assert {
 	return ng.Assert{
-		Type: "list",
+		Type:    "list",
+		Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
 		Sub: ng.AssertMap{
 			"_": {Type: "hostname"},
 		},
@@ -251,14 +252,6 @@ type MidwareConfig struct {
 	Cgi     []MidwareCgiConfig      `ng:"cgis"`
 	Forward []MidwareForwardConfig  `ng:"forward"`
 	Sni     Hostmatch               `ng:"sni"`
-}
-
-func (h *MidwareConfig) MakeDefault() {
-	h.Sni = Hostmatch{
-		Hosts: groupexp.GroupRegexp{
-			regexp2.MustCompile("^.*$", regexp2.None),
-		},
-	}
 }
 
 func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {

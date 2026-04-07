@@ -7,9 +7,13 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func NewTCPProxyProtocolHandler(allowedsrcs []string) (Service, error) {
+type ProxyProtocolConfig struct {
+	AllowedSources []string `ng:"sources" desc:"allowed source IPs for PROXY protocol"`
+}
+
+func NewTCPProxyProtocolHandler(cfg ProxyProtocolConfig) (Service, error) {
 	mapallowed := make(map[string]bool)
-	for _, v := range allowedsrcs {
+	for _, v := range cfg.AllowedSources {
 		mapallowed[v] = true
 	}
 	return NewServiceFunction(func(conn *Conn) Ret {

@@ -6,75 +6,41 @@ import (
 )
 
 func init() {
-	registerTLS()
+	ng.RegisterFunc("tls", NewTlsMgrFromConfig)
 }
 
-func registerTLS() {
-	ng.Register("tls",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Sub: ng.AssertMap{
-				"certificates": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"CertFile": {
-									Type:     "string",
-									Required: true,
-									Desc:     "path to certificate file",
-								},
-								"KeyFile": {
-									Type:     "string",
-									Required: true,
-									Desc:     "path to key file",
-								},
-							},
-						},
-					},
-				},
-				"ClientCAs": {
-					Type: "list",
-					Desc: "list of client CA certificate files for mTLS",
-					Sub: ng.AssertMap{
-						"_": {Type: "string", Desc: "path to client CA certificate file"},
-					},
-				},
-			},
-		},
-		ng.Assert{Type: "ptr"},
-		func(spec *ng.ArgNode) (any, error) {
-			certs := spec.MustGet("certificates").ToList()
+type CertConfig struct {
+	CertFile string `ng:"CertFile,required" desc:"path to certificate file"`
+	KeyFile  string `ng:"KeyFile,required" desc:"path to key file"`
+}
 
-			mgr := NewTlsMgr()
+type TlsConfig struct {
+	Certificates []CertConfig `ng:"certificates"`
+	ClientCAs    []string     `ng:"ClientCAs" desc:"list of client CA certificate files for mTLS"`
+}
 
-			for _, cert := range certs {
-				certfile := cert.MustGet("CertFile").ToString()
-				keyfile := cert.MustGet("KeyFile").ToString()
+func NewTlsMgrFromConfig(cfg TlsConfig) (*TlsMgr, error) {
+	mgr := NewTlsMgr()
 
-				if err := mgr.LoadCertificate(certfile, keyfile); err != nil {
-					return nil, err
-				}
+	for _, cert := range cfg.Certificates {
+		if err := mgr.LoadCertificate(cert.CertFile, cert.KeyFile); err != nil {
+			return nil, err
+		}
 
-				log.Debug().
-					Str("certfile", certfile).
-					Str("keyfile", keyfile).
-					Msg("new tls certificate")
-			}
+		log.Debug().
+			Str("certfile", cert.CertFile).
+			Str("keyfile", cert.KeyFile).
+			Msg("new tls certificate")
+	}
 
-			clientCAs := spec.MustGet("ClientCAs").ToStringList()
-			for _, cafile := range clientCAs {
-				if err := mgr.LoadClientCA(cafile); err != nil {
-					return nil, err
-				}
-				log.Debug().
-					Str("cafile", cafile).
-					Msg("loaded client CA")
-			}
+	for _, cafile := range cfg.ClientCAs {
+		if err := mgr.LoadClientCA(cafile); err != nil {
+			return nil, err
+		}
+		log.Debug().
+			Str("cafile", cafile).
+			Msg("loaded client CA")
+	}
 
-			return mgr, nil
-		},
-	)
+	return mgr, nil
 }

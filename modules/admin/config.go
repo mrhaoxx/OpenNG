@@ -14,43 +14,64 @@ import (
 func GenerateJsonSchema() []byte {
 	refs_assertions := ng.AssertionsRegistry()
 
-	root := ToSchema(ngcmd.TopLevelConfigAssertion, 0, 5).(map[string]any)
-
-	root["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-
-	services := root["properties"].(map[string]any)["Services"].(map[string]any)["items"].(map[string]any)
-
+	// Build per-kind if/then conditions for service entries
 	allOf := []any{}
-
 	for k, v := range refs_assertions {
-
 		if k == "_" {
 			continue
 		}
-
+		thenSchema := ToSchema(v, 0, 6)
+		thenProps := map[string]any{}
+		if m, ok := thenSchema.(map[string]any); ok {
+			if p, ok := m["properties"].(map[string]any); ok {
+				thenProps = p
+			}
+		}
 		allOf = append(allOf, map[string]any{
 			"if": map[string]any{
 				"properties": map[string]any{
-					"kind": map[string]any{
-						"const": k,
-					},
+					"kind": map[string]any{"const": k},
 				},
 			},
 			"then": map[string]any{
-				"properties": map[string]any{
-					"spec": ToSchema(v, 0, 6),
-				},
+				"properties":  thenProps,
 				"description": v.Desc,
 			},
 		})
 	}
 
+	// Service entry schema: {kind: string, ...fields} with if/then per kind
+	serviceEntry := map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"kind": map[string]any{
+				"type":        "string",
+				"description": "service type identifier",
+			},
+		},
+		"required": []string{"kind"},
+	}
 	if len(allOf) > 0 {
-		services["allOf"] = allOf
+		serviceEntry["allOf"] = allOf
 	}
 
-	s, _ := json.Marshal(root)
+	root := ToSchema(ngcmd.TopLevelConfigAssertion, 0, 5)
+	rootMap, ok := root.(map[string]any)
+	if !ok {
+		rootMap = map[string]any{}
+	}
+	rootMap["$schema"] = "https://json-schema.org/draft/2020-12/schema"
 
+	// Override Services as map of name → service entry
+	if props, ok := rootMap["properties"].(map[string]any); ok {
+		props["Services"] = map[string]any{
+			"type":                 "object",
+			"description":         "service definitions",
+			"additionalProperties": serviceEntry,
+		}
+	}
+
+	s, _ := json.Marshal(rootMap)
 	return s
 }
 
@@ -141,9 +162,7 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 					"description": "(anonymous) " + m.Desc,
 					"properties": map[string]any{
 						"kind": kindProp,
-						"spec": map[string]any{},
 					},
-					"additionalProperties": false,
 				}
 
 				conds := []any{}
@@ -151,6 +170,13 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 					value, ok := argsRegistry[name]
 					if !ok {
 						continue
+					}
+					thenSchema := ToSchema(value, depth+1, maxDepth)
+					thenProps := map[string]any{}
+					if sm, ok := thenSchema.(map[string]any); ok {
+						if p, ok := sm["properties"].(map[string]any); ok {
+							thenProps = p
+						}
 					}
 					conds = append(conds, map[string]any{
 						"if": map[string]any{
@@ -160,9 +186,7 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 							"required": []string{"kind"},
 						},
 						"then": map[string]any{
-							"properties": map[string]any{
-								"spec": ToSchema(value, depth+1, maxDepth),
-							},
+							"properties":  thenProps,
 							"description": value.Desc,
 						},
 					})

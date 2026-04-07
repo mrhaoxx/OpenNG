@@ -1,205 +1,84 @@
 package misc
 
 import (
-	"errors"
-	"fmt"
-	"reflect"
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
 	authsdk "github.com/mrhaoxx/OpenNG/modules/auth"
-	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog/log"
 )
 
 func init() {
-	registerAcmeFileProvider()
-	registerIpFilter()
-	registerHostFilter()
-	registerGitlabAuth()
+	ng.RegisterFunc("http::acme::fileprovider", NewAcmeFileProvider)
+	ng.RegisterFunc("ipfilter", NewIpFilterFromConfig)
+	ng.RegisterFunc("hostfilter", NewHostFilterFromConfig)
+	ng.RegisterFunc("gitlabauth", NewGitlabAuthFromConfig)
 }
 
-func registerAcmeFileProvider() {
-	ng.Register("http::acme::fileprovider",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"Hosts": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "hostname"},
-					},
-				},
-				"WWWRoot": {Type: "string", Required: true},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			hosts := spec.MustGet("Hosts").ToStringList()
-			wwwroot := spec.MustGet("WWWRoot").ToString()
-			provider := &AcmeWebRoot{
-				AllowedHosts: hosts,
-				WWWRoot:      wwwroot,
-			}
+// --- http::acme::fileprovider ---
 
-			log.Debug().Strs("hosts", hosts).Str("wwwroot", wwwroot).Msg("new acme file provider")
-			return provider, nil
-		},
-	)
+type AcmeConfig struct {
+	Hosts   []string `ng:"Hosts"`
+	WWWRoot string   `ng:"WWWRoot,required"`
 }
 
-func registerIpFilter() {
-	ng.Register("ipfilter",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Desc:     "filter connections based on source IP CIDR ranges",
-			Sub: ng.AssertMap{
-				"blockedcidrs": {
-					Type: "list",
-					Desc: "list of CIDR ranges to block",
-					Sub: ng.AssertMap{
-						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
-					},
-				},
-				"allowedcidrs": {
-					Type: "list",
-					Desc: "list of CIDR ranges to allow",
-					Sub: ng.AssertMap{
-						"_": {Type: "string", Desc: "CIDR notation (e.g. 192.168.1.0/24)"},
-					},
-				},
-				"next": {
-					Type:    "ptr",
-					Impls:   []reflect.Type{ng.TypeOf[tcpsdk.Service]()},
-					Default: nil,
-					Desc:    "next service handler if no CIDR match is found",
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			allowed := spec.MustGet("allowedcidrs").ToStringList()
-			blocked := spec.MustGet("blockedcidrs").ToStringList()
-			next := spec.MustGet("next")
-
-			filter := NewIPFilter(allowed, blocked)
-
-			if next != nil {
-				filter.SetNext(next.Value.(tcpsdk.Service))
-			}
-
-			log.Debug().Strs("allowedcidrs", allowed).Msg("new ip filter")
-
-			return filter, nil
-		},
-	)
+func NewAcmeFileProvider(cfg AcmeConfig) (ngtcp.Service, error) {
+	log.Debug().Strs("hosts", cfg.Hosts).Str("wwwroot", cfg.WWWRoot).Msg("new acme file provider")
+	return &AcmeWebRoot{
+		AllowedHosts: cfg.Hosts,
+		WWWRoot:      cfg.WWWRoot,
+	}, nil
 }
 
-func registerHostFilter() {
-	ng.Register("hostfilter",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Desc:     "filter connections based on HTTP Host header or TLS SNI",
-			Sub: ng.AssertMap{
-				"allowedhosts": {
-					Type: "list",
-					Desc: "list of allowed hostnames",
-					Sub: ng.AssertMap{
-						"_": {Type: "string", Desc: "hostname to allow"},
-					},
-				},
-				"next": {
-					Type:    "ptr",
-					Default: nil,
-					Desc:    "next service handler if hostname is not allowed",
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
-			next := spec.MustGet("next")
+// --- ipfilter ---
 
-			filter := &HostFilter{AllowedHosts: allowedHosts}
-
-			if next != nil {
-				nextHandler, ok := next.Value.(tcpsdk.Service)
-				if !ok {
-					return nil, errors.New("ptr is not a http.HttpHandler")
-				}
-				filter.SetNext(nextHandler)
-			}
-
-			log.Debug().Strs("allowedhosts", allowedHosts).Msg("new host filter")
-
-			return filter, nil
-		},
-	)
+type IpFilterConfig struct {
+	BlockedCIDRs []string     `ng:"blockedcidrs" desc:"CIDR ranges to block"`
+	AllowedCIDRs []string     `ng:"allowedcidrs" desc:"CIDR ranges to allow"`
+	Next         ngtcp.Service `ng:"next,allownil" desc:"next service if no CIDR match"`
 }
 
-func registerGitlabAuth() {
-	ng.Register("gitlabauth",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"gitlab_url": {Type: "url", Required: true},
-				"cache_ttl":  {Type: "duration", Default: time.Duration(10 * time.Second)},
-				"matchusernames": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "regexp"},
-					},
-				},
-				"prefix": {
-					Type:    "string",
-					Default: "",
-				},
-				"next": {
-					Type:    "ptr",
-					Default: nil,
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[authsdk.PolicyBackend](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			gitlabURL := spec.MustGet("gitlab_url").ToURL()
-			cacheTTL := spec.MustGet("cache_ttl").ToDuration()
-			matchUsernames := spec.MustGet("matchusernames").ToGroupRegexp()
-			prefix := spec.MustGet("prefix").ToString()
-			next := spec.MustGet("next")
+func NewIpFilterFromConfig(cfg IpFilterConfig) (ngtcp.Service, error) {
+	filter := NewIPFilter(cfg.AllowedCIDRs, cfg.BlockedCIDRs)
+	if cfg.Next != nil {
+		filter.SetNext(cfg.Next)
+	}
+	log.Debug().Strs("allowedcidrs", cfg.AllowedCIDRs).Msg("new ip filter")
+	return filter, nil
+}
 
-			backend := NewGitlabEnhancedPolicydBackend(gitlabURL.String(), cacheTTL, matchUsernames, prefix)
+// --- hostfilter ---
 
-			if next != nil {
-				nextBackend, ok := next.Value.(authsdk.PolicyBackend)
-				if !ok {
-					return nil, errors.New("ptr is not a authsdk.PolicyBackend" + fmt.Sprintf("%T", next.Value))
-				}
-				backend.SetPolicyBackend(nextBackend)
-			}
-			return backend, nil
-		},
-	)
+type HostFilterConfig struct {
+	AllowedHosts []string     `ng:"allowedhosts" desc:"hostnames to allow"`
+	Next         ngtcp.Service `ng:"next,allownil"`
+}
+
+func NewHostFilterFromConfig(cfg HostFilterConfig) (ngtcp.Service, error) {
+	filter := &HostFilter{AllowedHosts: cfg.AllowedHosts}
+	if cfg.Next != nil {
+		filter.SetNext(cfg.Next)
+	}
+	log.Debug().Strs("allowedhosts", cfg.AllowedHosts).Msg("new host filter")
+	return filter, nil
+}
+
+// --- gitlabauth ---
+
+type GitlabAuthConfig struct {
+	GitlabURL      ngnet.URL       `ng:"gitlab_url,required"`
+	CacheTTL       time.Duration   `ng:"cache_ttl" type:"duration" default:"10s"`
+	MatchUsernames ng.RegexpSlice  `ng:"matchusernames"`
+	Prefix         string          `ng:"prefix"`
+	Next           authsdk.PolicyBackend `ng:"next,allownil"`
+}
+
+func NewGitlabAuthFromConfig(cfg GitlabAuthConfig) (authsdk.PolicyBackend, error) {
+	backend := NewGitlabEnhancedPolicydBackend(cfg.GitlabURL.String(), cfg.CacheTTL, cfg.MatchUsernames.GroupRegexp(), cfg.Prefix)
+	if cfg.Next != nil {
+		backend.SetPolicyBackend(cfg.Next)
+	}
+	return backend, nil
 }

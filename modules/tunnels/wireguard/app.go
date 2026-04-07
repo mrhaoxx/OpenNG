@@ -1,7 +1,6 @@
 package wireguard
 
 import (
-	"reflect"
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
@@ -9,113 +8,62 @@ import (
 )
 
 func init() {
-	registerServer()
+	ng.RegisterFunc("wireguard::server", NewWireGuardServerFromConfig)
 }
 
-func registerServer() {
-	ng.Register("wireguard::server",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"ListenPort": {Type: "int", Required: true},
-				"PrivateKey": {Type: "string", Required: true},
-				"Address":    {Type: "string", Required: true},
-				"MTU":        {Type: "int", Default: 1420},
-				"Peers": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"PublicKey":  {Type: "string", Required: true},
-								"AllowedIPs": {Type: "list", Sub: ng.AssertMap{"_": {Type: "string"}}},
-							},
-						},
-					},
-				},
-				"Forwarding": {
-					Type:    "map",
-					Default: map[string]*ng.ArgNode{},
-					Sub: ng.AssertMap{
-						"EnableTCP": {Type: "bool", Default: true},
-						"EnableUDP": {Type: "bool", Default: true},
-						"TCP": {
-							Type:    "map",
-							Default: map[string]*ng.ArgNode{},
-							Sub: ng.AssertMap{
-								"CatchTimeout": {
-									Type:    "duration",
-									Default: time.Duration(600 * time.Millisecond),
-								},
-								"ConnTimeout": {
-									Type:    "duration",
-									Default: time.Duration(3 * time.Second),
-								},
-								"KeepaliveIdle": {
-									Type:    "duration",
-									Default: time.Duration(45 * time.Second),
-								},
-								"KeepaliveInterval": {
-									Type:    "duration",
-									Default: time.Duration(45 * time.Second),
-								},
-								"KeepaliveCount": {
-									Type:    "int",
-									Default: 3,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[ngnet.Interface](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			listenPort := spec.MustGet("ListenPort").ToInt()
-			privateKey := spec.MustGet("PrivateKey").ToString()
-			address := spec.MustGet("Address").ToString()
-			mtu := spec.MustGet("MTU").ToInt()
+// --- wireguard::server ---
 
-			forwarding := spec.MustGet("Forwarding")
-			enableTCP := forwarding.MustGet("EnableTCP").ToBool()
-			enableUDP := forwarding.MustGet("EnableUDP").ToBool()
-			tcpNode := forwarding.MustGet("TCP")
-			catchTimeout := tcpNode.MustGet("CatchTimeout").ToDuration()
-			connTimeout := tcpNode.MustGet("ConnTimeout").ToDuration()
-			keepaliveIdle := tcpNode.MustGet("KeepaliveIdle").ToDuration()
-			keepaliveInterval := tcpNode.MustGet("KeepaliveInterval").ToDuration()
-			keepaliveCount := tcpNode.MustGet("KeepaliveCount").ToInt()
-
-			var peers []PeerConfig
-			for _, p := range spec.MustGet("Peers").ToList() {
-				peers = append(peers, PeerConfig{
-					PublicKey:  p.MustGet("PublicKey").ToString(),
-					AllowedIPs: p.MustGet("AllowedIPs").ToStringList(),
-				})
-			}
-
-			cfg := &WireGuardConfig{
-				ListenPort:           listenPort,
-				PrivateKey:           privateKey,
-				Address:              address,
-				MTU:                  mtu,
-				EnableTCP:            enableTCP,
-				EnableUDP:            enableUDP,
-				TcpCatchTimeout:      catchTimeout,
-				TcpConnTimeout:       connTimeout,
-				TcpKeepaliveIdle:     keepaliveIdle,
-				TcpKeepaliveInterval: keepaliveInterval,
-				TcpKeepAliveCount:    keepaliveCount,
-				Peers:                peers,
-			}
-
-			return NewWireGuardServer(cfg)
-		},
-	)
+type WireGuardPeerConfig struct {
+	PublicKey  string   `ng:"PublicKey,required"`
+	AllowedIPs []string `ng:"AllowedIPs"`
 }
 
+type WireGuardTCPConfig struct {
+	CatchTimeout      time.Duration `ng:"CatchTimeout" type:"duration" default:"600ms"`
+	ConnTimeout       time.Duration `ng:"ConnTimeout" type:"duration" default:"3s"`
+	KeepaliveIdle     time.Duration `ng:"KeepaliveIdle" type:"duration" default:"45s"`
+	KeepaliveInterval time.Duration `ng:"KeepaliveInterval" type:"duration" default:"45s"`
+	KeepaliveCount    int           `ng:"KeepaliveCount" default:"3"`
+}
+
+type WireGuardForwardingConfig struct {
+	EnableTCP bool               `ng:"EnableTCP" default:"true"`
+	EnableUDP bool               `ng:"EnableUDP" default:"true"`
+	TCP       WireGuardTCPConfig `ng:"TCP"`
+}
+
+type WireGuardServerConfig struct {
+	ListenPort int                       `ng:"ListenPort,required"`
+	PrivateKey string                    `ng:"PrivateKey,required"`
+	Address    string                    `ng:"Address,required"`
+	MTU        int                       `ng:"MTU" default:"1420"`
+	Peers      []WireGuardPeerConfig     `ng:"Peers"`
+	Forwarding WireGuardForwardingConfig `ng:"Forwarding"`
+}
+
+func NewWireGuardServerFromConfig(cfg WireGuardServerConfig) (ngnet.Interface, error) {
+	var peers []PeerConfig
+	for _, p := range cfg.Peers {
+		peers = append(peers, PeerConfig{
+			PublicKey:  p.PublicKey,
+			AllowedIPs: p.AllowedIPs,
+		})
+	}
+
+	wgCfg := &WireGuardConfig{
+		ListenPort:           cfg.ListenPort,
+		PrivateKey:           cfg.PrivateKey,
+		Address:              cfg.Address,
+		MTU:                  cfg.MTU,
+		EnableTCP:            cfg.Forwarding.EnableTCP,
+		EnableUDP:            cfg.Forwarding.EnableUDP,
+		TcpCatchTimeout:      cfg.Forwarding.TCP.CatchTimeout,
+		TcpConnTimeout:       cfg.Forwarding.TCP.ConnTimeout,
+		TcpKeepaliveIdle:     cfg.Forwarding.TCP.KeepaliveIdle,
+		TcpKeepaliveInterval: cfg.Forwarding.TCP.KeepaliveInterval,
+		TcpKeepAliveCount:    cfg.Forwarding.TCP.KeepaliveCount,
+		Peers:                peers,
+	}
+
+	return NewWireGuardServer(wgCfg)
+}

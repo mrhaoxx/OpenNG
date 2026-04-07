@@ -3,54 +3,29 @@ package trojan
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
-	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
+type TrojanConfig struct {
+	Passwords []string        `ng:"passwords"`
+	Interface ngnet.Interface `ng:"interface" default:"sys"`
+}
+
+func NewTrojanServer(cfg TrojanConfig) (ngtcp.Service, error) {
+	hashes := make([]string, len(cfg.Passwords))
+	for i, pw := range cfg.Passwords {
+		sum := sha256.Sum224([]byte(pw))
+		hashes[i] = hex.EncodeToString(sum[:])
+	}
+	return &Server{
+		PasswordHashes: hashes,
+		Underlying:     cfg.Interface,
+	}, nil
+}
+
 func init() {
-	ng.Register("trojan::server",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"passwords": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {Type: "string"},
-					},
-				},
-				"interface": {
-					Type:    "ptr",
-					Default: "sys",
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			passwords := spec.MustGet("passwords").ToStringList()
-			iface := spec.MustGet("interface")
-
-			var underlying opennet.Interface
-			if iface != nil {
-				underlying = iface.Value.(opennet.Interface)
-			}
-
-			for i, password := range passwords {
-				sum := sha256.Sum224([]byte(password))
-				passwords[i] = hex.EncodeToString(sum[:])
-			}
-
-			return &Server{
-				PasswordHashes: passwords,
-				Underlying:     underlying,
-			}, nil
-		},
-	)
+	ng.RegisterFunc("trojan::server", NewTrojanServer)
 }

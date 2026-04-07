@@ -1,55 +1,29 @@
 package http
 
 import (
-	"reflect"
-
 	ng "github.com/mrhaoxx/OpenNG"
-	httpsdk "github.com/mrhaoxx/OpenNG/modules/nghttp"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	"github.com/mrhaoxx/OpenNG/modules/nghttp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
+type ProxyConfig struct {
+	URL ngnet.URL `ng:"url,required" default:"sys%"`
+}
+
+func NewProxy(cfg ProxyConfig) (ngnet.Interface, error) {
+	u := cfg.URL
+	return &HttpProxyInterface{Proxyurl: &u}, nil
+}
+
+type ForwardProxierConfig struct {
+	Interface ngnet.Interface `ng:"interface" default:"sys"`
+}
+
+func NewForwardProxier(cfg ForwardProxierConfig) (nghttp.Forward, error) {
+	return &StdForwardProxy{Underlying: cfg.Interface}, nil
+}
+
 func init() {
-	ng.Register("http::proxy",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"url": {
-					Type:     "url",
-					Required: true,
-					Default:  &opennet.URL{Interface: "sys"},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[opennet.Interface](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			proxyURL := spec.MustGet("url").ToURL()
-			return &HttpProxyInterface{Proxyurl: proxyURL}, nil
-		},
-	)
-	ng.Register("http::forwardproxier",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"interface": {
-					Type:    "ptr",
-					Default: "sys",
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[httpsdk.Forward](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			underlying := spec.MustGet("interface").Value.(opennet.Interface)
-			return &StdForwardProxy{Underlying: underlying}, nil
-		},
-	)
+	ng.RegisterFunc("http::proxy", NewProxy)
+	ng.RegisterFunc("http::forwardproxier", NewForwardProxier)
 }

@@ -7,13 +7,13 @@ import { csrfFetch } from '@/lib/api'
 import { Save, RotateCw, Check, AlertCircle } from 'lucide-react'
 
 // Configure Monaco workers
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
-import yamlWorker from 'monaco-yaml/yaml.worker?worker'
+import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
+import YamlWorker from 'monaco-yaml/yaml.worker?worker'
 
 self.MonacoEnvironment = {
   getWorker(_, label) {
-    if (label === 'yaml') return new yamlWorker()
-    return new editorWorker()
+    if (label === 'yaml') return new YamlWorker()
+    return new EditorWorker()
   },
 }
 
@@ -21,7 +21,7 @@ self.MonacoEnvironment = {
 configureMonacoYaml(monaco, {
   enableSchemaRequest: true,
   schemas: [{
-    uri: '/api/v1/cfg/schema',
+    uri: new URL('/api/v1/cfg/schema', window.location.origin).href,
     fileMatch: ['config.yaml'],
   }],
 })
@@ -34,6 +34,10 @@ export default function Config() {
   useEffect(() => {
     if (!containerRef.current) return
 
+    const uri = monaco.Uri.parse('config.yaml')
+    // Reuse existing model on remount to avoid "model already exists" error
+    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel('# Loading...', 'yaml', uri)
+
     const editor = monaco.editor.create(containerRef.current, {
       language: 'yaml',
       theme: 'vs-dark',
@@ -44,12 +48,15 @@ export default function Config() {
       automaticLayout: true,
       tabSize: 2,
       wordWrap: 'on',
-      model: monaco.editor.createModel('# Loading...', 'yaml', monaco.Uri.parse('config.yaml')),
+      model,
+      quickSuggestions: { other: true, comments: false, strings: true },
+      suggestOnTriggerCharacters: true,
+      acceptSuggestionOnEnter: 'on',
+      wordBasedSuggestions: 'currentDocument',
     })
 
     editorRef.current = editor
 
-    // Load config
     fetch('/api/v1/cfg/get')
       .then(r => r.text())
       .then(text => {
@@ -58,7 +65,10 @@ export default function Config() {
       })
       .catch(() => setStatus({ text: 'Failed to load', variant: 'error' }))
 
-    return () => editor.dispose()
+    return () => {
+      editor.getModel()?.dispose()
+      editor.dispose()
+    }
   }, [])
 
   const save = useCallback(async () => {

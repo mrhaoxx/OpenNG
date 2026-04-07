@@ -89,12 +89,7 @@ func (det *Detect) HandleTCP(c *Conn) Ret {
 type DetectConfig struct {
 	Protocols       []Detector    `ng:"protocols"`
 	Timeout         time.Duration `ng:"timeout" type:"duration"`
-	TimeoutProtocol string        `ng:"timeoutprotocol"`
-}
-
-func (cfg *DetectConfig) MakeDefault() {
-	cfg.Timeout = 0
-	cfg.TimeoutProtocol = "UNKNOWN"
+	TimeoutProtocol string        `ng:"timeoutprotocol" default:"UNKNOWN"`
 }
 
 func NewDetect(cfg DetectConfig) (*Detect, error) {

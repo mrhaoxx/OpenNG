@@ -161,9 +161,12 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool, owner 
 		return nil, fmt.Errorf("anonymous object missing kind")
 	}
 
-	spec := &ArgNode{Type: "null", Value: nil}
-	if s, ok := m["spec"]; ok && s != nil {
-		spec = s
+	delete(m, "kind")
+	var spec *ArgNode
+	if len(m) == 0 {
+		spec = &ArgNode{Type: "null", Value: nil}
+	} else {
+		spec = &ArgNode{Type: "map", Value: m}
 	}
 
 	specAssert, ok := space.AssertRefs[kind]
@@ -214,12 +217,20 @@ func (space *Space) collectDeps(node *ArgNode, assert Assert) []string {
 			if name, ok := n.Value.(string); ok && name != "" {
 				deps = append(deps, name)
 			} else if m, ok := n.Value.(map[string]*ArgNode); ok {
-				if kindNode := m["kind"]; kindNode != nil {
-					spec := m["spec"]
-					if spec == nil {
-						spec = &ArgNode{Type: "null"}
+				if kindNode := m["kind"]; kindNode != nil && kindNode.Type == "string" {
+					kind := kindNode.ToString()
+					// Build spec from remaining fields (flattened)
+					spec := &ArgNode{Type: "null"}
+					if len(m) > 1 { // more than just "kind"
+						remaining := make(map[string]*ArgNode, len(m)-1)
+						for k, v := range m {
+							if k != "kind" {
+								remaining[k] = v
+							}
+						}
+						spec = &ArgNode{Type: "map", Value: remaining}
 					}
-					if a, ok := space.AssertRefs[kindNode.ToString()]; ok {
+					if a, ok := space.AssertRefs[kind]; ok {
 						walk(spec, a)
 					}
 				}
@@ -338,10 +349,14 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 			return fmt.Errorf("service %q: missing kind", name)
 		}
 		kind := kindNode.ToString()
+		delete(entryMap, "kind")
 
-		spec := entryMap["spec"]
-		if spec == nil {
+		// Remaining fields are the spec (flattened config format)
+		var spec *ArgNode
+		if len(entryMap) == 0 {
 			spec = &ArgNode{Type: "null", Value: nil}
+		} else {
+			spec = &ArgNode{Type: "map", Value: entryMap}
 		}
 
 			ref, ok := space.Refs[kind]
@@ -495,7 +510,16 @@ func AssertArg(node *ArgNode, assertions Assert) error {
 	if node.Type == "null" {
 		if !assertions.Required {
 			node.Type = assertions.Type
-			node.Value = assertions.Default
+			// Copy map defaults to avoid mutating the Assert registry
+			if m, ok := assertions.Default.(map[string]*ArgNode); ok {
+				cp := make(map[string]*ArgNode, len(m))
+				for k, v := range m {
+					cp[k] = v
+				}
+				node.Value = cp
+			} else {
+				node.Value = assertions.Default
+			}
 		} else {
 			return fmt.Errorf("required field is null")
 		}

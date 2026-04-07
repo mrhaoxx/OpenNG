@@ -1,9 +1,6 @@
 package nghttp
 
 import (
-	"net/url"
-	"reflect"
-
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
@@ -15,96 +12,35 @@ func init() {
 	registerSecureHTTP()
 }
 
+type ReverseProxierHostConfig struct {
+	Name           string           `ng:"name,required" desc:"name of the proxy configuration"`
+	Hosts          ng.HostnameSlice `ng:"hosts,required" desc:"hostnames to match for this proxy"`
+	Backend        ngnet.URL        `ng:"backend,required" default:"sys%tcp://" desc:"backend URL to proxy requests to"`
+	MaxConnsPerHost int             `ng:"MaxConnsPerHost" desc:"maximum concurrent connections per backend host"`
+	TlsSkipVerify  bool             `ng:"TlsSkipVerify" desc:"skip TLS certificate verification for backend"`
+	BypassEncoding bool             `ng:"BypassEncoding" desc:"bypass encoding for backend"`
+}
+
+type ReverseProxierConfig struct {
+	Hosts      []ReverseProxierHostConfig `ng:"hosts" desc:"reverse proxy host configurations"`
+	Allowhosts ng.HostnameSliceDefault    `ng:"allowhosts" desc:"hostnames that this proxy will handle"`
+}
+
+func NewReverseProxierFromConfig(cfg ReverseProxierConfig) (Service, error) {
+	proxier := NewHTTPProxier(cfg.Allowhosts.GroupRegexp())
+
+	for id, host := range cfg.Hosts {
+		backend := host.Backend
+		if err := proxier.Insert(id, host.Name, host.Hosts.GroupRegexp(), &backend, host.MaxConnsPerHost, host.TlsSkipVerify, host.BypassEncoding); err != nil {
+			return nil, err
+		}
+	}
+
+	return proxier, nil
+}
+
 func registerReverseProxier() {
-	ng.Register("http::reverseproxier",
-		ng.Assert{
-			Type:     "map",
-			Required: true,
-			Desc:     "HTTP reverse proxy configuration",
-			Sub: ng.AssertMap{
-				"hosts": {
-					Type: "list",
-					Desc: "reverse proxy host configurations",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"name": {
-									Type:     "string",
-									Required: true,
-									Desc:     "name of the proxy configuration",
-								},
-								"hosts": {
-									Type:     "list",
-									Required: true,
-									Desc:     "hostnames to match for this proxy",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-								"backend": {
-									Type:     "url",
-									Required: true,
-									Desc:     "backend URL to proxy requests to",
-									Default:  &ngnet.URL{URL: url.URL{Scheme: "tcp"}, Interface: "sys"},
-								},
-								"MaxConnsPerHost": {
-									Type:    "int",
-									Default: 0,
-									Desc:    "maximum concurrent connections per backend host",
-								},
-								"TlsSkipVerify": {
-									Type:    "bool",
-									Default: false,
-									Desc:    "skip TLS certificate verification for backend",
-								},
-								"BypassEncoding": {
-									Type:    "bool",
-									Default: false,
-									Desc:    "bypass encoding for backend",
-								},
-							},
-						},
-					},
-				},
-				"allowhosts": {
-					Type:    "list",
-					Default: []*ng.ArgNode{{Type: "hostname", Value: "*"}},
-					Desc:    "hostnames that this proxy will handle",
-					Sub: ng.AssertMap{
-						"_": {Type: "hostname"},
-					},
-				},
-			},
-		},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			hosts := spec.MustGet("hosts").ToList()
-			allowedHosts := spec.MustGet("allowhosts").ToGroupRegexp()
-
-			proxier := NewHTTPProxier(allowedHosts)
-
-			for id, host := range hosts {
-				name := host.MustGet("name").ToString()
-				hostnames := host.MustGet("hosts").ToGroupRegexp()
-				backend := host.MustGet("backend").ToURL()
-				maxConns := host.MustGet("MaxConnsPerHost").ToInt()
-				tlsSkip := host.MustGet("TlsSkipVerify").ToBool()
-				bypassEncoding := host.MustGet("BypassEncoding").ToBool()
-
-				if err := proxier.Insert(id, name, hostnames, backend, maxConns, tlsSkip, bypassEncoding); err != nil {
-					return nil, err
-				}
-			}
-
-			return proxier, nil
-		},
-	)
+	ng.RegisterFunc("http::reverseproxier", NewReverseProxierFromConfig)
 }
 
 func registerMidware() {
@@ -112,16 +48,7 @@ func registerMidware() {
 }
 
 func registerSecureHTTP() {
-	ng.Register("tcp::securehttp",
-		ng.Assert{Type: "null"},
-		ng.Assert{
-			Type: "ptr",
-			Impls: []reflect.Type{
-				ng.TypeOf[tcpsdk.Service](),
-			},
-		},
-		func(spec *ng.ArgNode) (any, error) {
-			return Redirect2TLS, nil
-		},
-	)
+	ng.RegisterFunc("tcp::securehttp", func(struct{}) (tcpsdk.Service, error) {
+		return Redirect2TLS, nil
+	})
 }
