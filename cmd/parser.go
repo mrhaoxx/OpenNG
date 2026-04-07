@@ -40,8 +40,14 @@ var TopLevelConfigAssertion = ng.Assert{
 							// Enum:         []any{"Local", "UTC", "Asia/Shanghai"},
 							// AllowNonEnum: true,
 						},
+						"Outputs": {
+							Desc:    "log outputs: stdout, stderr, or file path",
+							Type:    "list",
+							Default: []*ng.ArgNode{{Type: "string", Value: "stdout"}},
+							Sub:     ng.AssertMap{"_": {Type: "string"}},
+						},
 						"Verbose": {
-							Desc:    "verbose level",
+							Desc: "verbose level",
 							Type:    "bool",
 							Default: false,
 						},

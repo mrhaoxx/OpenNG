@@ -3,37 +3,27 @@ package log
 import (
 	"fmt"
 	"os"
-	"reflect"
-
-	ng "github.com/mrhaoxx/OpenNG"
 )
 
-func init() {
-	ng.Register("log::stdout",
-		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
-		func(an *ng.ArgNode) (any, error) {
-			return os.Stdout, nil
-		},
-	)
-	ng.Register("log::stderr",
-		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
-		func(an *ng.ArgNode) (any, error) {
-			return os.Stderr, nil
-		},
-	)
-
-	ng.Register("log::file",
-		ng.Assert{Type: "string"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
-		func(an *ng.ArgNode) (any, error) {
-			path := an.ToString()
-			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+func SetupOutputs(outputs []string) error {
+	if len(outputs) == 0 {
+		return nil
+	}
+	var loggers []Logger
+	for _, out := range outputs {
+		switch out {
+		case "stdout":
+			loggers = append(loggers, os.Stdout)
+		case "stderr":
+			loggers = append(loggers, os.Stderr)
+		default:
+			f, err := os.OpenFile(out, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 			if err != nil {
-				return nil, fmt.Errorf("cannot open log file: %v", err)
+				return fmt.Errorf("cannot open log file %q: %w", out, err)
 			}
-			return f, nil
-		},
-	)
+			loggers = append(loggers, f)
+		}
+	}
+	Loggers.Set(loggers)
+	return nil
 }

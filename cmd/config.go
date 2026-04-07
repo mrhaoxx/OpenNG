@@ -6,6 +6,7 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
+	nglog "github.com/mrhaoxx/OpenNG/modules/log"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
@@ -83,6 +84,10 @@ func GlobalCfg(config *ng.ArgNode) error {
 		if verb := logger.MustGet("Verbose").ToBool(); verb {
 			zerolog.SetGlobalLevel(zerolog.DebugLevel)
 			fmt.Fprintln(os.Stderr, "verbose log mode enabled")
+		}
+		outputs := logger.MustGet("Outputs").ToStringList()
+		if err := nglog.SetupOutputs(outputs); err != nil {
+			return err
 		}
 	}
 	return nil
