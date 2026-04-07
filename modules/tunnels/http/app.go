@@ -4,9 +4,8 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	httpsdk "github.com/mrhaoxx/OpenNG/pkg/nghttp"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
-	httptunnel "github.com/mrhaoxx/OpenNG/pkg/tunnels/http"
+	httpsdk "github.com/mrhaoxx/OpenNG/modules/nghttp"
+	opennet "github.com/mrhaoxx/OpenNG/modules/ngnet"
 )
 
 func init() {
@@ -29,7 +28,7 @@ func init() {
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			proxyURL := spec.MustGet("url").ToURL()
-			return &httptunnel.HttpProxyInterface{Proxyurl: proxyURL}, nil
+			return &HttpProxyInterface{Proxyurl: proxyURL}, nil
 		},
 	)
 	ng.Register("http::forwardproxier",
@@ -50,7 +49,7 @@ func init() {
 		},
 		func(spec *ng.ArgNode) (any, error) {
 			underlying := spec.MustGet("interface").Value.(opennet.Interface)
-			return &httptunnel.StdForwardProxy{Underlying: underlying}, nil
+			return &StdForwardProxy{Underlying: underlying}, nil
 		},
 	)
 }

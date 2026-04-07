@@ -6,9 +6,8 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
-	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
-	trojansdk "github.com/mrhaoxx/OpenNG/pkg/tunnels/trojan"
+	opennet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
 )
 
 func init() {
@@ -48,7 +47,7 @@ func init() {
 				passwords[i] = hex.EncodeToString(sum[:])
 			}
 
-			return &trojansdk.Server{
+			return &Server{
 				PasswordHashes: passwords,
 				Underlying:     underlying,
 			}, nil

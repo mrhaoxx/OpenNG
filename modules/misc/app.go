@@ -7,9 +7,8 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	authsdk "github.com/mrhaoxx/OpenNG/pkg/auth"
-	miscsdk "github.com/mrhaoxx/OpenNG/pkg/misc"
-	tcpsdk "github.com/mrhaoxx/OpenNG/pkg/ngtcp"
+	authsdk "github.com/mrhaoxx/OpenNG/modules/auth"
+	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/rs/zerolog/log"
 )
 
@@ -43,7 +42,7 @@ func registerAcmeFileProvider() {
 		func(spec *ng.ArgNode) (any, error) {
 			hosts := spec.MustGet("Hosts").ToStringList()
 			wwwroot := spec.MustGet("WWWRoot").ToString()
-			provider := &miscsdk.AcmeWebRoot{
+			provider := &AcmeWebRoot{
 				AllowedHosts: hosts,
 				WWWRoot:      wwwroot,
 			}
@@ -94,7 +93,7 @@ func registerIpFilter() {
 			blocked := spec.MustGet("blockedcidrs").ToStringList()
 			next := spec.MustGet("next")
 
-			filter := miscsdk.NewIPFilter(allowed, blocked)
+			filter := NewIPFilter(allowed, blocked)
 
 			if next != nil {
 				filter.SetNext(next.Value.(tcpsdk.Service))
@@ -138,7 +137,7 @@ func registerHostFilter() {
 			allowedHosts := spec.MustGet("allowedhosts").ToStringList()
 			next := spec.MustGet("next")
 
-			filter := &miscsdk.HostFilter{AllowedHosts: allowedHosts}
+			filter := &HostFilter{AllowedHosts: allowedHosts}
 
 			if next != nil {
 				nextHandler, ok := next.Value.(tcpsdk.Service)
@@ -191,7 +190,7 @@ func registerGitlabAuth() {
 			prefix := spec.MustGet("prefix").ToString()
 			next := spec.MustGet("next")
 
-			backend := miscsdk.NewGitlabEnhancedPolicydBackend(gitlabURL.String(), cacheTTL, matchUsernames, prefix)
+			backend := NewGitlabEnhancedPolicydBackend(gitlabURL.String(), cacheTTL, matchUsernames, prefix)
 
 			if next != nil {
 				nextBackend, ok := next.Value.(authsdk.PolicyBackend)
