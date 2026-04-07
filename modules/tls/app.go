@@ -39,6 +39,13 @@ func registerTLS() {
 						},
 					},
 				},
+				"ClientCAs": {
+					Type: "list",
+					Desc: "list of client CA certificate files for mTLS",
+					Sub: ng.AssertMap{
+						"_": {Type: "string", Desc: "path to client CA certificate file"},
+					},
+				},
 			},
 		},
 		ng.Assert{Type: "ptr"},
@@ -59,6 +66,16 @@ func registerTLS() {
 					Str("certfile", certfile).
 					Str("keyfile", keyfile).
 					Msg("new tls certificate")
+			}
+
+			clientCAs := spec.MustGet("ClientCAs").ToStringList()
+			for _, cafile := range clientCAs {
+				if err := mgr.LoadClientCA(cafile); err != nil {
+					return nil, err
+				}
+				log.Debug().
+					Str("cafile", cafile).
+					Msg("loaded client CA")
 			}
 
 			return mgr, nil

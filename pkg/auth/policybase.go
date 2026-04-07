@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
+	"encoding/hex"
 	"math/rand"
 	"strconv"
 	"strings"
@@ -87,6 +90,7 @@ func (p *policyBaseAuth) at(session string) *session {
 type PolicyBackend interface {
 	CheckPassword(username string, password string) bool
 	CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool
+	CheckClientCert(fingerprint string) (username string, ok bool)
 	AllowForwardProxy(username string) bool
 	ExistsUser(username string) bool
 }
@@ -109,6 +113,15 @@ func (b backendGroup) CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) (bool, in
 		}
 	}
 	return false, -1
+}
+
+func (b backendGroup) CheckClientCert(fingerprint string) (username string, ok bool, src int) {
+	for i, backend := range b {
+		if username, ok := backend.CheckClientCert(fingerprint); ok {
+			return username, true, i
+		}
+	}
+	return "", false, -1
 }
 
 func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
@@ -144,6 +157,11 @@ func NewPBAuth() *policyBaseAuth {
 
 }
 
+func certFingerprint(cert *x509.Certificate) string {
+	hash := sha256.Sum256(cert.Raw)
+	return hex.EncodeToString(hash[:])
+}
+
 func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 	// First Lets get user info
 	var token = ctx.RemoveCookie(verfiyCookieKey)
@@ -157,6 +175,36 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 		if session != nil {
 			user = session.username
 			session.renew()
+		}
+	}
+
+	// If no valid session, try client certificate authentication
+	if session == nil && ctx.Req.TLS != nil && len(ctx.Req.TLS.PeerCertificates) > 0 {
+		fp := certFingerprint(ctx.Req.TLS.PeerCertificates[0])
+		if username, ok, src := mgr.backends.CheckClientCert(fp); ok {
+			token = mgr.generateSession(username, src)
+			session = mgr.at(token)
+			user = username
+
+			ctx.SetCookie(&stdhttp.Cookie{
+				Name:     verfiyCookieKey,
+				Value:    token,
+				Domain:   nghttp.GetRootDomain(ctx.Req.Host),
+				Secure:   true,
+				Path:     "/",
+				Expires:  time.Now().Add(3 * 24 * time.Hour),
+				SameSite: stdhttp.SameSiteNoneMode,
+			})
+
+			zlog.Info().
+				Str("type", "auth/login").
+				Str("method", "clientcert").
+				Str("user", username).
+				Str("fingerprint", fp).
+				Str("reqid", ctx.Id).
+				Str("ip", ctx.RemoteIP).
+				Int("port", ctx.RemotePort).
+				Msg("")
 		}
 	}
 

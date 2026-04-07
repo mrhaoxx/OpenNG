@@ -331,9 +331,13 @@ func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 	}
 
 	for _, cgi := range cfg.Cgi {
+		paths := cgi.Paths.Hosts
+		if len(paths) == 0 {
+			paths = cgi.Logi.CgiPaths()
+		}
 		hmw.AddCgis(&CgiStruct{
 			CgiHandler: cgi.Logi.HandleHTTPCgi,
-			CgiPaths:   cgi.Paths.Hosts,
+			CgiPaths:   paths,
 		})
 	}
 

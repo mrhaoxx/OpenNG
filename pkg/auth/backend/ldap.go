@@ -156,6 +156,10 @@ func (backend *ldapBackend) searchUserSSHPubkey(username string) (ret []string, 
 
 }
 
+func (mgr *ldapBackend) CheckClientCert(fingerprint string) (string, bool) {
+	return "", false
+}
+
 func (mgr *ldapBackend) AllowForwardProxy(username string) bool {
 	return false
 }

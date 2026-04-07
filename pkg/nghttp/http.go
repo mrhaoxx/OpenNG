@@ -35,7 +35,7 @@ type HttpCtx struct {
 	RemoteIP   string
 	RemotePort int
 
-	Req  *http.Request
+	Req *http.Request
 	Resp *NgResponseWriter
 
 	conn *ngtcp.Conn
@@ -158,16 +158,20 @@ func newReqID() string {
 func (h *Midware) preparetls(_ http.ResponseWriter, r *http.Request, conn *ngtcp.Conn) {
 	if r.TLS == nil {
 		head := conn.Head()
-		if head > 1 {
-			if conn.Protocol()[head-1] == "TLS" {
-				if conn, ok := conn.TopConn().(*ngnet.RwConn); ok {
+		if head >= 1 && conn.Protocol()[head-1] == "TLS" {
+			top := conn.TopConn()
+			switch c := top.(type) {
+			case *tls.Conn:
+				r.TLS = new(tls.ConnectionState)
+				*r.TLS = c.ConnectionState()
+			case *ngnet.RwConn:
+				if tc, ok := c.Rawconn.(*tls.Conn); ok {
 					r.TLS = new(tls.ConnectionState)
-					*r.TLS = conn.Rawconn.(*tls.Conn).ConnectionState()
+					*r.TLS = tc.ConnectionState()
 				}
 			}
 		}
 	}
-
 }
 
 func (h *Midware) head(rw http.ResponseWriter, r *http.Request, conn *ngtcp.Conn) {

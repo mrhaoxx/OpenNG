@@ -236,7 +236,7 @@ func (node *ArgNode) ToGroupRegexp() groupexp.GroupRegexp {
 
 	var ret groupexp.GroupRegexp
 	for _, v := range node.ToList() {
-		if v.Value == nil || v.Type != "regexp" {
+		if v.Value == nil {
 			continue
 		}
 		ret = append(ret, v.ToRegexp())
