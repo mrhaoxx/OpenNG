@@ -4,7 +4,6 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
 	"github.com/mrhaoxx/OpenNG/modules/log"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 )
@@ -26,13 +25,7 @@ func registerWebUI() {
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
-			ui := &UI{}
-
-			if ngcmd.CurSpace != nil {
-				ui.DiscoverProviders(ngcmd.CurSpace.Services)
-			}
-
-			return ui, nil
+			return &UI{}, nil
 		})
 }
 

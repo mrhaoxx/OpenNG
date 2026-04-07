@@ -36,15 +36,6 @@ var ReloadTime time.Time = time.Now()
 var ReloadCount int = 0
 
 type UI struct {
-	providers []ng.AdminProvider
-}
-
-func (u *UI) DiscoverProviders(services map[string]any) {
-	for _, svc := range services {
-		if p, ok := svc.(ng.AdminProvider); ok {
-			u.providers = append(u.providers, p)
-		}
-	}
 }
 
 type apiCallResponse struct {
@@ -64,15 +55,23 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			return nghttp.RequestEnd
 		}
 	}
-	// Check provider routes first
-	for _, p := range u.providers {
-		meta := p.AdminMeta()
-		for _, route := range meta.Routes {
-			if ctx.Req.URL.Path == route.Path && ctx.Req.Method == route.Method {
-				route.Handler(ctx)
-				return nghttp.RequestEnd
-			}
+	// Instance API routing
+	if strings.HasPrefix(ctx.Req.URL.Path, "/api/v1/instance/") {
+		rest := strings.TrimPrefix(ctx.Req.URL.Path, "/api/v1/instance/")
+		slashIdx := strings.Index(rest, "/")
+		if slashIdx == -1 {
+			// GET /api/v1/instance/{name} — instance detail
+			instanceName := rest
+			u.handleInstanceDetail(ctx, instanceName)
+			return nghttp.RequestEnd
 		}
+		instanceName := rest[:slashIdx]
+		subPath := rest[slashIdx:] // e.g., "/connections"
+		if u.handleInstanceRoute(ctx, instanceName, subPath) {
+			return nghttp.RequestEnd
+		}
+		ctx.Resp.ErrorPage(404, "route not found")
+		return nghttp.RequestEnd
 	}
 
 	switch ctx.Req.URL.Path {
@@ -253,14 +252,54 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	case "/204":
 		ctx.Resp.WriteHeader(204)
 
-	case "/api/v1/admin/modules":
-		ctx.Resp.Header().Set("Content-Type", "application/json; charset=utf-8")
-		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		var metas []ng.AdminMeta
-		for _, p := range u.providers {
-			metas = append(metas, p.AdminMeta())
+	case "/api/v1/space/map":
+		space := u.getSpace()
+		if space == nil {
+			ng.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+			return nghttp.RequestEnd
 		}
-		json.NewEncoder(ctx.Resp).Encode(metas)
+		type nodeInfo struct {
+			Name     string `json:"name"`
+			Kind     string `json:"kind"`
+			HasAdmin bool   `json:"hasAdmin"`
+		}
+		var nodes []nodeInfo
+		for name, svc := range space.Services {
+			_, hasAdmin := svc.(ng.AdminProvider)
+			nodes = append(nodes, nodeInfo{
+				Name:     name,
+				Kind:     space.ServiceKinds[name],
+				HasAdmin: hasAdmin,
+			})
+		}
+		result := map[string]any{
+			"nodes": nodes,
+			"edges": space.Edges,
+		}
+		ng.WriteJSON(ctx.ResponseWriter(), 200, result)
+
+	case "/api/v1/admin/modules":
+		space := u.getSpace()
+		if space == nil {
+			ng.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+			return nghttp.RequestEnd
+		}
+		type moduleInfo struct {
+			Name string       `json:"name"`
+			Kind string       `json:"kind"`
+			Meta ng.AdminMeta `json:"meta"`
+		}
+		var modules []moduleInfo
+		for name, svc := range space.Services {
+			if provider, ok := svc.(ng.AdminProvider); ok {
+				modules = append(modules, moduleInfo{
+					Name: name,
+					Kind: space.ServiceKinds[name],
+					Meta: provider.AdminMeta(),
+				})
+			}
+		}
+		ng.WriteJSON(ctx.ResponseWriter(), 200, modules)
 
 	default:
 		if strings.HasPrefix(ctx.Req.URL.Path, "/debug/pprof") {
@@ -271,6 +310,57 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	}
 	return nghttp.RequestEnd
 }
+func (u *UI) getSpace() *ng.Space {
+	if ngcmd.CurSpace != nil {
+		return ngcmd.CurSpace
+	}
+	return nil
+}
+
+func (u *UI) handleInstanceRoute(ctx *nghttp.HttpCtx, name string, subPath string) bool {
+	space := u.getSpace()
+	if space == nil {
+		return false
+	}
+	svc, ok := space.Services[name]
+	if !ok {
+		return false
+	}
+	provider, ok := svc.(ng.AdminProvider)
+	if !ok {
+		return false
+	}
+	meta := provider.AdminMeta()
+	for _, route := range meta.Routes {
+		if route.Path == subPath && route.Method == ctx.Req.Method {
+			route.Handler(ctx)
+			return true
+		}
+	}
+	return false
+}
+
+func (u *UI) handleInstanceDetail(ctx *nghttp.HttpCtx, name string) {
+	space := u.getSpace()
+	if space == nil {
+		ng.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+		return
+	}
+	svc, ok := space.Services[name]
+	if !ok {
+		ng.WriteJSON(ctx.ResponseWriter(), 404, map[string]string{"error": "instance not found"})
+		return
+	}
+	result := map[string]any{
+		"name": name,
+		"kind": space.ServiceKinds[name],
+	}
+	if provider, ok := svc.(ng.AdminProvider); ok {
+		result["admin"] = provider.AdminMeta()
+	}
+	ng.WriteJSON(ctx.ResponseWriter(), 200, result)
+}
+
 func (*UI) HandleHTTPInternal(ctx *nghttp.HttpCtx) nghttp.Ret {
 	return nghttp.RequestEnd
 }
