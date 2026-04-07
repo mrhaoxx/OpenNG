@@ -47,6 +47,14 @@ type HttpCtx struct {
 	onClose []func(*HttpCtx)
 }
 
+func (ctx *HttpCtx) ResponseWriter() http.ResponseWriter {
+	return ctx.Resp
+}
+
+func (ctx *HttpCtx) Request() *http.Request {
+	return ctx.Req
+}
+
 // Redirect redirects the request to another url
 func (c *HttpCtx) Redirect(url string, code int) {
 	http.Redirect(c.Resp, c.Req, url, code)
