@@ -6,17 +6,16 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/log"
 )
 
 func init() {
 	ng.Register("log::add",
 		ng.Assert{Type: "ptr", Impls: []reflect.Type{
-			ng.TypeOf[log.Logger](),
+			ng.TypeOf[Logger](),
 		}},
 		ng.Assert{Type: "null"},
 		func(an *ng.ArgNode) (any, error) {
-			log.Loggers.Add(an.Value.(log.Logger))
+			Loggers.Add(an.Value.(Logger))
 			return nil, nil
 		},
 	)
@@ -25,20 +24,20 @@ func init() {
 		ng.Assert{
 			Type: "list",
 			Sub: ng.AssertMap{
-				"_": {Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
+				"_": {Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
 			},
 		},
 		ng.Assert{Type: "null"},
 		func(an *ng.ArgNode) (any, error) {
 			logger := an.ToList()
 
-			loggers := []log.Logger{}
+			loggers := []Logger{}
 
 			for _, l := range logger {
-				loggers = append(loggers, l.Value.(log.Logger))
+				loggers = append(loggers, l.Value.(Logger))
 			}
 
-			log.Loggers.Set(loggers)
+			Loggers.Set(loggers)
 			return nil, nil
 		},
 	)
@@ -47,21 +46,21 @@ func init() {
 		ng.Assert{Type: "null"},
 		ng.Assert{Type: "null"},
 		func(an *ng.ArgNode) (any, error) {
-			log.Loggers.Reset()
+			Loggers.Reset()
 			return nil, nil
 		},
 	)
 
 	ng.Register("log::stdout",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stdout, nil
 		},
 	)
 	ng.Register("log::stderr",
 		ng.Assert{Type: "null"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			return os.Stderr, nil
 		},
@@ -69,7 +68,7 @@ func init() {
 
 	ng.Register("log::file",
 		ng.Assert{Type: "string"},
-		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[log.Logger]()}},
+		ng.Assert{Type: "ptr", Impls: []reflect.Type{ng.TypeOf[Logger]()}},
 		func(an *ng.ArgNode) (any, error) {
 			path := an.ToString()
 			f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
