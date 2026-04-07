@@ -18,12 +18,6 @@ export interface SpaceMapData {
   edges: SpaceEdge[]
 }
 
-export interface ModuleInfo {
-  name: string
-  kind: string
-  meta: AdminMeta
-}
-
 export interface AdminMeta {
   root?: WidgetNode
 }
@@ -51,4 +45,14 @@ export async function fetchJSON<T>(url: string): Promise<T> {
   const res = await fetch(url)
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`)
   return res.json()
+}
+
+export async function fetchSchema(): Promise<any> {
+  return fetchJSON('/api/v1/cfg/schema')
+}
+
+export async function fetchConfigText(): Promise<string> {
+  const res = await fetch('/api/v1/cfg/get')
+  if (!res.ok) throw new Error(`${res.status}`)
+  return res.text()
 }
