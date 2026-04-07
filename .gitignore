@@ -19,4 +19,4 @@ new.config.yaml
 node_modules
 .claude
 
-cmd/netgate/netgate
+cmd/netgate/netgatecerts/
