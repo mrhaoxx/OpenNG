@@ -20,11 +20,10 @@ import (
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
-	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
-	"github.com/mrhaoxx/OpenNG/modules/ngtls"
 	zlog "github.com/rs/zerolog/log"
+	"golang.org/x/crypto/bcrypt"
 )
 
 //go:embed html/dist
@@ -32,19 +31,11 @@ var index embed.FS
 
 var cachedSchema []byte
 
-type Reporter interface {
-	Report() (map[string]interface{}, error)
-}
-
 var Uptime time.Time = time.Now()
 var ReloadTime time.Time = time.Now()
 var ReloadCount int = 0
 
 type UI struct {
-	TcpController Reporter
-	HttpMidware   Reporter
-
-	TlsMgr    *ngtls.TlsMgr
 	providers []ng.AdminProvider
 }
 
@@ -102,25 +93,6 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 	case "/restart":
 		ctx.Resp.ErrorPage(nghttp.StatusNotImplemented, "Not Implemented")
-
-	case "/api/v1/tls/reload":
-		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
-			return nghttp.RequestEnd
-		}
-		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		if u.TlsMgr != nil {
-			err := u.TlsMgr.Reload()
-			if err != nil {
-				ctx.Resp.WriteHeader(nghttp.StatusBadRequest)
-				ctx.WriteString(err.Error())
-			} else {
-				ctx.Resp.WriteHeader(nghttp.StatusAccepted)
-			}
-		} else {
-			ctx.Resp.WriteHeader(nghttp.StatusFailedDependency)
-			ctx.WriteString("TlsMgr not set")
-		}
 
 	case "/api/v1/cfg/reload":
 		if ctx.Req.Method != stdhttp.MethodPost {
@@ -245,8 +217,8 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			return nghttp.RequestEnd
 		}
 		b, _ := io.ReadAll(ctx.Req.Body)
-		hashed, _ := file.HashPassword(string(b))
-		ctx.Resp.Write([]byte(hashed))
+		hashed, _ := bcrypt.GenerateFromPassword(b, 12)
+		ctx.Resp.Write(hashed)
 	case "/api/v1/uptime":
 		ctx.WriteString(fmt.Sprint(
 			"uptime: ", time.Since(Uptime).Round(time.Second), "\n",
@@ -280,38 +252,6 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 
 	case "/204":
 		ctx.Resp.WriteHeader(204)
-
-	case "/api/v1/tcp/connections": //GET json output
-		if ctx.Req.Method == "GET" {
-			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-			ctx.Resp.Header().Set("Cache-Control", "no-cache")
-			res, _ := u.TcpController.Report()
-			byt, err := json.Marshal(res)
-			if err != nil {
-				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
-				ctx.Resp.Write([]byte(err.Error()))
-			} else {
-				ctx.Resp.Write(byt)
-			}
-		} else {
-			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
-		}
-
-	case "/api/v1/http/requests": //GET json output
-		if ctx.Req.Method == "GET" {
-			ctx.Resp.Header().Set("Content-Type", "text/json; charset=utf-8")
-			ctx.Resp.Header().Set("Cache-Control", "no-cache")
-			res, _ := u.HttpMidware.Report()
-			byt, err := json.Marshal(res)
-			if err != nil {
-				ctx.Resp.WriteHeader(nghttp.StatusInternalServerError)
-				ctx.Resp.Write([]byte(err.Error()))
-			} else {
-				ctx.Resp.Write(byt)
-			}
-		} else {
-			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
-		}
 
 	case "/api/v1/admin/modules":
 		ctx.Resp.Header().Set("Content-Type", "application/json; charset=utf-8")
