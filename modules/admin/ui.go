@@ -20,10 +20,10 @@ import (
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
-	file "github.com/mrhaoxx/OpenNG/pkg/auth/backend"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
-	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
-	"github.com/mrhaoxx/OpenNG/pkg/ngtls"
+	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
+	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/modules/nghttp"
+	"github.com/mrhaoxx/OpenNG/modules/ngtls"
 	zlog "github.com/rs/zerolog/log"
 )
 
@@ -44,7 +44,16 @@ type UI struct {
 	TcpController Reporter
 	HttpMidware   Reporter
 
-	TlsMgr *ngtls.TlsMgr
+	TlsMgr    *ngtls.TlsMgr
+	providers []ng.AdminProvider
+}
+
+func (u *UI) DiscoverProviders(services map[string]any) {
+	for _, svc := range services {
+		if p, ok := svc.(ng.AdminProvider); ok {
+			u.providers = append(u.providers, p)
+		}
+	}
 }
 
 type apiCallResponse struct {
@@ -64,6 +73,17 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			return nghttp.RequestEnd
 		}
 	}
+	// Check provider routes first
+	for _, p := range u.providers {
+		meta := p.AdminMeta()
+		for _, route := range meta.Routes {
+			if ctx.Req.URL.Path == route.Path && ctx.Req.Method == route.Method {
+				route.Handler(ctx)
+				return nghttp.RequestEnd
+			}
+		}
+	}
+
 	switch ctx.Req.URL.Path {
 
 	case "/":
@@ -292,6 +312,15 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		} else {
 			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
 		}
+
+	case "/api/v1/admin/modules":
+		ctx.Resp.Header().Set("Content-Type", "application/json; charset=utf-8")
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		var metas []ng.AdminMeta
+		for _, p := range u.providers {
+			metas = append(metas, p.AdminMeta())
+		}
+		json.NewEncoder(ctx.Resp).Encode(metas)
 
 	default:
 		if strings.HasPrefix(ctx.Req.URL.Path, "/debug/pprof") {

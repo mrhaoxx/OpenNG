@@ -5,9 +5,10 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/log"
-	"github.com/mrhaoxx/OpenNG/pkg/nghttp"
-	"github.com/mrhaoxx/OpenNG/pkg/ngtls"
+	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
+	"github.com/mrhaoxx/OpenNG/modules/log"
+	"github.com/mrhaoxx/OpenNG/modules/nghttp"
+	"github.com/mrhaoxx/OpenNG/modules/ngtls"
 )
 
 func init() {
@@ -46,6 +47,10 @@ func registerWebUI() {
 					return nil, errors.New("tls ptr is not a tls.TlsMgr")
 				}
 				ui.TlsMgr = tlsMgr
+			}
+
+			if ngcmd.CurSpace != nil {
+				ui.DiscoverProviders(ngcmd.CurSpace.Services)
 			}
 
 			return ui, nil
