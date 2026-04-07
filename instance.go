@@ -199,7 +199,7 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool, owner 
 
 // collectDeps walks an ArgNode tree and collects all service names
 // referenced by ptr (string) and url (Interface) fields.
-func collectDeps(node *ArgNode, assert Assert) []string {
+func (space *Space) collectDeps(node *ArgNode, assert Assert) []string {
 	if node == nil {
 		return nil
 	}
@@ -211,9 +211,18 @@ func collectDeps(node *ArgNode, assert Assert) []string {
 		}
 		switch n.Type {
 		case "ptr":
-			// Only string values are named references; map values are anonymous inline
 			if name, ok := n.Value.(string); ok && name != "" {
 				deps = append(deps, name)
+			} else if m, ok := n.Value.(map[string]*ArgNode); ok {
+				if kindNode := m["kind"]; kindNode != nil {
+					spec := m["spec"]
+					if spec == nil {
+						spec = &ArgNode{Type: "null"}
+					}
+					if a, ok := space.AssertRefs[kindNode.ToString()]; ok {
+						walk(spec, a)
+					}
+				}
 			}
 		case "url":
 			if u, ok := n.Value.(*ngnet.URL); ok && u != nil && u.Interface != "" {
@@ -348,7 +357,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 				return fmt.Errorf("service %q (%s): assert failed: %w", name, kind, err)
 			}
 
-			deps := collectDeps(spec, assert)
+			deps := space.collectDeps(spec, assert)
 			entries = append(entries, serviceEntry{
 				name: name, kind: kind, spec: spec,
 				ref: ref, assert: assert, deps: deps,
