@@ -27,6 +27,14 @@ func GenerateJsonSchema() []byte {
 				thenProps = p
 			}
 		}
+		// Include "kind" in then.properties so additionalProperties works
+		thenProps["kind"] = map[string]any{"const": k}
+		thenRequired := []string{"kind"}
+		if m, ok := thenSchema.(map[string]any); ok {
+			if r, ok := m["required"].([]string); ok {
+				thenRequired = append(thenRequired, r...)
+			}
+		}
 		allOf = append(allOf, map[string]any{
 			"if": map[string]any{
 				"properties": map[string]any{
@@ -34,8 +42,10 @@ func GenerateJsonSchema() []byte {
 				},
 			},
 			"then": map[string]any{
-				"properties":  thenProps,
-				"description": v.Desc,
+				"properties":            thenProps,
+				"required":              thenRequired,
+				"additionalProperties":  false,
+				"description":           v.Desc,
 			},
 		})
 	}
