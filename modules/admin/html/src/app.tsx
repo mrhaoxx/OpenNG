@@ -3,7 +3,7 @@ import { LayoutGrid, Settings, ScrollText, Info } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
-import type { SpaceMapData, ModuleInfo } from '@/lib/api'
+import type { SpaceMapData } from '@/lib/api'
 import { fetchJSON } from '@/lib/api'
 import SpaceMap from '@/pages/SpaceMap'
 import Instance from '@/pages/Instance'
@@ -37,7 +37,6 @@ const railItems = [
 export default function App() {
   const [route, setRoute] = useState<Route>(parseHash)
   const [spaceMap, setSpaceMap] = useState<SpaceMapData | null>(null)
-  const [modules, setModules] = useState<ModuleInfo[]>([])
 
   useEffect(() => {
     const onHash = () => setRoute(parseHash())
@@ -47,17 +46,18 @@ export default function App() {
 
   useEffect(() => {
     fetchJSON<SpaceMapData>('/api/v1/space/map').then(setSpaceMap).catch(() => {})
-    fetchJSON<ModuleInfo[]>('/api/v1/admin/modules').then(setModules).catch(() => {})
   }, [])
 
   const nav = useCallback((hash: string) => { location.hash = hash }, [])
   const activeRail = route.page === 'instance' ? 'map' : route.page
 
-  // Group modules by category
-  const categories: Record<string, ModuleInfo[]> = {}
-  for (const m of modules) {
-    const cat = m.meta?.category || 'Other'
-    ;(categories[cat] ??= []).push(m)
+  // Group all instances by kind prefix
+  const instanceGroups: Record<string, { name: string; kind: string; hasAdmin: boolean }[]> = {}
+  if (spaceMap) {
+    for (const n of spaceMap.nodes) {
+      const prefix = n.kind.split('::')[0] || 'other'
+      ;(instanceGroups[prefix] ??= []).push(n)
+    }
   }
 
   return (
@@ -93,49 +93,38 @@ export default function App() {
           <div className="p-2">
             {(route.page === 'map' || route.page === 'instance') && (
               <>
-                {Object.entries(categories).map(([cat, mods]) => (
-                  <div key={cat} className="mb-3">
-                    <div className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider px-2 mb-1">{cat}</div>
-                    {mods.map(m => {
-                      const active = route.page === 'instance' && route.name === m.name
+                {/* Space Map entry */}
+                <button
+                  onClick={() => nav('#/')}
+                  className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors mb-2 ${
+                    route.page === 'map' ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
+                  }`}
+                >
+                  <span className="block truncate">Space Map</span>
+                  <span className="block text-[10px] text-neutral-600 truncate">overview</span>
+                </button>
+
+                {/* All instances grouped by kind prefix */}
+                {Object.entries(instanceGroups).map(([prefix, nodes]) => (
+                  <div key={prefix} className="mb-3">
+                    <div className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider px-2 mb-1">{prefix}</div>
+                    {nodes.map(n => {
+                      const active = route.page === 'instance' && route.name === n.name
                       return (
                         <button
-                          key={m.name}
-                          onClick={() => nav(`#/instance/${m.name}`)}
+                          key={n.name}
+                          onClick={() => nav(`#/instance/${n.name}`)}
                           className={`w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors ${
                             active ? 'bg-neutral-800 text-neutral-100' : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50'
                           }`}
                         >
-                          <span className="block truncate">{m.meta?.title || m.name}</span>
-                          <span className="block text-[10px] text-neutral-600 truncate">{m.kind}</span>
+                          <span className="block truncate font-mono">{n.name}</span>
+                          <span className="block text-[10px] text-neutral-600 truncate">{n.kind}</span>
                         </button>
                       )
                     })}
                   </div>
                 ))}
-                {/* Non-admin instances */}
-                {spaceMap && (() => {
-                  const adminSet = new Set(modules.map(m => m.name))
-                  const others = spaceMap.nodes.filter(n => !adminSet.has(n.name))
-                  if (!others.length) return null
-                  return (
-                    <div className="mb-3">
-                      <div className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider px-2 mb-1">Other</div>
-                      {others.map(n => (
-                        <button
-                          key={n.name}
-                          onClick={() => nav(`#/instance/${n.name}`)}
-                          className={`w-full text-left px-2 py-1.5 rounded-md text-sm text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800/50 ${
-                            route.page === 'instance' && route.name === n.name ? 'bg-neutral-800 text-neutral-100' : ''
-                          }`}
-                        >
-                          <span className="block truncate">{n.name}</span>
-                          <span className="block text-[10px] text-neutral-600 truncate">{n.kind}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )
-                })()}
               </>
             )}
           </div>

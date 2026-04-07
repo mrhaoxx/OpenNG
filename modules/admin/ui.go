@@ -340,9 +340,24 @@ func (u *UI) handleInstanceDetail(ctx *nghttp.HttpCtx, name string) {
 		ng.WriteJSON(ctx.ResponseWriter(), 404, map[string]string{"error": "instance not found"})
 		return
 	}
+
+	// Collect edges: who this instance depends on, and who depends on it
+	var dependsOn []string
+	var dependedBy []string
+	for _, e := range space.Edges {
+		if e.From == name {
+			dependsOn = append(dependsOn, e.To)
+		}
+		if e.To == name {
+			dependedBy = append(dependedBy, e.From)
+		}
+	}
+
 	result := map[string]any{
-		"name": name,
-		"kind": space.ServiceKinds[name],
+		"name":       name,
+		"kind":       space.ServiceKinds[name],
+		"dependsOn":  dependsOn,
+		"dependedBy": dependedBy,
 	}
 	if provider, ok := svc.(ng.AdminProvider); ok {
 		result["admin"] = provider.AdminMeta()

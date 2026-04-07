@@ -24,6 +24,18 @@ type Space struct {
 	Refs         map[string]Inst
 	ServiceKinds map[string]string
 	Edges        []Edge
+	edgeSet      map[Edge]bool
+}
+
+func (space *Space) addEdge(from, to string) {
+	e := Edge{From: from, To: to}
+	if space.edgeSet == nil {
+		space.edgeSet = make(map[Edge]bool)
+	}
+	if !space.edgeSet[e] {
+		space.edgeSet[e] = true
+		space.Edges = append(space.Edges, e)
+	}
 }
 
 func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert, owner string) error {
@@ -75,7 +87,7 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert, owner st
 					if !validate {
 						node.Value.(*ngnet.URL).Underlying = v.(ngnet.Interface)
 						if owner != "" {
-							space.Edges = append(space.Edges, Edge{From: owner, To: realnode.Interface})
+							space.addEdge(owner, realnode.Interface)
 						}
 					}
 				} else {
@@ -88,7 +100,7 @@ func (space *Space) Deptr(root *ArgNode, validate bool, _assert Assert, owner st
 				if svc, ok := space.Services[v]; ok {
 					node.Value = svc
 					if !validate && owner != "" && v != "" {
-						space.Edges = append(space.Edges, Edge{From: owner, To: v})
+						space.addEdge(owner, v)
 					}
 				} else {
 					return fmt.Errorf("ptr not found: %s", v)
@@ -252,7 +264,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 			}
 		}
 
-		if to != "" && to != "_" {
+		if to != "" && to != "_" && inst != nil {
 			space.Services[to] = inst
 			space.ServiceKinds[to] = _ref
 		}

@@ -25,10 +25,6 @@ export interface ModuleInfo {
 }
 
 export interface AdminMeta {
-  title: string
-  category: string
-  icon?: string
-  priority?: number
   root?: WidgetNode
 }
 
@@ -41,6 +37,8 @@ export interface WidgetNode {
 export interface InstanceDetail {
   name: string
   kind: string
+  dependsOn?: string[]
+  dependedBy?: string[]
   admin?: AdminMeta
 }
 
