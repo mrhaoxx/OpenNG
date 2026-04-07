@@ -1,10 +1,9 @@
-package tls
+package ngtls
 
 import (
 	"errors"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	. "github.com/mrhaoxx/OpenNG/pkg/ngtls"
 	"github.com/rs/zerolog/log"
 )
 

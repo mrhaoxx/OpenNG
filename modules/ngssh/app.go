@@ -1,4 +1,4 @@
-package ssh
+package ngssh
 
 import (
 	"errors"
@@ -7,8 +7,7 @@ import (
 	"strings"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	sshsdk "github.com/mrhaoxx/OpenNG/pkg/ngssh"
-	"github.com/mrhaoxx/OpenNG/pkg/ngtcp"
+	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -77,7 +76,7 @@ func registerMidware() {
 			logPassword := spec.MustGet("logpassword").ToBool()
 
 			policyd := spec.MustGet("policyd").Value.(interface {
-				CheckSSHKey(ctx *sshsdk.Ctx, key gossh.PublicKey) bool
+				CheckSSHKey(ctx *Ctx, key gossh.PublicKey) bool
 			}).CheckSSHKey
 
 			var prik []gossh.Signer
@@ -98,20 +97,20 @@ func registerMidware() {
 
 			log.Debug().Int("count", len(trimmedQuotes)).Msg("got quotes")
 
-			var pwd sshsdk.PasswordCbFn
+			var pwd PasswordCbFn
 			if logPassword {
-				pwd = func(ctx *sshsdk.Ctx, password []byte) bool {
+				pwd = func(ctx *Ctx, password []byte) bool {
 					return false
 				}
 			}
 
-			midware := sshsdk.NewSSHController(prik, banner, trimmedQuotes, pwd, policyd)
+			midware := NewSSHController(prik, banner, trimmedQuotes, pwd, policyd)
 
 			for _, srv := range services {
 				name := srv.MustGet("name").ToString()
 				logi := srv.MustGet("logi")
 
-				handler, ok := logi.Value.(sshsdk.Service)
+				handler, ok := logi.Value.(Service)
 				if !ok {
 					return nil, errors.New("ptr " + name + " is not a ssh.ConnHandler")
 				}
@@ -169,7 +168,7 @@ func registerReverseProxier() {
 		ng.Assert{
 			Type: "ptr",
 			Impls: []reflect.Type{
-				ng.TypeOf[sshsdk.Service](),
+				ng.TypeOf[Service](),
 			},
 		},
 		func(spec *ng.ArgNode) (any, error) {
@@ -188,7 +187,7 @@ func registerReverseProxier() {
 
 			log.Debug().Int("count", len(prik)).Msg("got default private keys")
 
-			hostMap := map[string]sshsdk.Host{}
+			hostMap := map[string]Host{}
 
 			for i, host := range hosts {
 				name := host.MustGet("name").ToString()
@@ -220,7 +219,7 @@ func registerReverseProxier() {
 					identityKey = pk
 				}
 
-				hostMap[lowered] = sshsdk.Host{
+				hostMap[lowered] = Host{
 					Name:         lowered,
 					Addr:         hostname + ":" + strconv.Itoa(port),
 					Pubkey:       parsedPubkey,
@@ -236,7 +235,7 @@ func registerReverseProxier() {
 				}
 			}
 
-			srv := sshsdk.NewSSHProxier(hostMap, prik)
+			srv := NewSSHProxier(hostMap, prik)
 			srv.AllowDnsQuery = allowDNSQuery
 
 			return srv, nil

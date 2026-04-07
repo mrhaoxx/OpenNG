@@ -1,0 +1,32 @@
+<head>
+	<meta charset="UTF-8">
+	<title>{{.CODE}} - NetGATE</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<style>
+		body {
+			background-color: white;
+			color: black;
+		}
+		@media (prefers-color-scheme: dark) {
+			body {
+				background-color: #181A1B;
+				color: white;
+			}
+		}
+	</style>
+</head>
+
+<body style="text-align: center">
+	<img src="/ng-cgi/logo" alt="logo" style="padding-top: 3%;margin: 0 auto;" width="20%" height="20%"><br>
+	<br>
+	<p>ERROR {{.CODE}}</p>
+	<div>
+		<p><strong>{{.MSG}}</a></strong></p>
+	</div>
+
+	<div style="position: fixed; bottom: 14px; width: 100%;color: #929292;font-family: monospace; font-weight: lighter">
+		{{.TAR}} ·&nbsp;RequestID:&nbsp;{{.RID}}&nbsp;· {{.RIP}} · {{.UTC}}
+	</div>
+</body>
+
+</html>
