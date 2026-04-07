@@ -322,7 +322,15 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		}
 
 		if m.Default != nil {
-			result["default"] = m.Default
+			if nodes, ok := m.Default.([]*ng.ArgNode); ok {
+				plain := make([]any, len(nodes))
+				for i, n := range nodes {
+					plain[i] = n.ToAny()
+				}
+				result["default"] = plain
+			} else {
+				result["default"] = m.Default
+			}
 		}
 
 		return result

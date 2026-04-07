@@ -61,7 +61,7 @@ export function AssertForm({
         const fieldPath = path ? `${path}.${key}` : key
 
         return (
-          <div key={key} className="mb-3">
+          <div key={key} id={`field-${fieldPath}`} className="mb-3">
             {/* Label */}
             <div className="flex items-center gap-1.5 mb-1">
               {/* Collapse toggle for nested objects */}

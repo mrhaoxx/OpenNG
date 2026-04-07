@@ -147,7 +147,7 @@ export function MapEditor({
 
         if (isComplex) {
           return (
-            <div key={key} className="border border-neutral-800 rounded-md p-3 bg-neutral-900/50">
+            <div key={key} id={`field-${path}.${key}`} className="border border-neutral-800 rounded-md p-3 bg-neutral-900/50">
               <div className="flex items-center gap-2 mb-2">
                 <input
                   type="text"
@@ -171,7 +171,7 @@ export function MapEditor({
         }
 
         return (
-          <div key={key} className="flex items-start gap-2">
+          <div key={key} id={`field-${path}.${key}`} className="flex items-start gap-2">
             <input
               type="text"
               value={key}

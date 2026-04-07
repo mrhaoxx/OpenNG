@@ -35,11 +35,12 @@ export interface ListEditorProps {
 interface SortableItemProps {
   id: string
   index: number
+  fieldId: string
   children: React.ReactNode
   onRemove: () => void
 }
 
-function SortableItem({ id, index, children, onRemove }: SortableItemProps) {
+function SortableItem({ id, index, fieldId, children, onRemove }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -56,7 +57,7 @@ function SortableItem({ id, index, children, onRemove }: SortableItemProps) {
   }
 
   return (
-    <div ref={setNodeRef} style={style} className="flex items-start gap-1">
+    <div ref={setNodeRef} style={style} id={fieldId} className="flex items-start gap-1">
       <button
         type="button"
         className="p-1 text-neutral-600 hover:text-neutral-400 cursor-grab active:cursor-grabbing shrink-0 mt-0.5"
@@ -251,6 +252,7 @@ export function ListEditor({
             <SortableItem
               key={itemIds[index]}
               id={itemIds[index]}
+              fieldId={`field-${path}[${index}]`}
               index={index}
               onRemove={() => removeItem(index)}
             >
