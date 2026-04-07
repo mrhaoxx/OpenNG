@@ -79,19 +79,8 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	case "/":
 		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
 		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/index.html")
-	case "/call":
-		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/call.html")
-	case "/connections":
-		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/connections.html")
-	case "/requests":
-		ctx.Resp.Header().Add("Content-Type", "text/html; charset=utf-8")
-		stdhttp.ServeFileFS(ctx.Resp, ctx.Req, index, "html/dist/requests.html")
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
-	case "/restart":
-		ctx.Resp.ErrorPage(nghttp.StatusNotImplemented, "Not Implemented")
 
 	case "/api/v1/cfg/reload":
 		if ctx.Req.Method != stdhttp.MethodPost {

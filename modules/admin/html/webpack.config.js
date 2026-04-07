@@ -1,14 +1,10 @@
 import CssMinimizerPlugin from 'css-minimizer-webpack-plugin'
 import HtmlWebPackPlugin from 'html-webpack-plugin'
 import MiniCssExtractPlugin from 'mini-css-extract-plugin'
-import HtmlInlineScriptPlugin from 'html-inline-script-webpack-plugin';
 
 export default {
   entry: {
-    index: './src/index.ts',
-    call: './src/call.ts',
-    connections: './src/connections.ts',
-    requests: './src/requests.ts'
+    app: './src/app.tsx'
   },
   output: {
     filename: '[name].[contenthash].js',
@@ -16,7 +12,11 @@ export default {
   },
   devtool: false,
   resolve: {
-    extensions: ['.mjs', '.js', '.ts']
+    extensions: ['.mjs', '.js', '.ts', '.tsx'],
+    alias: {
+      'react': 'preact/compat',
+      'react-dom': 'preact/compat'
+    }
   },
   module: {
     rules: [
@@ -25,7 +25,7 @@ export default {
         use: [MiniCssExtractPlugin.loader, 'css-loader', 'postcss-loader']
       },
       {
-        test: /\.ts$/,
+        test: /\.[jt]sx?$/,
         loader: 'ts-loader',
         options: { transpileOnly: true }
       }
@@ -38,45 +38,9 @@ export default {
   },
   plugins: [
     new HtmlWebPackPlugin({
-      template: './src/index.ejs',
+      template: './src/index.html',
       filename: 'index.html',
-      chunks: ['index'],
-      inject: 'body',
-      minify: {
-        collapseWhitespace: true,
-        removeComments: true,
-        removeRedundantAttributes: true,
-        useShortDoctype: true
-      }
-    }),
-    new HtmlWebPackPlugin({
-      template: './src/call.ejs',
-      filename: 'call.html',
-      chunks: ['call'],
-      inject: 'body',
-      minify: {
-        collapseWhitespace: true,
-        removeComments: true,
-        removeRedundantAttributes: true,
-        useShortDoctype: true
-      }
-    }),
-    new HtmlWebPackPlugin({
-      template: './src/connections.ejs',
-      filename: 'connections.html',
-      chunks: ['connections'],
-      inject: 'body',
-      minify: {
-        collapseWhitespace: true,
-        removeComments: true,
-        removeRedundantAttributes: true,
-        useShortDoctype: true
-      }
-    }),
-    new HtmlWebPackPlugin({
-      template: './src/requests.ejs',
-      filename: 'requests.html',
-      chunks: ['requests'],
+      chunks: ['app'],
       inject: 'body',
       minify: {
         collapseWhitespace: true,
