@@ -211,7 +211,10 @@ func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ngssh.Ctx, key gossh.Pub
 		if g.PolicyBackend == nil {
 			return false
 		}
-		return g.PolicyBackend.CheckSSHKey(ctx, key)
+		if checker, ok := g.PolicyBackend.(auth.SSHKeyChecker); ok {
+			return checker.CheckSSHKey(ctx, key)
+		}
+		return false
 	}
 
 	// gitlabUrl + username + .keys
@@ -284,14 +287,20 @@ func (g *GitlabEnhancedPolicydBackend) CheckSSHKey(ctx *ngssh.Ctx, key gossh.Pub
 		}
 	}
 
-	return g.PolicyBackend.CheckSSHKey(ctx, key)
+	if checker, ok := g.PolicyBackend.(auth.SSHKeyChecker); ok {
+		return checker.CheckSSHKey(ctx, key)
+	}
+	return false
 }
 
 func (g *GitlabEnhancedPolicydBackend) AllowForwardProxy(username string) bool {
 	if g.PolicyBackend == nil {
 		return false
 	}
-	return g.PolicyBackend.AllowForwardProxy(username)
+	if authorizer, ok := g.PolicyBackend.(auth.ForwardProxyAuthorizer); ok {
+		return authorizer.AllowForwardProxy(username)
+	}
+	return false
 }
 
 func NewUdpLogger(address string) *udpLogger {

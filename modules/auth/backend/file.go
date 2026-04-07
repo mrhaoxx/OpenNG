@@ -17,7 +17,6 @@ type user struct {
 	allow_forward_proxy bool
 	sshkeys             []gossh.PublicKey
 	allowsshpwd         bool
-	clientCertFPs       []string
 
 	passwordmap sync.Map
 }
@@ -53,8 +52,7 @@ _false:
 }
 
 type fileBackend struct {
-	usrs        map[string]*user
-	certFPIndex map[string]string // fingerprint -> username
+	usrs map[string]*user
 }
 
 func (mgr *fileBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool {
@@ -78,22 +76,13 @@ func (mgr *fileBackend) CheckPassword(username string, password string) bool {
 	return usr.checkpwd(password)
 }
 
-func (mgr *fileBackend) CheckClientCert(fingerprint string) (string, bool) {
-	username, ok := mgr.certFPIndex[fingerprint]
-	return username, ok
-}
-
-func (mgr *fileBackend) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool, clientCertFPs []string) {
+func (mgr *fileBackend) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool) {
 	mgr.usrs[username] = &user{
 		name:                username,
 		passwordHash:        passwordhash,
 		allow_forward_proxy: allow_forward_proxy,
 		sshkeys:             sshkeys,
 		allowsshpwd:         allowsshpwd,
-		clientCertFPs:       clientCertFPs,
-	}
-	for _, fp := range clientCertFPs {
-		mgr.certFPIndex[fp] = username
 	}
 }
 
@@ -107,8 +96,7 @@ func (mgr *fileBackend) AllowForwardProxy(username string) bool {
 
 func NewFileBackend() *fileBackend {
 	return &fileBackend{
-		usrs:        make(map[string]*user),
-		certFPIndex: make(map[string]string),
+		usrs: make(map[string]*user),
 	}
 }
 

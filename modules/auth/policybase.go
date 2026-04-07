@@ -77,6 +77,8 @@ type policyBaseAuth struct {
 
 	backends backendGroup
 
+	certMappings map[string]string // fingerprint -> username
+
 	sessions  map[string]*session
 	muSession sync.RWMutex
 }
@@ -89,10 +91,15 @@ func (p *policyBaseAuth) at(session string) *session {
 
 type PolicyBackend interface {
 	CheckPassword(username string, password string) bool
-	CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool
-	CheckClientCert(fingerprint string) (username string, ok bool)
-	AllowForwardProxy(username string) bool
 	ExistsUser(username string) bool
+}
+
+type SSHKeyChecker interface {
+	CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool
+}
+
+type ForwardProxyAuthorizer interface {
+	AllowForwardProxy(username string) bool
 }
 
 type backendGroup []PolicyBackend
@@ -108,26 +115,21 @@ func (b backendGroup) CheckPassword(username string, password string) (bool, int
 
 func (b backendGroup) CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) (bool, int) {
 	for i, backend := range b {
-		if backend.CheckSSHKey(ctx, key) {
-			return true, i
+		if checker, ok := backend.(SSHKeyChecker); ok {
+			if checker.CheckSSHKey(ctx, key) {
+				return true, i
+			}
 		}
 	}
 	return false, -1
 }
 
-func (b backendGroup) CheckClientCert(fingerprint string) (username string, ok bool, src int) {
-	for i, backend := range b {
-		if username, ok := backend.CheckClientCert(fingerprint); ok {
-			return username, true, i
-		}
-	}
-	return "", false, -1
-}
-
 func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
 	for i, backend := range b {
-		if backend.AllowForwardProxy(username) {
-			return true, i
+		if auth, ok := backend.(ForwardProxyAuthorizer); ok {
+			if auth.AllowForwardProxy(username) {
+				return true, i
+			}
 		}
 	}
 	return false, -1
@@ -135,7 +137,8 @@ func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
 
 func NewPBAuth() *policyBaseAuth {
 	po := &policyBaseAuth{
-		sessions: map[string]*session{},
+		sessions:     map[string]*session{},
+		certMappings: map[string]string{},
 	}
 
 	po.policyLookupBuf = lookup.NewBufferedLookup(func(s string) []*policy {
@@ -181,8 +184,8 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 	// If no valid session, try client certificate authentication
 	if session == nil && ctx.Req.TLS != nil && len(ctx.Req.TLS.PeerCertificates) > 0 {
 		fp := certFingerprint(ctx.Req.TLS.PeerCertificates[0])
-		if username, ok, src := mgr.backends.CheckClientCert(fp); ok {
-			token = mgr.generateSession(username, src)
+		if username, ok := mgr.certMappings[fp]; ok {
+			token = mgr.generateSession(username, -1)
 			session = mgr.at(token)
 			user = username
 
@@ -558,13 +561,13 @@ func (mgr *policyBaseAuth) AddBackends(_src []PolicyBackend) {
 	mgr.backends = append(mgr.backends, _src...)
 }
 
+func (mgr *policyBaseAuth) AddCertMapping(fingerprint string, username string) {
+	mgr.certMappings[fingerprint] = username
+}
+
 func (mgr *policyBaseAuth) CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool {
-	for _, backend := range mgr.backends {
-		if backend.CheckSSHKey(ctx, key) {
-			return true
-		}
-	}
-	return false
+	ok, _ := mgr.backends.CheckSSHKey(ctx, key)
+	return ok
 }
 
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"

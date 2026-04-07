@@ -85,13 +85,6 @@ func init() {
 										"_": {Type: "string"},
 									},
 								},
-								"ClientCertFingerprints": {
-									Type: "list",
-									Desc: "SHA256 fingerprints of client TLS certificates",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
 							},
 						},
 					},
@@ -123,9 +116,7 @@ func init() {
 					parsedKeys = append(parsedKeys, pk)
 				}
 
-				clientCertFPs := user.MustGet("ClientCertFingerprints").ToStringList()
-
-				backend.SetUser(name, pw, allowfp, parsedKeys, false, clientCertFPs)
+				backend.SetUser(name, pw, allowfp, parsedKeys, false)
 			}
 
 			return backend, nil
@@ -208,6 +199,19 @@ func init() {
 						}},
 					},
 				},
+				"CertMappings": {
+					Type: "list",
+					Desc: "Client certificate fingerprint to username mappings",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"Fingerprint": {Type: "string", Required: true, Desc: "SHA256 fingerprint of client TLS certificate"},
+								"Username":    {Type: "string", Required: true, Desc: "Username to authenticate as"},
+							},
+						},
+					},
+				},
 			},
 		},
 		ng.Assert{
@@ -240,6 +244,12 @@ func init() {
 			}
 
 			policyd.AddBackends(policyBackends)
+
+			for _, mapping := range spec.MustGet("CertMappings").ToList() {
+				fingerprint := mapping.MustGet("Fingerprint").ToString()
+				username := mapping.MustGet("Username").ToString()
+				policyd.AddCertMapping(fingerprint, username)
+			}
 
 			return policyd, nil
 		},
