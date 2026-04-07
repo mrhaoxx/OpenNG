@@ -117,6 +117,11 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
+.yaml-highlight-line {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+  transition: background-color 0.3s;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

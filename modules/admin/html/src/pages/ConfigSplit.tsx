@@ -101,12 +101,14 @@ export default function ConfigSplit() {
       if (changeSourceRef.current === 'visual') return
       if (yamlSyncTimer.current) clearTimeout(yamlSyncTimer.current)
       yamlSyncTimer.current = setTimeout(() => {
+        const text = editor.getValue()
         try {
-          const parsed = YAML.parse(editor.getValue())
+          const parsed = YAML.parse(text)
           if (parsed) {
             changeSourceRef.current = 'yaml'
             setConfig(parsed)
             setTimeout(() => { changeSourceRef.current = 'none' }, 50)
+            scheduleValidation(parsed)
           }
         } catch { /* invalid YAML */ }
         setDirty(true)
@@ -168,12 +170,17 @@ export default function ConfigSplit() {
     return () => disposable.dispose()
   }, [])
 
-  // Visual focus → scroll YAML to matching line
+  // Visual focus → scroll YAML to matching line (debounced)
   const configReady = config !== null
+  const visualFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const panel = visualRef.current
     if (!panel) return
     const handler = (e: FocusEvent) => {
+      if (visualFocusTimer.current) clearTimeout(visualFocusTimer.current)
+      visualFocusTimer.current = setTimeout(() => handleVisualFocus(e), 100)
+    }
+    const handleVisualFocus = (e: FocusEvent) => {
       const editor = editorRef.current
       const model = editor?.getModel()
       if (!editor || !model) return
@@ -194,10 +201,19 @@ export default function ConfigSplit() {
       const line = findYamlLine(text, fieldId)
       if (line > 0) {
         editor.revealLineInCenter(line)
+        // Highlight the line briefly
+        const decs = editor.deltaDecorations([], [{
+          range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
+          options: { className: 'yaml-highlight-line', isWholeLine: true },
+        }])
+        setTimeout(() => editor.deltaDecorations(decs, []), 1500)
       }
-    }
+    } // end handleVisualFocus
     panel.addEventListener('focusin', handler)
-    return () => panel.removeEventListener('focusin', handler)
+    return () => {
+      panel.removeEventListener('focusin', handler)
+      if (visualFocusTimer.current) clearTimeout(visualFocusTimer.current)
+    }
   }, [configReady])
 
   // Visual → YAML sync
@@ -224,7 +240,7 @@ export default function ConfigSplit() {
     updateFromVisual({ ...config, Services: { ...config.Services, [name]: value } })
   }, [config, updateFromVisual])
 
-  const scheduleValidation = useCallback((cfg: Record<string, any>) => {
+  const scheduleValidation = useRef((cfg: Record<string, any>) => {
     if (validateTimer.current) clearTimeout(validateTimer.current)
     validateTimer.current = setTimeout(async () => {
       try {
@@ -232,7 +248,7 @@ export default function ConfigSplit() {
         setProblems(await resp.json())
       } catch { /* ignore */ }
     }, 800)
-  }, [])
+  }).current
 
   const save = useCallback(async () => {
     const editor = editorRef.current
@@ -496,8 +512,7 @@ function findYamlLine(text: string, elementId: string): number {
     return findServiceLine(text, elementId.slice(4))
   }
 
-  // Parse "field-svc.key1[idx].key2..." into segments
-  const path = elementId.slice('field-'.length) // "httpproxier.hosts[7].backend"
+  const path = elementId.slice('field-'.length)
   const segments: string[] = []
   let buf = ''
   for (const ch of path) {
@@ -512,35 +527,55 @@ function findYamlLine(text: string, elementId: string): number {
     }
   }
   if (buf) segments.push(buf)
-  // segments: ["httpproxier", "hosts", "[7]", "backend"]
 
   if (segments.length === 0) return 1
 
   const lines = text.split('\n')
   let lineIdx = 0
+  let expectIndent = 0 // expected indent for next segment
 
-  for (const seg of segments) {
+  for (let si = 0; si < segments.length; si++) {
+    const seg = segments[si]
+
     if (seg.startsWith('[')) {
-      // List index: find the nth "- " at or after lineIdx with appropriate indent
+      // List index: find nth "- " at expectIndent+2
       const idx = parseInt(seg.slice(1, -1))
-      const baseIndent = lines[lineIdx] ? lines[lineIdx].length - lines[lineIdx].trimStart().length + 2 : 0
+      const listIndent = expectIndent + 2
       let count = 0
+      let found = false
       for (let i = lineIdx + 1; i < lines.length; i++) {
         const raw = lines[i]
         const trimmed = raw.trimStart()
         const indent = raw.length - trimmed.length
-        if (indent < baseIndent && trimmed) break // left the parent scope
-        if (indent === baseIndent && trimmed.startsWith('- ')) {
-          if (count === idx) { lineIdx = i; break }
+        if (indent < expectIndent && trimmed) break
+        if (indent === listIndent && trimmed.startsWith('- ')) {
+          if (count === idx) { lineIdx = i; expectIndent = listIndent + 2; found = true; break }
           count++
         }
       }
+      if (!found) break
     } else {
-      // Key: find "seg:" at appropriate indent after lineIdx
-      const pat = new RegExp(`^(\\s*)${seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`)
+      // Key: find "seg:" at exactly expectIndent
+      const escaped = seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      let found = false
       for (let i = lineIdx; i < lines.length; i++) {
-        if (pat.test(lines[i])) { lineIdx = i; break }
+        const raw = lines[i]
+        const trimmed = raw.trimStart()
+        const indent = raw.length - trimmed.length
+        // Stop if we've left the scope
+        if (i > lineIdx && indent < expectIndent && trimmed) break
+        // Match key at expected indent (or within list item at expectIndent-2)
+        if (indent === expectIndent || (indent >= expectIndent && indent <= expectIndent + 2)) {
+          const keyPat = new RegExp(`^-?\\s*${escaped}\\s*:`)
+          if (keyPat.test(trimmed)) {
+            lineIdx = i
+            expectIndent = indent + 2
+            found = true
+            break
+          }
+        }
       }
+      if (!found) break
     }
   }
 
