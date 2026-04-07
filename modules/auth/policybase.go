@@ -102,6 +102,10 @@ type ForwardProxyAuthorizer interface {
 	AllowForwardProxy(username string) bool
 }
 
+type ClientCertChecker interface {
+	CheckClientCert(fingerprint string) (username string, ok bool)
+}
+
 type backendGroup []PolicyBackend
 
 func (b backendGroup) CheckPassword(username string, password string) (bool, int) {
@@ -133,6 +137,17 @@ func (b backendGroup) AllowForwardProxy(username string) (bool, int) {
 		}
 	}
 	return false, -1
+}
+
+func (b backendGroup) CheckClientCert(fingerprint string) (username string, ok bool, src int) {
+	for i, backend := range b {
+		if checker, ok := backend.(ClientCertChecker); ok {
+			if username, ok := checker.CheckClientCert(fingerprint); ok {
+				return username, true, i
+			}
+		}
+	}
+	return "", false, -1
 }
 
 func NewPBAuth() *policyBaseAuth {
@@ -184,7 +199,11 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 	// If no valid session, try client certificate authentication
 	if session == nil && ctx.Req.TLS != nil && len(ctx.Req.TLS.PeerCertificates) > 0 {
 		fp := certFingerprint(ctx.Req.TLS.PeerCertificates[0])
-		if username, ok := mgr.certMappings[fp]; ok {
+		username, ok := mgr.certMappings[fp]
+		if !ok {
+			username, ok, _ = mgr.backends.CheckClientCert(fp)
+		}
+		if ok {
 			token = mgr.generateSession(username, -1)
 			session = mgr.at(token)
 			user = username

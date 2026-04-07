@@ -85,6 +85,13 @@ func init() {
 										"_": {Type: "string"},
 									},
 								},
+								"ClientCertFingerprints": {
+									Type: "list",
+									Desc: "SHA256 fingerprints of client TLS certificates",
+									Sub: ng.AssertMap{
+										"_": {Type: "string"},
+									},
+								},
 							},
 						},
 					},
@@ -116,7 +123,8 @@ func init() {
 					parsedKeys = append(parsedKeys, pk)
 				}
 
-				backend.SetUser(name, pw, allowfp, parsedKeys, false)
+				clientCertFPs := user.MustGet("ClientCertFingerprints").ToStringList()
+				backend.SetUser(name, pw, allowfp, parsedKeys, false, clientCertFPs)
 			}
 
 			return backend, nil
