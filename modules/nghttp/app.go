@@ -1,21 +1,17 @@
 package nghttp
 
 import (
-	"errors"
 	"net/url"
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
-	"github.com/rs/zerolog/log"
 )
 
 func init() {
 	registerReverseProxier()
 	registerMidware()
-	registerMidwareAddService()
 	registerSecureHTTP()
 }
 
@@ -113,76 +109,6 @@ func registerReverseProxier() {
 
 func registerMidware() {
 	ng.RegisterFunc("http::midware", NewHttpMidware)
-}
-
-func registerMidwareAddService() {
-	ng.Register("http::midware::addservice",
-		ng.Assert{
-			Type: "map",
-			Desc: "adds additional HTTP services to an existing HTTP middleware",
-			Sub: ng.AssertMap{
-				"midware": {Type: "ptr", Required: true, Desc: "pointer to the target HTTP middleware to add services to"},
-				"services": {
-					Type: "list",
-					Desc: "list of HTTP services to add",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"logi": {Type: "ptr", Required: true, Impls: []reflect.Type{ng.TypeOf[Service]()}, Desc: "pointer to service handler implementation"},
-								"hosts": {
-									Type: "list",
-									Desc: "hostnames this service handles",
-									Sub: ng.AssertMap{
-										"_": {Type: "hostname"},
-									},
-								},
-								"name": {Type: "string", Required: true, Desc: "name of the service (used in logs and monitoring)"},
-							},
-						},
-					},
-				},
-			},
-		},
-		ng.Assert{Type: "null"},
-		func(spec *ng.ArgNode) (any, error) {
-			midware, ok := spec.MustGet("midware").Value.(*Midware)
-			if !ok {
-				return nil, errors.New("ptr is not a http.Midware")
-			}
-
-			services := spec.MustGet("services").ToList()
-
-			for _, srv := range services {
-				name := srv.MustGet("name").ToString()
-				logi := srv.MustGet("logi")
-				hosts := srv.MustGet("hosts").ToGroupRegexp()
-
-				service := logi.Value.(Service)
-
-				var compiled groupexp.GroupRegexp
-				if len(hosts) == 0 {
-					compiled = service.Hosts()
-				} else {
-					compiled = hosts
-				}
-
-				midware.AddServices(&ServiceStruct{
-					Id:             name,
-					Hosts:          compiled,
-					ServiceHandler: service.HandleHTTP,
-				})
-
-				log.Debug().
-					Str("name", name).
-					Strs("hosts", compiled.String()).
-					Type("logi", logi.Value).
-					Msg("new http service")
-			}
-
-			return nil, nil
-		},
-	)
 }
 
 func registerSecureHTTP() {

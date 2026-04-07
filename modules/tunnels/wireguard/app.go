@@ -10,7 +10,6 @@ import (
 
 func init() {
 	registerServer()
-	registerAddPeers()
 }
 
 func registerServer() {
@@ -120,46 +119,3 @@ func registerServer() {
 	)
 }
 
-func registerAddPeers() {
-	ng.Register("wireguard::addpeers",
-		ng.Assert{
-			Type: "map",
-			Sub: ng.AssertMap{
-				"Peers": {
-					Type: "list",
-					Sub: ng.AssertMap{
-						"_": {
-							Type: "map",
-							Sub: ng.AssertMap{
-								"PublicKey": {Type: "string", Required: true},
-								"AllowedIPs": {
-									Type: "list",
-									Sub: ng.AssertMap{
-										"_": {Type: "string"},
-									},
-								},
-							},
-						},
-					},
-				},
-				"server": {Type: "ptr", Required: true},
-			},
-		},
-		ng.Assert{Type: "null"},
-		func(spec *ng.ArgNode) (any, error) {
-			peers := spec.MustGet("Peers").ToList()
-			server := spec.MustGet("server").Value.(*WireGuardServer)
-
-			for _, peer := range peers {
-				publicKey := peer.MustGet("PublicKey").ToString()
-				allowedIPs := peer.MustGet("AllowedIPs").ToStringList()
-
-				if err := server.AddPeer(publicKey, allowedIPs); err != nil {
-					return nil, err
-				}
-			}
-
-			return nil, nil
-		},
-	)
-}
