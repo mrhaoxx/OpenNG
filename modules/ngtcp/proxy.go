@@ -3,7 +3,7 @@ package ngtcp
 import (
 	"sync"
 
-	ngnet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type ProxyHost struct {

@@ -9,7 +9,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	ngnet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type Conn struct {

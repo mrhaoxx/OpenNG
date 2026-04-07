@@ -9,8 +9,8 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
-	"github.com/mrhaoxx/OpenNG/modules/ngdns"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 //go:embed NetGATE.svg

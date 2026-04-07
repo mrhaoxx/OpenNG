@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	opennet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
 )
 

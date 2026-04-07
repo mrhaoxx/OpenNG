@@ -10,7 +10,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	zlog "github.com/rs/zerolog/log"
 )

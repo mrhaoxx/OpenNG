@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/tcp"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/udp"

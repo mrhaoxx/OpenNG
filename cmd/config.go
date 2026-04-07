@@ -6,7 +6,7 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
 )

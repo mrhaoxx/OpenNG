@@ -7,7 +7,7 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/rs/zerolog/log"
 )

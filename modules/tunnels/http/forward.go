@@ -11,7 +11,7 @@ import (
 
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type StdForwardProxy struct {

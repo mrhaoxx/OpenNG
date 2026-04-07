@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"net/url"
 
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 type HttpProxyInterface struct {

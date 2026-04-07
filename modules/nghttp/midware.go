@@ -14,7 +14,7 @@ import (
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/lookup"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"golang.org/x/net/http2"
 )

@@ -11,7 +11,7 @@ import (
 
 	"github.com/mrhaoxx/OpenNG/modules/auth"
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
-	ngnet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngssh"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	zlog "github.com/rs/zerolog/log"

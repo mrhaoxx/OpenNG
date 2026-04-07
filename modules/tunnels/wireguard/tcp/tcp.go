@@ -20,7 +20,7 @@ import (
 
 	gnet "net"
 
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/netstack"
 

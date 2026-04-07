@@ -19,7 +19,7 @@ import (
 	"time"
 
 	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 
 	"github.com/andybalholm/brotli"

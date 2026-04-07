@@ -7,7 +7,7 @@ import (
 	"unicode"
 
 	"github.com/go-ldap/ldap/v3"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngssh"
 	gossh "golang.org/x/crypto/ssh"
 )

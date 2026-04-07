@@ -5,7 +5,7 @@ import (
 
 	ng "github.com/mrhaoxx/OpenNG"
 	httpsdk "github.com/mrhaoxx/OpenNG/modules/nghttp"
-	opennet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	opennet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {

@@ -13,7 +13,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/lookup"
-	"github.com/mrhaoxx/OpenNG/modules/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	zlog "github.com/rs/zerolog/log"
 )

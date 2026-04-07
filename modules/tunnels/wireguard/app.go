@@ -5,7 +5,7 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	ngnet "github.com/mrhaoxx/OpenNG/modules/ngnet"
+	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {

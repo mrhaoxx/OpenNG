@@ -9,7 +9,7 @@ import (
 
 	"github.com/mrhaoxx/OpenNG/modules/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/lookup"
-	ngdns "github.com/mrhaoxx/OpenNG/modules/ngdns"
+	ngdns "github.com/mrhaoxx/OpenNG/pkg/ngdns"
 )
 
 func certNames(leaf *x509.Certificate) []string {
