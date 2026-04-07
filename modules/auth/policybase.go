@@ -11,7 +11,7 @@ import (
 
 	stdhttp "net/http"
 
-	"github.com/mrhaoxx/OpenNG/modules/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/modules/ngssh"
 

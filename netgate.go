@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )

@@ -10,7 +10,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	zlog "github.com/rs/zerolog/log"
 )
 

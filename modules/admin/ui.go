@@ -21,7 +21,7 @@ import (
 	ng "github.com/mrhaoxx/OpenNG"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
 	file "github.com/mrhaoxx/OpenNG/modules/auth/backend"
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/modules/ngtls"
 	zlog "github.com/rs/zerolog/log"

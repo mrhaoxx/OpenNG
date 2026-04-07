@@ -7,8 +7,8 @@ import (
 	"os"
 	"sync"
 
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
-	"github.com/mrhaoxx/OpenNG/modules/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	ngdns "github.com/mrhaoxx/OpenNG/pkg/ngdns"
 )
 

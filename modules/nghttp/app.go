@@ -6,7 +6,7 @@ import (
 	"reflect"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	tcpsdk "github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/rs/zerolog/log"

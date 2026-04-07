@@ -8,7 +8,7 @@ import (
 
 	"github.com/dlclark/regexp2"
 	"github.com/miekg/dns"
-	"github.com/mrhaoxx/OpenNG/modules/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 
 	zlog "github.com/rs/zerolog/log"
 )

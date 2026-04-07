@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )

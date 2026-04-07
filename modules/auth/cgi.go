@@ -10,7 +10,7 @@ import (
 
 	stdhttp "net/http"
 
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 
 	zlog "github.com/rs/zerolog/log"

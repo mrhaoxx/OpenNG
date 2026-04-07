@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 )
 
