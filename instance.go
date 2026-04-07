@@ -317,53 +317,23 @@ func topoSort(entries []serviceEntry, prePopulated map[string]bool) ([]int, erro
 
 func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 	srvs := root.MustGet("Services")
+	if srvs == nil || srvs.Type != "map" {
+		return fmt.Errorf("Services must be a map, got %s", srvs.Type)
+	}
 
-	// Determine format: list (legacy) or map (new declarative)
 	var entries []serviceEntry
-
-	switch srvs.Type {
-	case "list":
-		// Legacy format: [{kind, name, spec}, ...]
-		for i, _srv := range srvs.Value.([]*ArgNode) {
-			kind := _srv.MustGet("kind").ToString()
-			name := _srv.MustGet("name").ToString()
-			spec := _srv.MustGet("spec")
-
-			ref, ok := space.Refs[kind]
-			if !ok {
-				return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+kind)
-			}
-			assert, ok := space.AssertRefs[kind]
-			if !ok {
-				return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+kind)
-			}
-
-			if err := AssertArg(spec, assert); err != nil {
-				return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+kind, err)
-			}
-
-			deps := collectDeps(spec, assert)
-			entries = append(entries, serviceEntry{
-				name: name, kind: kind, spec: spec,
-				ref: ref, assert: assert, deps: deps,
-			})
+	for name, entry := range srvs.ToMap() {
+		entryMap := entry.ToMap()
+		kindNode, ok := entryMap["kind"]
+		if !ok || kindNode == nil {
+			return fmt.Errorf("service %q: missing kind", name)
 		}
+		kind := kindNode.ToString()
 
-	case "map":
-		// New declarative format: {name: {kind, ...fields}, ...}
-		for name, entry := range srvs.ToMap() {
-			entryMap := entry.ToMap()
-			kindNode, ok := entryMap["kind"]
-			if !ok || kindNode == nil {
-				return fmt.Errorf("service %q: missing kind", name)
-			}
-			kind := kindNode.ToString()
-
-			// spec field, same as legacy format
-			spec := entryMap["spec"]
-			if spec == nil {
-				spec = &ArgNode{Type: "null", Value: nil}
-			}
+		spec := entryMap["spec"]
+		if spec == nil {
+			spec = &ArgNode{Type: "null", Value: nil}
+		}
 
 			ref, ok := space.Refs[kind]
 			if !ok {
@@ -383,9 +353,6 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 				name: name, kind: kind, spec: spec,
 				ref: ref, assert: assert, deps: deps,
 			})
-		}
-	default:
-		return fmt.Errorf("Services must be a list or map, got %s", srvs.Type)
 	}
 
 	// Build set of pre-populated service names
