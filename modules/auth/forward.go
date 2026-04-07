@@ -14,7 +14,7 @@ func needAuth(ctx *nghttp.HttpCtx) {
 	ctx.Resp.WriteHeader(nghttp.StatusProxyAuthRequired)
 }
 
-func (l *policyBaseAuth) HandleHTTPForward(ctx *nghttp.HttpCtx) nghttp.Ret {
+func (l *PolicyBaseAuth) HandleHTTPForward(ctx *nghttp.HttpCtx) nghttp.Ret {
 	hdr := ctx.Req.Header.Get("Proxy-Authorization")
 	if hdr == "" {
 		needAuth(ctx)
@@ -52,7 +52,7 @@ func (l *policyBaseAuth) HandleHTTPForward(ctx *nghttp.HttpCtx) nghttp.Ret {
 	return nghttp.RequestEnd
 }
 
-func (mgr *policyBaseAuth) HandleSocks5(username string, password string, userAddr string) bool {
+func (mgr *PolicyBaseAuth) HandleSocks5(username string, password string, userAddr string) bool {
 	allowed, i := mgr.backends.AllowForwardProxy(username)
 	if allowed && mgr.backends[i].CheckPassword(username, password) {
 		return true
@@ -60,6 +60,6 @@ func (mgr *policyBaseAuth) HandleSocks5(username string, password string, userAd
 	return false
 }
 
-func (*policyBaseAuth) HostsForward() groupexp.GroupRegexp {
+func (*PolicyBaseAuth) HostsForward() groupexp.GroupRegexp {
 	return nil
 }

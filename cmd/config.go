@@ -93,41 +93,32 @@ func GlobalCfg(config *ng.ArgNode) error {
 	return nil
 }
 
-func ValidateCfg(cfgs []byte) []string {
+func ValidateCfg(cfgs []byte) []ng.ConfigError {
 	var cfg any
 	err := yaml.Unmarshal(cfgs, &cfg)
 	if err != nil {
-		return []string{err.Error()}
+		return []ng.ConfigError{{Phase: "parse", Message: err.Error()}}
 	}
 
 	nodes := &ng.ArgNode{}
-	err = nodes.FromAny(cfg)
-	if err != nil {
-		return []string{err.Error()}
+	if err := nodes.FromAny(cfg); err != nil {
+		return []ng.ConfigError{{Phase: "parse", Message: err.Error()}}
 	}
 
 	if err := Dedref(nodes); err != nil {
-		return []string{err.Error()}
+		return []ng.ConfigError{{Phase: "parse", Message: err.Error()}}
 	}
 
 	if err := ng.AssertArg(nodes, TopLevelConfigAssertion); err != nil {
-		return []string{err.Error()}
+		return []ng.ConfigError{{Phase: "schema", Message: err.Error()}}
 	}
 
 	space := ng.Space{
-		Services: map[string]any{
-			"sys": true,
-		},
+		Services:     map[string]any{"sys": true},
 		Refs:         ng.Registry(),
 		AssertRefs:   ng.AssertionsRegistry(),
 		ServiceKinds: map[string]string{},
 	}
 
-	err = space.Apply(nodes, false, true)
-
-	if err != nil {
-		return []string{err.Error()}
-	}
-
-	return nil
+	return space.Validate(nodes)
 }

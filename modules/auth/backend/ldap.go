@@ -12,7 +12,7 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-type ldapBackend struct {
+type LDAPBackend struct {
 	url        string
 	searchBase string
 
@@ -22,7 +22,7 @@ type ldapBackend struct {
 	ldapQueryConnPool sync.Pool
 }
 
-func (backend *ldapBackend) tryGetQueryConn() *ldap.Conn {
+func (backend *LDAPBackend) tryGetQueryConn() *ldap.Conn {
 	conn, ok := backend.ldapQueryConnPool.Get().(*ldap.Conn)
 	if !ok {
 		return nil
@@ -38,7 +38,7 @@ func (backend *ldapBackend) tryGetQueryConn() *ldap.Conn {
 	return conn
 }
 
-func (backend *ldapBackend) CheckPassword(username string, password string) bool {
+func (backend *LDAPBackend) CheckPassword(username string, password string) bool {
 	// only allow a-z A-Z 0-9 _ - . @
 	for _, r := range username {
 		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
@@ -73,7 +73,7 @@ func (backend *ldapBackend) CheckPassword(username string, password string) bool
 	return false
 }
 
-func (backend *ldapBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool {
+func (backend *LDAPBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool {
 	// only allow a-z A-Z 0-9 _ - . @
 	for _, r := range ctx.User {
 		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
@@ -100,7 +100,7 @@ func (backend *ldapBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) 
 	return false
 }
 
-func (backend *ldapBackend) searchUserSSHPubkey(username string) (ret []string, err error) {
+func (backend *LDAPBackend) searchUserSSHPubkey(username string) (ret []string, err error) {
 
 	conn := backend.tryGetQueryConn()
 	defer backend.ldapQueryConnPool.Put(conn)
@@ -156,9 +156,9 @@ func (backend *ldapBackend) searchUserSSHPubkey(username string) (ret []string, 
 
 }
 
-func NewLDAPBackend(url *ngnet.URL, searchBase, bindDN, bindPW string) *ldapBackend {
+func NewLDAPBackend(url *ngnet.URL, searchBase, bindDN, bindPW string) *LDAPBackend {
 
-	back := &ldapBackend{
+	back := &LDAPBackend{
 		url:        url.String(),
 		searchBase: searchBase,
 		bindDN:     bindDN,
@@ -181,7 +181,7 @@ func NewLDAPBackend(url *ngnet.URL, searchBase, bindDN, bindPW string) *ldapBack
 	return back
 }
 
-func (mgr *ldapBackend) ExistsUser(username string) bool {
+func (mgr *LDAPBackend) ExistsUser(username string) bool {
 	for _, r := range username {
 		if !unicode.IsLetter(r) && !unicode.IsNumber(r) && r != '_' && r != '-' && r != '.' && r != '@' {
 			return false

@@ -3,7 +3,6 @@ package auth
 import (
 	ng "github.com/mrhaoxx/OpenNG"
 	authbackend "github.com/mrhaoxx/OpenNG/modules/auth/backend"
-	nghttp "github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/rs/zerolog/log"
 	gossh "golang.org/x/crypto/ssh"
@@ -23,7 +22,7 @@ type AuthManagerConfig struct {
 	Allowhosts ng.HostnameSliceDefault  `ng:"allowhosts"`
 }
 
-func NewAuthManagerFromConfig(cfg AuthManagerConfig) (nghttp.Service, error) {
+func NewAuthManagerFromConfig(cfg AuthManagerConfig) (*AuthMgr, error) {
 	return NewAuthMgr(cfg.Backends, cfg.Allowhosts.GroupRegexp()), nil
 }
 
@@ -41,7 +40,7 @@ type FileBackendConfig struct {
 	Users []FileUserConfig `ng:"users"`
 }
 
-func NewFileBackendFromConfig(cfg FileBackendConfig) (PolicyBackend, error) {
+func NewFileBackendFromConfig(cfg FileBackendConfig) (*authbackend.FileBackend, error) {
 	backend := authbackend.NewFileBackend()
 
 	for _, user := range cfg.Users {
@@ -69,7 +68,7 @@ type LDAPBackendConfig struct {
 	BindPW     string    `ng:"BindPW,required"`
 }
 
-func NewLDAPBackendFromConfig(cfg LDAPBackendConfig) (PolicyBackend, error) {
+func NewLDAPBackendFromConfig(cfg LDAPBackendConfig) (*authbackend.LDAPBackend, error) {
 	log.Debug().
 		Str("searchbase", cfg.SearchBase).
 		Str("binddn", cfg.BindDN).
@@ -100,7 +99,7 @@ type PolicydConfig struct {
 	CertMappings []CertMappingConfig `ng:"CertMappings" desc:"Client certificate fingerprint to username mappings"`
 }
 
-func NewPolicydFromConfig(cfg PolicydConfig) (AuthHandle, error) {
+func NewPolicydFromConfig(cfg PolicydConfig) (*PolicyBaseAuth, error) {
 	policyd := NewPBAuth()
 
 	for _, p := range cfg.Policies {

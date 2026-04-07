@@ -51,12 +51,12 @@ _false:
 	return false
 }
 
-type fileBackend struct {
+type FileBackend struct {
 	usrs        map[string]*user
 	certFPIndex map[string]string // fingerprint -> username
 }
 
-func (mgr *fileBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool {
+func (mgr *FileBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool {
 	usr, ok := mgr.usrs[ctx.User]
 	if !ok {
 		return false
@@ -69,7 +69,7 @@ func (mgr *fileBackend) CheckSSHKey(ctx *ngssh.Ctx, pubkey gossh.PublicKey) bool
 	return false
 }
 
-func (mgr *fileBackend) CheckPassword(username string, password string) bool {
+func (mgr *FileBackend) CheckPassword(username string, password string) bool {
 	usr, ok := mgr.usrs[username]
 	if !ok {
 		return false
@@ -77,12 +77,12 @@ func (mgr *fileBackend) CheckPassword(username string, password string) bool {
 	return usr.checkpwd(password)
 }
 
-func (mgr *fileBackend) CheckClientCert(fingerprint string) (string, bool) {
+func (mgr *FileBackend) CheckClientCert(fingerprint string) (string, bool) {
 	username, ok := mgr.certFPIndex[fingerprint]
 	return username, ok
 }
 
-func (mgr *fileBackend) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool, clientCertFPs []string) {
+func (mgr *FileBackend) SetUser(username string, passwordhash string, allow_forward_proxy bool, sshkeys []gossh.PublicKey, allowsshpwd bool, clientCertFPs []string) {
 	mgr.usrs[username] = &user{
 		name:                username,
 		passwordHash:        passwordhash,
@@ -95,7 +95,7 @@ func (mgr *fileBackend) SetUser(username string, passwordhash string, allow_forw
 	}
 }
 
-func (mgr *fileBackend) AllowForwardProxy(username string) bool {
+func (mgr *FileBackend) AllowForwardProxy(username string) bool {
 	usr, ok := mgr.usrs[username]
 	if !ok {
 		return false
@@ -103,14 +103,14 @@ func (mgr *fileBackend) AllowForwardProxy(username string) bool {
 	return usr.allow_forward_proxy
 }
 
-func NewFileBackend() *fileBackend {
-	return &fileBackend{
+func NewFileBackend() *FileBackend {
+	return &FileBackend{
 		usrs:        make(map[string]*user),
 		certFPIndex: make(map[string]string),
 	}
 }
 
-func (mgr *fileBackend) ExistsUser(username string) bool {
+func (mgr *FileBackend) ExistsUser(username string) bool {
 	_, ok := mgr.usrs[username]
 	return ok
 }

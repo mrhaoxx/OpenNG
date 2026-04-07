@@ -26,7 +26,7 @@ type ReverseProxierConfig struct {
 	Allowhosts ng.HostnameSliceDefault    `ng:"allowhosts" desc:"hostnames that this proxy will handle"`
 }
 
-func NewReverseProxierFromConfig(cfg ReverseProxierConfig) (Service, error) {
+func NewReverseProxierFromConfig(cfg ReverseProxierConfig) (*ReverseProxy, error) {
 	proxier := NewHTTPProxier(cfg.Allowhosts.GroupRegexp())
 
 	for id, host := range cfg.Hosts {

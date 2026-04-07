@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
@@ -14,7 +13,7 @@ type TrojanConfig struct {
 	Interface ngnet.Interface `ng:"interface" default:"sys"`
 }
 
-func NewTrojanServer(cfg TrojanConfig) (ngtcp.Service, error) {
+func NewTrojanServer(cfg TrojanConfig) (*Server, error) {
 	hashes := make([]string, len(cfg.Passwords))
 	for i, pw := range cfg.Passwords {
 		sum := sha256.Sum224([]byte(pw))

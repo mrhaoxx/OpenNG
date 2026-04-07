@@ -31,7 +31,7 @@ func (p *policy) check(username string, path string) uint8 {
 	return 0
 }
 
-func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
+func (mgr *PolicyBaseAuth) determine(host, path, user string) (v uint8) {
 	pls := mgr.policyLookupBuf.Lookup(host)
 	if len(pls) == 0 {
 		return 0
@@ -48,7 +48,7 @@ func (mgr *policyBaseAuth) determine(host, path, user string) (v uint8) {
 	return 0
 }
 
-func (LGM *policyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts groupexp.GroupRegexp, paths groupexp.GroupRegexp) error {
+func (LGM *PolicyBaseAuth) AddPolicy(name string, allow bool, users []string, hosts groupexp.GroupRegexp, paths groupexp.GroupRegexp) error {
 	p := &policy{
 		name:      name,
 		allowance: allow,

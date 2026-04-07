@@ -16,7 +16,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *nghttp.HttpCtx, path string) nghttp.Ret {
+func (mgr *PolicyBaseAuth) HandleHTTPCgi(ctx *nghttp.HttpCtx, path string) nghttp.Ret {
 	token := ctx.RemoveCookie(verfiyCookieKey)
 
 	var session *session
@@ -196,6 +196,6 @@ func (mgr *policyBaseAuth) HandleHTTPCgi(ctx *nghttp.HttpCtx, path string) nghtt
 	return nghttp.RequestEnd
 }
 
-func (l *policyBaseAuth) CgiPaths() groupexp.GroupRegexp {
+func (l *PolicyBaseAuth) CgiPaths() groupexp.GroupRegexp {
 	return regexpforauthpath
 }

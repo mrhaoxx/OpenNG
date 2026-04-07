@@ -94,7 +94,7 @@ type SSHReverseProxierConfig struct {
 	PrivateKeys   []string        `ng:"privatekeys"`
 }
 
-func NewSSHReverseProxierFromConfig(cfg SSHReverseProxierConfig) (Service, error) {
+func NewSSHReverseProxierFromConfig(cfg SSHReverseProxierConfig) (*Proxier, error) {
 	var prik []gossh.Signer
 	for _, key := range cfg.PrivateKeys {
 		pk, err := gossh.ParsePrivateKey([]byte(key))

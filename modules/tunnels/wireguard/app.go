@@ -4,7 +4,6 @@ import (
 	"time"
 
 	ng "github.com/mrhaoxx/OpenNG"
-	ngnet "github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
@@ -41,7 +40,7 @@ type WireGuardServerConfig struct {
 	Forwarding WireGuardForwardingConfig `ng:"Forwarding"`
 }
 
-func NewWireGuardServerFromConfig(cfg WireGuardServerConfig) (ngnet.Interface, error) {
+func NewWireGuardServerFromConfig(cfg WireGuardServerConfig) (*WireGuardServer, error) {
 	var peers []PeerConfig
 	for _, p := range cfg.Peers {
 		peers = append(peers, PeerConfig{

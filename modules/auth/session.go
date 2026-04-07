@@ -29,13 +29,13 @@ func (u *session) renew() {
 	u.muS.Unlock()
 }
 
-func (p *policyBaseAuth) at(session string) *session {
+func (p *PolicyBaseAuth) at(session string) *session {
 	p.muSession.RLock()
 	defer p.muSession.RUnlock()
 	return p.sessions[session]
 }
 
-func (mgr *policyBaseAuth) generateSession(username string, src int) string {
+func (mgr *PolicyBaseAuth) generateSession(username string, src int) string {
 	var rand = randString(16)
 	mgr.muSession.Lock()
 	mgr.sessions[rand] = &session{
@@ -49,7 +49,7 @@ func (mgr *policyBaseAuth) generateSession(username string, src int) string {
 	return rand
 }
 
-func (mgr *policyBaseAuth) rmSession(session string) {
+func (mgr *PolicyBaseAuth) rmSession(session string) {
 	if session == "" {
 		return
 	}
@@ -58,7 +58,7 @@ func (mgr *policyBaseAuth) rmSession(session string) {
 	mgr.muSession.Unlock()
 }
 
-func (mgr *policyBaseAuth) Clean() {
+func (mgr *PolicyBaseAuth) Clean() {
 	now := time.Now()
 	mgr.muSession.Lock()
 	for key, session := range mgr.sessions {

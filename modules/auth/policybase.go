@@ -20,7 +20,7 @@ import (
 	zlog "github.com/rs/zerolog/log"
 )
 
-type policyBaseAuth struct {
+type PolicyBaseAuth struct {
 	policies        []*policy
 	policyLookupBuf *lookup.BufferedLookup[[]*policy]
 
@@ -32,8 +32,8 @@ type policyBaseAuth struct {
 	muSession sync.RWMutex
 }
 
-func NewPBAuth() *policyBaseAuth {
-	po := &policyBaseAuth{
+func NewPBAuth() *PolicyBaseAuth {
+	po := &PolicyBaseAuth{
 		sessions:     map[string]*session{},
 		certMappings: map[string]string{},
 	}
@@ -61,7 +61,7 @@ func certFingerprint(cert *x509.Certificate) string {
 	return hex.EncodeToString(hash[:])
 }
 
-func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
+func (mgr *PolicyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 	// First Lets get user info
 	var token = ctx.RemoveCookie(verfiyCookieKey)
 
@@ -132,15 +132,15 @@ func (mgr *policyBaseAuth) HandleAuth(ctx *nghttp.HttpCtx) AuthRet {
 	return Deny
 }
 
-func (mgr *policyBaseAuth) AddBackends(_src []PolicyBackend) {
+func (mgr *PolicyBaseAuth) AddBackends(_src []PolicyBackend) {
 	mgr.backends = append(mgr.backends, _src...)
 }
 
-func (mgr *policyBaseAuth) AddCertMapping(fingerprint string, username string) {
+func (mgr *PolicyBaseAuth) AddCertMapping(fingerprint string, username string) {
 	mgr.certMappings[fingerprint] = username
 }
 
-func (mgr *policyBaseAuth) CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool {
+func (mgr *PolicyBaseAuth) CheckSSHKey(ctx *ngssh.Ctx, key gossh.PublicKey) bool {
 	ok, _ := mgr.backends.CheckSSHKey(ctx, key)
 	return ok
 }

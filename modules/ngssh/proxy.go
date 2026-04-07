@@ -35,7 +35,7 @@ type Host struct {
 	AllowedUsers groupexp.GroupRegexp
 }
 
-type proxier struct {
+type Proxier struct {
 	Hosts map[string]Host
 
 	Privkey []ssh.Signer
@@ -45,14 +45,14 @@ type proxier struct {
 	AllowDnsQuery bool
 }
 
-func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
+func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *Proxier {
 
 	var k string
 	for _, key := range keys {
 		key_ := string(ssh.MarshalAuthorizedKey(key.PublicKey()))
 		k += "    " + key_[:len(key_)-1] + " OpenNG Server Access\r\n"
 	}
-	p := &proxier{
+	p := &Proxier{
 		Hosts:     hosts,
 		Privkey:   keys,
 		keyBanner: k,
@@ -60,7 +60,7 @@ func NewSSHProxier(hosts map[string]Host, keys []ssh.Signer) *proxier {
 	return p
 }
 
-func (p *proxier) HandleSSH(ctx *Ctx) Ret {
+func (p *Proxier) HandleSSH(ctx *Ctx) Ret {
 	HostName := ctx.Alt
 
 	h, ok := p.Hosts[HostName]
@@ -229,7 +229,7 @@ func (p *proxier) HandleSSH(ctx *Ctx) Ret {
 
 	return Close
 }
-func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
+func (p *Proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, chn uint64) {
 
 	_c, _r, err := remote.OpenChannel(nc.ChannelType(), nc.ExtraData())
 
@@ -322,4 +322,4 @@ func (p *proxier) HandleChannel(ctx *Ctx, nc ssh.NewChannel, remote ssh.Conn, ch
 	wg.Wait()
 }
 
-var _ Service = (*proxier)(nil)
+var _ Service = (*Proxier)(nil)

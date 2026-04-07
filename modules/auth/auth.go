@@ -22,12 +22,12 @@ type AuthHandle interface {
 	HandleAuth(ctx *nghttp.HttpCtx) AuthRet
 }
 
-type authMgr struct {
+type AuthMgr struct {
 	h  []AuthHandle
 	ho groupexp.GroupRegexp
 }
 
-func (mgr *authMgr) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
+func (mgr *AuthMgr) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 
 	for _, h := range mgr.h {
 		switch h.HandleAuth(ctx) {
@@ -46,12 +46,12 @@ func (mgr *authMgr) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	ctx.Resp.ErrorPage(nghttp.StatusForbidden, "auth no hit")
 	return nghttp.RequestEnd
 }
-func (l *authMgr) Hosts() groupexp.GroupRegexp {
+func (l *AuthMgr) Hosts() groupexp.GroupRegexp {
 	return l.ho
 }
 
-func NewAuthMgr(h []AuthHandle, hosts groupexp.GroupRegexp) *authMgr {
-	return &authMgr{h: h, ho: hosts}
+func NewAuthMgr(h []AuthHandle, hosts groupexp.GroupRegexp) *AuthMgr {
+	return &AuthMgr{h: h, ho: hosts}
 }
 
-var _ nghttp.Service = (*authMgr)(nil)
+var _ nghttp.Service = (*AuthMgr)(nil)

@@ -118,11 +118,10 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
-		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 		if len(errors) > 0 {
-			ctx.WriteString(strings.Join(errors, "\n"))
+			ng.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, errors)
 		} else {
-			ctx.WriteString("ok")
+			ng.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, []any{})
 		}
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")

@@ -335,6 +335,242 @@ func topoSort(entries []serviceEntry, prePopulated map[string]bool) ([]int, erro
 	return order, nil
 }
 
+// ConfigError is a structured validation error for a specific service.
+type ConfigError struct {
+	Service string `json:"service"`          // service name
+	Kind    string `json:"kind,omitempty"`   // service kind
+	Phase   string `json:"phase"`            // "parse", "schema", "reference", "dependency", "instantiate"
+	Message string `json:"message"`
+}
+
+func (e ConfigError) Error() string {
+	if e.Service != "" {
+		return fmt.Sprintf("%s (%s): %s", e.Service, e.Kind, e.Message)
+	}
+	return e.Message
+}
+
+// ptrRef is a ptr reference found during validation: source service references target by name,
+// requiring certain interfaces.
+type ptrRef struct {
+	target     string         // service name (named ref) or empty (inline)
+	inlineKind string         // kind name for inline anonymous objects
+	impls      []reflect.Type
+	fieldPath  string
+}
+
+// Validate checks the entire config tree and returns all errors found.
+// Unlike Apply, it does not stop at the first error and does not instantiate services.
+// It performs: schema validation, reference existence, static type checking, and cycle detection.
+func (space *Space) Validate(root *ArgNode) []ConfigError {
+	var errs []ConfigError
+	retAsserts := ReturnAssertionsRegistry()
+
+	srvs := root.MustGet("Services")
+	if srvs == nil || srvs.Type != "map" {
+		return []ConfigError{{Phase: "parse", Message: fmt.Sprintf("Services must be a map, got %s", srvs.Type)}}
+	}
+
+	type validEntry struct {
+		serviceEntry
+		refs []ptrRef
+	}
+
+	// Phase 1: parse + schema validation (collect all errors)
+	var entries []validEntry
+	kindByName := map[string]string{} // service name → kind
+	for name, entry := range srvs.ToMap() {
+		entryMap := entry.ToMap()
+		kindNode, ok := entryMap["kind"]
+		if !ok || kindNode == nil {
+			errs = append(errs, ConfigError{Service: name, Phase: "parse", Message: "missing kind"})
+			continue
+		}
+		kind := kindNode.ToString()
+		delete(entryMap, "kind")
+
+		var spec *ArgNode
+		if len(entryMap) == 0 {
+			spec = &ArgNode{Type: "null", Value: nil}
+		} else {
+			spec = &ArgNode{Type: "map", Value: entryMap}
+		}
+
+		_, refOk := space.Refs[kind]
+		assert, assertOk := space.AssertRefs[kind]
+		if !refOk || !assertOk {
+			errs = append(errs, ConfigError{Service: name, Kind: kind, Phase: "parse", Message: "unknown kind: " + kind})
+			continue
+		}
+
+		if err := AssertArg(spec, assert); err != nil {
+			errs = append(errs, ConfigError{Service: name, Kind: kind, Phase: "schema", Message: err.Error()})
+			continue
+		}
+
+		deps := space.collectDeps(spec, assert)
+		refs := collectPtrRefs(spec, assert, space.AssertRefs)
+		kindByName[name] = kind
+
+		entries = append(entries, validEntry{
+			serviceEntry: serviceEntry{
+				name: name, kind: kind, spec: spec,
+				ref: nil, assert: assert, deps: deps,
+			},
+			refs: refs,
+		})
+	}
+
+	// Phase 2: reference existence + static type checking
+	prePopulated := map[string]bool{}
+	for name := range space.Services {
+		prePopulated[name] = true
+	}
+	allNames := map[string]bool{}
+	for k := range prePopulated {
+		allNames[k] = true
+	}
+	for _, e := range entries {
+		allNames[e.name] = true
+	}
+
+	for _, e := range entries {
+		for _, ref := range e.refs {
+			// Determine target kind for type checking
+			var targetKind string
+			if ref.inlineKind != "" {
+				// Inline anonymous object — kind is known directly
+				targetKind = ref.inlineKind
+			} else {
+				// Named service reference — check existence first
+				if !allNames[ref.target] {
+					errs = append(errs, ConfigError{
+						Service: e.name, Kind: e.kind, Phase: "reference",
+						Message: fmt.Sprintf("%s: references undefined service %q", ref.fieldPath, ref.target),
+					})
+					continue
+				}
+				var ok bool
+				targetKind, ok = kindByName[ref.target]
+				if !ok {
+					continue // pre-populated service, skip type check
+				}
+			}
+
+			// Static type check
+			if len(ref.impls) == 0 {
+				continue
+			}
+			retAssert, ok := retAsserts[targetKind]
+			if !ok || len(retAssert.Impls) == 0 {
+				continue
+			}
+
+			targetLabel := ref.target
+			if ref.inlineKind != "" {
+				targetLabel = "inline " + ref.inlineKind
+			}
+
+			for _, required := range ref.impls {
+				if required.Kind() != reflect.Interface {
+					continue
+				}
+				satisfied := false
+				for _, provided := range retAssert.Impls {
+					if provided.Implements(required) || reflect.PointerTo(provided).Implements(required) {
+						satisfied = true
+						break
+					}
+				}
+				if !satisfied {
+					provided := make([]string, len(retAssert.Impls))
+					for i, t := range retAssert.Impls {
+						provided[i] = t.String()
+					}
+					errs = append(errs, ConfigError{
+						Service: e.name, Kind: e.kind, Phase: "type",
+						Message: fmt.Sprintf("%s: %s (kind %s) does not implement %v (provides %v)",
+							ref.fieldPath, targetLabel, targetKind, required, provided),
+					})
+				}
+			}
+		}
+	}
+
+	// Phase 3: cycle detection
+	svcEntries := make([]serviceEntry, len(entries))
+	for i, e := range entries {
+		svcEntries[i] = e.serviceEntry
+	}
+	if _, err := topoSort(svcEntries, prePopulated); err != nil {
+		errs = append(errs, ConfigError{Phase: "dependency", Message: err.Error()})
+	}
+
+	return errs
+}
+
+// collectPtrRefs walks an ArgNode tree and collects all ptr references with their required interfaces.
+func collectPtrRefs(node *ArgNode, assert Assert, assertRefs map[string]Assert) []ptrRef {
+	if node == nil {
+		return nil
+	}
+	var refs []ptrRef
+	var walk func(*ArgNode, Assert, string)
+	walk = func(n *ArgNode, a Assert, path string) {
+		if n == nil {
+			return
+		}
+		switch n.Type {
+		case "ptr":
+			if name, ok := n.Value.(string); ok && name != "" {
+				refs = append(refs, ptrRef{target: name, impls: a.Impls, fieldPath: path})
+			} else if m, ok := n.Value.(map[string]*ArgNode); ok {
+				if kindNode := m["kind"]; kindNode != nil && kindNode.Type == "string" {
+					kind := kindNode.ToString()
+					// Check inline kind's return type against parent's required interfaces
+					if len(a.Impls) > 0 {
+						refs = append(refs, ptrRef{inlineKind: kind, impls: a.Impls, fieldPath: path})
+					}
+					spec := &ArgNode{Type: "null"}
+					if len(m) > 1 {
+						remaining := make(map[string]*ArgNode, len(m)-1)
+						for k, v := range m {
+							if k != "kind" {
+								remaining[k] = v
+							}
+						}
+						spec = &ArgNode{Type: "map", Value: remaining}
+					}
+					if sub, ok := assertRefs[kind]; ok {
+						walk(spec, sub, path+"("+kind+")")
+					}
+				}
+			}
+		case "map":
+			if m, ok := n.Value.(map[string]*ArgNode); ok {
+				for k, v := range m {
+					sub := Assert{}
+					if s, ok := a.Sub[k]; ok {
+						sub = s
+					} else if s, ok := a.Sub["_"]; ok {
+						sub = s
+					}
+					walk(v, sub, path+"."+k)
+				}
+			}
+		case "list":
+			if items, ok := n.Value.([]*ArgNode); ok {
+				subAssert := a.Sub["_"]
+				for i, item := range items {
+					walk(item, subAssert, path+"["+fmt.Sprint(i)+"]")
+				}
+			}
+		}
+	}
+	walk(node, assert, "")
+	return refs
+}
+
 func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 	srvs := root.MustGet("Services")
 	if srvs == nil || srvs.Type != "map" {

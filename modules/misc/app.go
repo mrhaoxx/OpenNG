@@ -24,7 +24,7 @@ type AcmeConfig struct {
 	WWWRoot string   `ng:"WWWRoot,required"`
 }
 
-func NewAcmeFileProvider(cfg AcmeConfig) (ngtcp.Service, error) {
+func NewAcmeFileProvider(cfg AcmeConfig) (*AcmeWebRoot, error) {
 	log.Debug().Strs("hosts", cfg.Hosts).Str("wwwroot", cfg.WWWRoot).Msg("new acme file provider")
 	return &AcmeWebRoot{
 		AllowedHosts: cfg.Hosts,
@@ -40,7 +40,7 @@ type IpFilterConfig struct {
 	Next         ngtcp.Service `ng:"next,allownil" desc:"next service if no CIDR match"`
 }
 
-func NewIpFilterFromConfig(cfg IpFilterConfig) (ngtcp.Service, error) {
+func NewIpFilterFromConfig(cfg IpFilterConfig) (*IpFilter, error) {
 	filter := NewIPFilter(cfg.AllowedCIDRs, cfg.BlockedCIDRs)
 	if cfg.Next != nil {
 		filter.SetNext(cfg.Next)
@@ -56,7 +56,7 @@ type HostFilterConfig struct {
 	Next         ngtcp.Service `ng:"next,allownil"`
 }
 
-func NewHostFilterFromConfig(cfg HostFilterConfig) (ngtcp.Service, error) {
+func NewHostFilterFromConfig(cfg HostFilterConfig) (*HostFilter, error) {
 	filter := &HostFilter{AllowedHosts: cfg.AllowedHosts}
 	if cfg.Next != nil {
 		filter.SetNext(cfg.Next)
@@ -75,7 +75,7 @@ type GitlabAuthConfig struct {
 	Next           authsdk.PolicyBackend `ng:"next,allownil"`
 }
 
-func NewGitlabAuthFromConfig(cfg GitlabAuthConfig) (authsdk.PolicyBackend, error) {
+func NewGitlabAuthFromConfig(cfg GitlabAuthConfig) (*GitlabEnhancedPolicydBackend, error) {
 	backend := NewGitlabEnhancedPolicydBackend(cfg.GitlabURL.String(), cfg.CacheTTL, cfg.MatchUsernames.GroupRegexp(), cfg.Prefix)
 	if cfg.Next != nil {
 		backend.SetPolicyBackend(cfg.Next)
