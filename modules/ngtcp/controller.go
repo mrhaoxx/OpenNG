@@ -196,7 +196,8 @@ func (ctl *Controller) KillConnection(connection_id string) error {
 }
 
 type TcpControllerConfig struct {
-	Services map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers, where key is the protocol name (e.g. '' (first inbound), 'TLS', 'HTTP1', 'TLS HTTP2', etc)"`
+	Services map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers"`
+	Listen   []string                    `ng:"listen" desc:"addresses to listen on (e.g. 0.0.0.0:443)"`
 }
 
 func NewTcpController(cfg TcpControllerConfig) (*Controller, error) {
@@ -208,6 +209,12 @@ func NewTcpController(cfg TcpControllerConfig) (*Controller, error) {
 
 	for protocol, svcs := range cfg.Services {
 		ctl.binds[protocol] = append(ctl.binds[protocol], svcs...)
+	}
+
+	if len(cfg.Listen) > 0 {
+		if err := ctl.Listen(cfg.Listen); err != nil {
+			return nil, err
+		}
 	}
 
 	return ctl, nil

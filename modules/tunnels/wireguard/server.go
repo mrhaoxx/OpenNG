@@ -30,6 +30,11 @@ type WireGuardServer struct {
 	wgDevice *device.Device
 }
 
+type PeerConfig struct {
+	PublicKey  string
+	AllowedIPs []string
+}
+
 type WireGuardConfig struct {
 	ListenPort int
 	PrivateKey string
@@ -44,6 +49,8 @@ type WireGuardConfig struct {
 	TcpKeepaliveIdle     time.Duration
 	TcpKeepaliveInterval time.Duration
 	TcpKeepAliveCount    int
+
+	Peers []PeerConfig
 }
 
 func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
@@ -127,12 +134,19 @@ func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
 
 	wgDevice.Up()
 
-	return &WireGuardServer{
+	server := &WireGuardServer{
 		tun:      tunDevice,
 		tnet:     tnet,
 		wgDevice: wgDevice,
-	}, nil
+	}
 
+	for _, peer := range cfg.Peers {
+		if err := server.AddPeer(peer.PublicKey, peer.AllowedIPs); err != nil {
+			return nil, fmt.Errorf("add peer %s: %w", peer.PublicKey, err)
+		}
+	}
+
+	return server, nil
 }
 
 func (wg *WireGuardServer) Close() {

@@ -1,15 +1,12 @@
 package ngtls
 
 import (
-	"errors"
-
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/rs/zerolog/log"
 )
 
 func init() {
 	registerTLS()
-	registerReload()
 }
 
 func registerTLS() {
@@ -78,23 +75,6 @@ func registerTLS() {
 			}
 
 			return mgr, nil
-		},
-	)
-}
-
-func registerReload() {
-	ng.Register("tls::reload",
-		ng.Assert{
-			Type:     "ptr",
-			Required: true,
-		},
-		ng.Assert{Type: "null"},
-		func(spec *ng.ArgNode) (any, error) {
-			mgr, ok := spec.Value.(*TlsMgr)
-			if !ok {
-				return nil, errors.New("ptr is not a tls.TlsMgr")
-			}
-			return nil, mgr.Reload()
 		},
 	)
 }

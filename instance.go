@@ -3,6 +3,7 @@ package ng
 import (
 	"fmt"
 	"net/url"
+	"os"
 	"reflect"
 	"strconv"
 	"strings"
@@ -196,83 +197,275 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool, owner 
 	return inst, nil
 }
 
+// collectDeps walks an ArgNode tree and collects all service names
+// referenced by ptr (string) and url (Interface) fields.
+func collectDeps(node *ArgNode, assert Assert) []string {
+	if node == nil {
+		return nil
+	}
+	var deps []string
+	var walk func(*ArgNode, Assert)
+	walk = func(n *ArgNode, a Assert) {
+		if n == nil {
+			return
+		}
+		switch n.Type {
+		case "ptr":
+			// Only string values are named references; map values are anonymous inline
+			if name, ok := n.Value.(string); ok && name != "" {
+				deps = append(deps, name)
+			}
+		case "url":
+			if u, ok := n.Value.(*ngnet.URL); ok && u != nil && u.Interface != "" {
+				deps = append(deps, u.Interface)
+			}
+		case "map":
+			if m, ok := n.Value.(map[string]*ArgNode); ok {
+				for k, v := range m {
+					if sub, ok := a.Sub[k]; ok {
+						walk(v, sub)
+					} else if sub, ok := a.Sub["_"]; ok {
+						walk(v, sub)
+					}
+				}
+			}
+		case "list":
+			if items, ok := n.Value.([]*ArgNode); ok {
+				subAssert := a.Sub["_"]
+				for _, item := range items {
+					walk(item, subAssert)
+				}
+			}
+		}
+	}
+	walk(node, assert)
+	return deps
+}
+
+type serviceEntry struct {
+	name   string
+	kind   string
+	spec   *ArgNode
+	ref    Inst
+	assert Assert
+	deps   []string
+}
+
+// topoSort returns indices in dependency order (dependencies first).
+// Returns error if a cycle is detected.
+func topoSort(entries []serviceEntry, prePopulated map[string]bool) ([]int, error) {
+	nameToIdx := map[string]int{}
+	for i, e := range entries {
+		nameToIdx[e.name] = i
+	}
+
+	// Build in-degree count and adjacency
+	inDegree := make([]int, len(entries))
+	dependents := make([][]int, len(entries)) // dependents[j] = entries that depend on j
+	for i := range dependents {
+		dependents[i] = nil
+	}
+
+	for i, e := range entries {
+		for _, dep := range e.deps {
+			if prePopulated[dep] {
+				continue // sys, @ etc — already exist
+			}
+			j, ok := nameToIdx[dep]
+			if !ok {
+				continue // will fail at Deptr time
+			}
+			inDegree[i]++
+			dependents[j] = append(dependents[j], i)
+		}
+	}
+
+	// Kahn's algorithm
+	var queue []int
+	for i, d := range inDegree {
+		if d == 0 {
+			queue = append(queue, i)
+		}
+	}
+
+	var order []int
+	for len(queue) > 0 {
+		idx := queue[0]
+		queue = queue[1:]
+		order = append(order, idx)
+		for _, dep := range dependents[idx] {
+			inDegree[dep]--
+			if inDegree[dep] == 0 {
+				queue = append(queue, dep)
+			}
+		}
+	}
+
+	if len(order) != len(entries) {
+		// Find cycle participants for error message
+		var cycleNames []string
+		for i, d := range inDegree {
+			if d > 0 {
+				cycleNames = append(cycleNames, entries[i].name+" ("+entries[i].kind+")")
+			}
+		}
+		return nil, fmt.Errorf("circular dependency involving: %s", strings.Join(cycleNames, ", "))
+	}
+
+	return order, nil
+}
+
 func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
-	reload_errors := []error{}
 	srvs := root.MustGet("Services")
 
-	for i, _srv := range srvs.Value.([]*ArgNode) {
+	// Determine format: list (legacy) or map (new declarative)
+	var entries []serviceEntry
+
+	switch srvs.Type {
+	case "list":
+		// Legacy format: [{kind, name, spec}, ...]
+		for i, _srv := range srvs.Value.([]*ArgNode) {
+			kind := _srv.MustGet("kind").ToString()
+			name := _srv.MustGet("name").ToString()
+			spec := _srv.MustGet("spec")
+
+			ref, ok := space.Refs[kind]
+			if !ok {
+				return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+kind)
+			}
+			assert, ok := space.AssertRefs[kind]
+			if !ok {
+				return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+kind)
+			}
+
+			if err := AssertArg(spec, assert); err != nil {
+				return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+kind, err)
+			}
+
+			deps := collectDeps(spec, assert)
+			entries = append(entries, serviceEntry{
+				name: name, kind: kind, spec: spec,
+				ref: ref, assert: assert, deps: deps,
+			})
+		}
+
+	case "map":
+		// New declarative format: {name: {kind, ...fields}, ...}
+		for name, entry := range srvs.ToMap() {
+			entryMap := entry.ToMap()
+			kindNode, ok := entryMap["kind"]
+			if !ok || kindNode == nil {
+				return fmt.Errorf("service %q: missing kind", name)
+			}
+			kind := kindNode.ToString()
+
+			// spec field, same as legacy format
+			spec := entryMap["spec"]
+			if spec == nil {
+				spec = &ArgNode{Type: "null", Value: nil}
+			}
+
+			ref, ok := space.Refs[kind]
+			if !ok {
+				return fmt.Errorf("service %q: kind not found: %s", name, kind)
+			}
+			assert, ok := space.AssertRefs[kind]
+			if !ok {
+				return fmt.Errorf("service %q: assert not found: %s", name, kind)
+			}
+
+			if err := AssertArg(spec, assert); err != nil {
+				return fmt.Errorf("service %q (%s): assert failed: %w", name, kind, err)
+			}
+
+			deps := collectDeps(spec, assert)
+			entries = append(entries, serviceEntry{
+				name: name, kind: kind, spec: spec,
+				ref: ref, assert: assert, deps: deps,
+			})
+		}
+	default:
+		return fmt.Errorf("Services must be a list or map, got %s", srvs.Type)
+	}
+
+	// Build set of pre-populated service names
+	prePopulated := map[string]bool{}
+	for name := range space.Services {
+		prePopulated[name] = true
+	}
+
+	// Topological sort
+	order, err := topoSort(entries, prePopulated)
+	if err != nil {
+		return err
+	}
+
+	// Print topological order
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "  Topological Order")
+	fmt.Fprintln(os.Stderr, "  ─────────────────")
+	for i, idx := range order {
+		e := entries[idx]
+		arrow := "  │"
+		if i == len(order)-1 {
+			arrow = "  └"
+		} else {
+			arrow = "  ├"
+		}
+		deps := ""
+		if len(e.deps) > 0 {
+			seen := map[string]bool{}
+			var unique []string
+			for _, d := range e.deps {
+				if !seen[d] {
+					seen[d] = true
+					unique = append(unique, d)
+				}
+			}
+			deps = " ← " + strings.Join(unique, ", ")
+		}
+		fmt.Fprintf(os.Stderr, "%s %2d  %-20s %-30s%s\n", arrow, i, e.name, e.kind, deps)
+	}
+	fmt.Fprintln(os.Stderr, "")
+
+	// Instantiate in dependency order
+	reload_errors := []error{}
+	for _, idx := range order {
+		e := entries[idx]
 		_time := time.Now()
-		_ref := _srv.MustGet("kind").ToString()
-		to := _srv.MustGet("name").ToString()
-		spec := _srv.MustGet("spec")
-		var err error
 
-		// if err != nil {
-		// 	ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-		// 	if !reload {
-		// 		return ret_err
-		// 	}
-		// 	reload_errors = append(reload_errors, ret_err)
-		// 	continue
-		// }
-
-		ref, ok := space.Refs[_ref]
-		if !ok {
-			return fmt.Errorf("kind not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
-		}
-
-		spec_assert, ok := space.AssertRefs[_ref]
-		if !ok {
-			return fmt.Errorf("assert not found: %s", fmt.Sprintf("[%d] ", i)+_ref)
-		}
-
-		err = AssertArg(spec, spec_assert)
+		err := space.Deptr(e.spec, dry, e.assert, e.name)
 		if err != nil {
-			return fmt.Errorf("%s: assert failed: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-		}
-
-		err = space.Deptr(spec, dry, spec_assert, to)
-
-		if err != nil {
-			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-
+			ret_err := fmt.Errorf("%s (%s): %w", e.name, e.kind, err)
 			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to deptr")
-
 			if !reload {
 				return ret_err
-			} else {
-				reload_errors = append(reload_errors, ret_err)
-				continue
 			}
+			reload_errors = append(reload_errors, ret_err)
+			continue
 		}
 
 		var inst any
 		if !dry {
-			inst, err = ref(spec)
+			inst, err = e.ref(e.spec)
 		}
 
 		if err != nil {
-			ret_err := fmt.Errorf("%s: %w", fmt.Sprintf("[%d] ", i)+_ref, err)
-
-			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to call ref")
-
+			ret_err := fmt.Errorf("%s (%s): %w", e.name, e.kind, err)
+			log.Error().Caller().Str("err", ret_err.Error()).Msg("failed to instantiate")
 			if !reload {
 				return ret_err
-			} else {
-				reload_errors = append(reload_errors, ret_err)
-				continue
 			}
+			reload_errors = append(reload_errors, ret_err)
+			continue
 		}
 
-		if to != "" && to != "_" && inst != nil {
-			space.Services[to] = inst
-			space.ServiceKinds[to] = _ref
+		if e.name != "" && e.name != "_" && inst != nil {
+			space.Services[e.name] = inst
+			space.ServiceKinds[e.name] = e.kind
 		}
 
-		// used_time := fmt.Sprintf("[%4d][%10s]", i, time.Since(_time).String())
-
-		log.Info().Str("kind", _ref).Str("name", to).Dur("elapsed", time.Since(_time)).Int("index", i).Msg("service applied")
-
+		log.Info().Str("kind", e.kind).Str("name", e.name).Dur("elapsed", time.Since(_time)).Msg("service applied")
 	}
 
 	if reload && len(reload_errors) > 0 {
@@ -284,7 +477,6 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 	}
 
 	return nil
-
 }
 
 func (space *Space) Call(ref string, spec *ArgNode) (any, error) {

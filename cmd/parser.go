@@ -16,18 +16,8 @@ var TopLevelConfigAssertion = ng.Assert{
 	Type: "map",
 	Sub: ng.AssertMap{
 		"Services": {
-			Desc: "service functions which will be called at startup",
-			Type: "list",
-			Sub: ng.AssertMap{
-				"_": {
-					Type: "map",
-					Sub: ng.AssertMap{
-						"name": {Type: "string", Default: "_"},
-						"kind": {Type: "string", Required: true},
-						"spec": {Type: "any"},
-					},
-				},
-			},
+			Desc: "service definitions (map-by-name or legacy list)",
+			Type: "any",
 		},
 		"version": {
 			Desc:     "config version",

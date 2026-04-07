@@ -22,6 +22,18 @@ func registerServer() {
 				"PrivateKey": {Type: "string", Required: true},
 				"Address":    {Type: "string", Required: true},
 				"MTU":        {Type: "int", Default: 1420},
+				"Peers": {
+					Type: "list",
+					Sub: ng.AssertMap{
+						"_": {
+							Type: "map",
+							Sub: ng.AssertMap{
+								"PublicKey":  {Type: "string", Required: true},
+								"AllowedIPs": {Type: "list", Sub: ng.AssertMap{"_": {Type: "string"}}},
+							},
+						},
+					},
+				},
 				"Forwarding": {
 					Type:    "map",
 					Default: map[string]*ng.ArgNode{},
@@ -80,6 +92,14 @@ func registerServer() {
 			keepaliveInterval := tcpNode.MustGet("KeepaliveInterval").ToDuration()
 			keepaliveCount := tcpNode.MustGet("KeepaliveCount").ToInt()
 
+			var peers []PeerConfig
+			for _, p := range spec.MustGet("Peers").ToList() {
+				peers = append(peers, PeerConfig{
+					PublicKey:  p.MustGet("PublicKey").ToString(),
+					AllowedIPs: p.MustGet("AllowedIPs").ToStringList(),
+				})
+			}
+
 			cfg := &WireGuardConfig{
 				ListenPort:           listenPort,
 				PrivateKey:           privateKey,
@@ -92,6 +112,7 @@ func registerServer() {
 				TcpKeepaliveIdle:     keepaliveIdle,
 				TcpKeepaliveInterval: keepaliveInterval,
 				TcpKeepAliveCount:    keepaliveCount,
+				Peers:                peers,
 			}
 
 			return NewWireGuardServer(cfg)
