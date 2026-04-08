@@ -36,30 +36,30 @@ type DnsServerConfig struct {
 }
 
 func NewDnsServerFromConfig(cfg DnsServerConfig) (any, error) {
-	server := ngdns.NewServer()
-	server.SetDomain(cfg.Domain)
+	srv := NewServer()
+	srv.SetDomain(cfg.Domain)
 
 	for _, record := range cfg.Records {
 		name := regexp2.MustCompile(ngdns.Dnsname2Regexp(record.Name), regexp2.RE2)
-		server.AddRecord(name, ngdns.DnsStringTypeToInt(record.Type), record.Value, uint32(record.TTL))
+		srv.AddRecord(name, ngdns.DnsStringTypeToInt(record.Type), record.Value, uint32(record.TTL))
 	}
 
 	for _, filter := range cfg.Filters {
 		name := regexp2.MustCompile(ngdns.Dnsname2Regexp(filter.Name), regexp2.RE2)
-		if err := server.AddFilter(name, filter.Allowance); err != nil {
+		if err := srv.AddFilter(name, filter.Allowance); err != nil {
 			return nil, err
 		}
 	}
 
 	for _, bind := range cfg.Binds {
-		if err := server.AddRecordWithIP(bind.Name, bind.Addr); err != nil {
+		if err := srv.AddRecordWithIP(bind.Name, bind.Addr); err != nil {
 			return nil, err
 		}
 	}
 
 	for _, listen := range cfg.AddressBindings {
-		go server.Listen(listen)
+		go srv.Listen(listen)
 	}
 
-	return server, nil
+	return srv, nil
 }

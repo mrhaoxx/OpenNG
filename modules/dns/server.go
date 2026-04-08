@@ -1,4 +1,4 @@
-package ngdns
+package dns
 
 import (
 	"net"
@@ -7,8 +7,9 @@ import (
 	"time"
 
 	"github.com/dlclark/regexp2"
-	"github.com/miekg/dns"
+	mdns "github.com/miekg/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
+	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
 
 	zlog "github.com/rs/zerolog/log"
 )
@@ -28,14 +29,13 @@ type server struct {
 	records                  []*record
 	filters                  []*filter
 	bufferedLookupForFilters *lookup.BufferedLookup[bool]
-	// bufferedLookupForRecords *lookup.BufferedLookup
 
 	domain string
 
 	count uint64
 }
 
-func joinNames(questions []dns.Question) string {
+func joinNames(questions []mdns.Question) string {
 	var names []string
 	for _, q := range questions {
 		names = append(names, q.Name)
@@ -43,28 +43,27 @@ func joinNames(questions []dns.Question) string {
 	return strings.Join(names, " ")
 }
 
-func joinTypes(questions []dns.Question) string {
+func joinTypes(questions []mdns.Question) string {
 	var types []string
 	for _, q := range questions {
-		types = append(types, dns.TypeToString[q.Qtype])
+		types = append(types, mdns.TypeToString[q.Qtype])
 	}
 	return strings.Join(types, " ")
 }
 
-func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
-	m := new(dns.Msg).SetReply(req)
+func (s *server) ServeDNS(w mdns.ResponseWriter, req *mdns.Msg) {
+	m := new(mdns.Msg).SetReply(req)
 	m.RecursionAvailable = false
 
 	id := atomic.AddUint64(&s.count, 1)
 	startTime := time.Now()
 	defer func() {
-		// log.Println("d"+strconv.FormatUint(id, 10), w.RemoteAddr().String(), time.Since(startTime).Round(1*time.Microsecond), RcodeTypeMap[m.Rcode], joinTypes(req.Question), joinNames(req.Question))
 		zlog.Info().
 			Str("type", "dns/request").
 			Uint64("id", id).
 			Str("remote", w.RemoteAddr().String()).
 			Dur("duration", time.Since(startTime)).
-			Str("rcode", RcodeTypeMap[m.Rcode]).
+			Str("rcode", ngdns.RcodeTypeMap[m.Rcode]).
 			Str("types", joinTypes(req.Question)).
 			Str("names", joinNames(req.Question)).
 			Msg("")
@@ -74,45 +73,45 @@ func (s *server) ServeDNS(w dns.ResponseWriter, req *dns.Msg) {
 		if s.bufferedLookupForFilters.Lookup(strings.ToLower(q.Name)) {
 			goto allowed
 		} else {
-			m.Rcode = dns.RcodeRefused
+			m.Rcode = mdns.RcodeRefused
 			goto _end
 		}
 	}
-	m.Rcode = dns.RcodeRefused
+	m.Rcode = mdns.RcodeRefused
 	goto _end
 allowed:
 	for _, q := range req.Question {
 		for _, r := range s.records {
 			if q.Qtype == r.rtype {
 				if ok, _ := r.name.MatchString(strings.ToLower(q.Name)); ok {
-					var ret dns.RR
+					var ret mdns.RR
 					switch r.rtype {
-					case dns.TypeA:
-						ret = &dns.A{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypeA:
+						ret = &mdns.A{
+							Hdr: mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypeA, Class: mdns.ClassINET, Ttl: r.ttl},
 							A:   net.ParseIP(r.rvalue)}
-					case dns.TypePTR:
-						ret = &dns.PTR{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypePTR, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypePTR:
+						ret = &mdns.PTR{
+							Hdr: mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypePTR, Class: mdns.ClassINET, Ttl: r.ttl},
 							Ptr: r.rvalue}
-					case dns.TypeNS:
-						ret = &dns.NS{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeNS, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypeNS:
+						ret = &mdns.NS{
+							Hdr: mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypeNS, Class: mdns.ClassINET, Ttl: r.ttl},
 							Ns:  r.rvalue}
-					case dns.TypeCNAME:
-						ret = &dns.CNAME{
-							Hdr:    dns.RR_Header{Name: q.Name, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypeCNAME:
+						ret = &mdns.CNAME{
+							Hdr:    mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypeCNAME, Class: mdns.ClassINET, Ttl: r.ttl},
 							Target: r.rvalue}
-					case dns.TypeAAAA:
-						ret = &dns.AAAA{
-							Hdr:  dns.RR_Header{Name: q.Name, Rrtype: dns.TypeAAAA, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypeAAAA:
+						ret = &mdns.AAAA{
+							Hdr:  mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypeAAAA, Class: mdns.ClassINET, Ttl: r.ttl},
 							AAAA: net.ParseIP(r.rvalue)}
-					case dns.TypeTXT:
-						ret = &dns.TXT{
-							Hdr: dns.RR_Header{Name: q.Name, Rrtype: dns.TypeTXT, Class: dns.ClassINET, Ttl: r.ttl},
+					case mdns.TypeTXT:
+						ret = &mdns.TXT{
+							Hdr: mdns.RR_Header{Name: q.Name, Rrtype: mdns.TypeTXT, Class: mdns.ClassINET, Ttl: r.ttl},
 							Txt: []string{r.rvalue}}
 					default:
-						m.Rcode = dns.RcodeNotImplemented
+						m.Rcode = mdns.RcodeNotImplemented
 						goto _end
 					}
 					m.Answer = append(m.Answer, ret)
@@ -121,16 +120,16 @@ allowed:
 		}
 	}
 	if len(m.Answer) == 0 {
-		m.Rcode = dns.RcodeNameError
+		m.Rcode = mdns.RcodeNameError
 	}
 _end:
 	w.WriteMsg(m)
 }
 
 func (s *server) Listen(address string) error {
-	server := &dns.Server{Addr: address, Net: "udp"}
-	server.Handler = s
-	return server.ListenAndServe()
+	srv := &mdns.Server{Addr: address, Net: "udp"}
+	srv.Handler = s
+	return srv.ListenAndServe()
 }
 
 func (s *server) AddFilter(name *regexp2.Regexp, allowance bool) error {
@@ -145,11 +144,10 @@ func (s *server) AddRecordWithIP(name string, ip string) error {
 	real_subdomain := name + "." + s.domain + "."
 	real_ptr := reverseIP(ip) + ".in-addr.arpa." + s.domain + "."
 
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_subdomain), 0), dns.TypeA, ip, 60)
-	s.AddRecord(regexp2.MustCompile(Dnsname2Regexp(real_ptr), 0), dns.TypePTR, real_subdomain, 60)
+	s.AddRecord(regexp2.MustCompile(ngdns.Dnsname2Regexp(real_subdomain), 0), mdns.TypeA, ip, 60)
+	s.AddRecord(regexp2.MustCompile(ngdns.Dnsname2Regexp(real_ptr), 0), mdns.TypePTR, real_subdomain, 60)
 
 	return nil
-
 }
 func (s *server) SetDomain(domain string) *server {
 	s.domain = domain
