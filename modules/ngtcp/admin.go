@@ -4,14 +4,14 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 )
 
-func (ctl *Controller) AdminMeta() admeta.AdminMeta {
-	return admeta.AdminMeta{
-		Routes: []admeta.AdminRoute{
-			{Method: "GET", Path: "/connections", Handler: func(ctx admeta.AdminContext) {
+func (ctl *Controller) Meta() admeta.Meta {
+	return admeta.Meta{
+		Routes: []admeta.Route{
+			{Method: "GET", Path: "/connections", Handler: func(ctx admeta.Context) {
 				res, _ := ctl.Report()
 				admeta.WriteJSON(ctx.ResponseWriter(), 200, res)
 			}},
-			{Method: "GET", Path: "/stats", Handler: func(ctx admeta.AdminContext) {
+			{Method: "GET", Path: "/stats", Handler: func(ctx admeta.Context) {
 				admeta.WriteJSON(ctx.ResponseWriter(), 200, map[string]any{
 					"totalConns":  ctl.TotalConns.Load(),
 					"activeConns": ctl.ActiveConns.Load(),
@@ -46,4 +46,4 @@ func (ctl *Controller) AdminMeta() admeta.AdminMeta {
 	}
 }
 
-var _ admeta.AdminProvider = (*Controller)(nil)
+var _ admeta.Provider = (*Controller)(nil)

@@ -4,14 +4,14 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 )
 
-func (mid *Midware) AdminMeta() admeta.AdminMeta {
-	return admeta.AdminMeta{
-		Routes: []admeta.AdminRoute{
-			{Method: "GET", Path: "/requests", Handler: func(ctx admeta.AdminContext) {
+func (mid *Midware) Meta() admeta.Meta {
+	return admeta.Meta{
+		Routes: []admeta.Route{
+			{Method: "GET", Path: "/requests", Handler: func(ctx admeta.Context) {
 				res, _ := mid.Report()
 				admeta.WriteJSON(ctx.ResponseWriter(), 200, res)
 			}},
-			{Method: "GET", Path: "/stats", Handler: func(ctx admeta.AdminContext) {
+			{Method: "GET", Path: "/stats", Handler: func(ctx admeta.Context) {
 				admeta.WriteJSON(ctx.ResponseWriter(), 200, map[string]any{
 					"totalRequests":  mid.TotalRequests.Load(),
 					"activeRequests": mid.ActiveRequests.Load(),
@@ -57,4 +57,4 @@ func (mid *Midware) AdminMeta() admeta.AdminMeta {
 	}
 }
 
-var _ admeta.AdminProvider = (*Midware)(nil)
+var _ admeta.Provider = (*Midware)(nil)

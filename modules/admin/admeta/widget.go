@@ -7,8 +7,8 @@ import (
 	stdhttp "net/http"
 )
 
-// AdminContext is the interface that admin route handlers receive.
-type AdminContext interface {
+// Context is the interface that admin route handlers receive.
+type Context interface {
 	ResponseWriter() stdhttp.ResponseWriter
 	Request() *stdhttp.Request
 }
@@ -20,26 +20,26 @@ func WriteJSON(w stdhttp.ResponseWriter, status int, v any) {
 	json.NewEncoder(w).Encode(v)
 }
 
-// AdminHandler is a function that handles an admin API request.
-type AdminHandler func(AdminContext)
+// Handler is a function that handles an admin API request.
+type Handler func(Context)
 
-// AdminProvider is optionally implemented by service instances
+// Provider is optionally implemented by service instances
 // to provide custom monitoring widgets and API routes.
-type AdminProvider interface {
-	AdminMeta() AdminMeta
+type Provider interface {
+	Meta() Meta
 }
 
-// AdminMeta describes a service's admin UI and API routes.
-type AdminMeta struct {
-	Root   Widget       `json:"root"`
-	Routes []AdminRoute `json:"-"`
+// Meta describes a service's admin UI and API routes.
+type Meta struct {
+	Root   Widget  `json:"root"`
+	Routes []Route `json:"-"`
 }
 
-// AdminRoute is a custom API route exposed by a service.
-type AdminRoute struct {
+// Route is a custom API route exposed by a service.
+type Route struct {
 	Method  string
 	Path    string
-	Handler AdminHandler
+	Handler Handler
 }
 
 // WidgetContent is implemented by each widget type.

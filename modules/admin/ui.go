@@ -253,7 +253,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		}
 		var nodes []nodeInfo
 		for name, svc := range space.Services {
-			_, hasAdmin := svc.(admeta.AdminProvider)
+			_, hasAdmin := svc.(admeta.Provider)
 			nodes = append(nodes, nodeInfo{
 				Name:     name,
 				Kind:     space.ServiceKinds[name],
@@ -275,15 +275,15 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		type moduleInfo struct {
 			Name string       `json:"name"`
 			Kind string       `json:"kind"`
-			Meta admeta.AdminMeta `json:"meta"`
+			Meta admeta.Meta `json:"meta"`
 		}
 		var modules []moduleInfo
 		for name, svc := range space.Services {
-			if provider, ok := svc.(admeta.AdminProvider); ok {
+			if provider, ok := svc.(admeta.Provider); ok {
 				modules = append(modules, moduleInfo{
 					Name: name,
 					Kind: space.ServiceKinds[name],
-					Meta: provider.AdminMeta(),
+					Meta: provider.Meta(),
 				})
 			}
 		}
@@ -314,11 +314,11 @@ func (u *UI) handleInstanceRoute(ctx *nghttp.HttpCtx, name string, subPath strin
 	if !ok {
 		return false
 	}
-	provider, ok := svc.(admeta.AdminProvider)
+	provider, ok := svc.(admeta.Provider)
 	if !ok {
 		return false
 	}
-	meta := provider.AdminMeta()
+	meta := provider.Meta()
 	for _, route := range meta.Routes {
 		if route.Path == subPath && route.Method == ctx.Req.Method {
 			route.Handler(ctx)
@@ -358,8 +358,8 @@ func (u *UI) handleInstanceDetail(ctx *nghttp.HttpCtx, name string) {
 		"dependsOn":  dependsOn,
 		"dependedBy": dependedBy,
 	}
-	if provider, ok := svc.(admeta.AdminProvider); ok {
-		result["admin"] = provider.AdminMeta()
+	if provider, ok := svc.(admeta.Provider); ok {
+		result["admin"] = provider.Meta()
 	}
 	admeta.WriteJSON(ctx.ResponseWriter(), 200, result)
 }

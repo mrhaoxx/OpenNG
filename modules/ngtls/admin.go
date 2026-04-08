@@ -6,10 +6,10 @@ import (
 	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 )
 
-func (mgr *TlsMgr) AdminMeta() admeta.AdminMeta {
-	return admeta.AdminMeta{
-		Routes: []admeta.AdminRoute{
-			{Method: "POST", Path: "/reload", Handler: func(ctx admeta.AdminContext) {
+func (mgr *TlsMgr) Meta() admeta.Meta {
+	return admeta.Meta{
+		Routes: []admeta.Route{
+			{Method: "POST", Path: "/reload", Handler: func(ctx admeta.Context) {
 				rw := ctx.ResponseWriter()
 				if err := mgr.Reload(); err != nil {
 					rw.WriteHeader(400)
@@ -18,7 +18,7 @@ func (mgr *TlsMgr) AdminMeta() admeta.AdminMeta {
 					rw.WriteHeader(202)
 				}
 			}},
-			{Method: "GET", Path: "/certs", Handler: func(ctx admeta.AdminContext) {
+			{Method: "GET", Path: "/certs", Handler: func(ctx admeta.Context) {
 				certs := mgr.GetActiveCertificates()
 				type certInfo struct {
 					CertFile  string   `json:"certfile"`
@@ -68,4 +68,4 @@ func (mgr *TlsMgr) AdminMeta() admeta.AdminMeta {
 	}
 }
 
-var _ admeta.AdminProvider = (*TlsMgr)(nil)
+var _ admeta.Provider = (*TlsMgr)(nil)
