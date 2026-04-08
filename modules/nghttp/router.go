@@ -9,9 +9,8 @@ import (
 )
 
 type Router struct {
-	hosts    groupexp.GroupRegexp
-	routes   []route
-	fallback Service
+	hosts  groupexp.GroupRegexp
+	routes []route
 }
 
 type route struct {
@@ -41,9 +40,6 @@ func (r *Router) HandleHTTP(ctx *HttpCtx) Ret {
 		}
 		ctx.Req.URL.Path = orig
 	}
-	if r.fallback != nil {
-		return r.fallback.HandleHTTP(ctx)
-	}
 	return Continue
 }
 
@@ -57,11 +53,10 @@ type RouteConfig struct {
 type RouterConfig struct {
 	Hosts    ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames to handle"`
 	Routes   []RouteConfig    `ng:"routes,required" desc:"route rules, matched in order"`
-	Fallback Service          `ng:"fallback" desc:"default when no route matches"`
 }
 
 func NewRouter(cfg RouterConfig) (*Router, error) {
-	r := &Router{hosts: cfg.Hosts.GroupRegexp(), fallback: cfg.Fallback}
+	r := &Router{hosts: cfg.Hosts.GroupRegexp()}
 	for _, rc := range cfg.Routes {
 		rt := route{match: parsePath(rc.Path), service: rc.Service}
 		if rc.StripPrefix {
