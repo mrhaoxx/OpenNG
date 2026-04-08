@@ -34,25 +34,18 @@ export type FieldType =
 
 const DURATION_PATTERN = /^\^-\?/  // duration pattern starts with ^-?
 
-/** Extract per-kind schemas from the Services additionalProperties allOf */
+/** Extract per-kind schemas from the top-level definitions (populated via $ref) */
 export function parseKindSchemas(schema: JsonSchema): Map<string, KindSchema> {
   const map = new Map<string, KindSchema>()
-  const svcSchema = schema.properties?.Services
-  if (!svcSchema) return map
+  const defs = (schema as any).definitions as Record<string, JsonSchema> | undefined
+  if (!defs) return map
 
-  const entrySchema = typeof svcSchema.additionalProperties === 'object'
-    ? svcSchema.additionalProperties
-    : null
-  if (!entrySchema?.allOf) return map
-
-  for (const item of entrySchema.allOf) {
-    const kindConst = item.if?.properties?.kind?.const
-    if (!kindConst || !item.then) continue
-    map.set(kindConst, {
-      properties: item.then.properties ?? {},
-      required: item.then.required ?? [],
-      description: item.then.description ?? '',
-      additionalProperties: item.then.additionalProperties,
+  for (const [kind, def] of Object.entries(defs)) {
+    map.set(kind, {
+      properties: def.properties ?? {},
+      required: def.required ?? [],
+      description: def.description ?? '',
+      additionalProperties: def.additionalProperties,
     })
   }
   return map

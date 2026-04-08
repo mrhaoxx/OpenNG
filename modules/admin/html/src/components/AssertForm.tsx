@@ -5,6 +5,8 @@ import { classifyField, defaultForType } from '@/lib/schema'
 import { PtrField } from './PtrField'
 import { ListEditor } from './ListEditor'
 import { MapEditor } from './MapEditor'
+import { AnyValueEditor } from './AnyValueEditor'
+import { DrefValue, isDref } from './DrefValue'
 
 export interface AssertFormProps {
   schema: Record<string, JsonSchema>
@@ -17,7 +19,7 @@ export interface AssertFormProps {
   depth: number
 }
 
-const INPUT_CLS = 'bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-foreground w-full'
+const INPUT_CLS = 'bg-neutral-800 border border-neutral-700 rounded px-1.5 py-0.5 text-xs text-foreground w-full'
 
 function placeholderFor(fieldType: string): string {
   switch (fieldType) {
@@ -51,7 +53,7 @@ export function AssertForm({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-1.5">
       {Object.entries(schema).map(([key, fieldSchema]) => {
         if (key === 'kind') return null
 
@@ -61,9 +63,9 @@ export function AssertForm({
         const fieldPath = path ? `${path}.${key}` : key
 
         return (
-          <div key={key} id={`field-${fieldPath}`} className="mb-3">
+          <div key={key} id={`field-${fieldPath}`}>
             {/* Label */}
-            <div className="flex items-center gap-1.5 mb-1">
+            <div className="flex items-center gap-1 mb-0.5">
               {/* Collapse toggle for nested objects */}
               {fieldType === 'object' && fieldSchema.properties && (
                 <button
@@ -77,7 +79,7 @@ export function AssertForm({
                   }
                 </button>
               )}
-              <label className="text-sm font-medium text-neutral-300">
+              <label className="text-xs font-medium text-neutral-300">
                 {key}
               </label>
               {isRequired && (
@@ -89,7 +91,7 @@ export function AssertForm({
 
             {/* Description */}
             {fieldSchema.description && (
-              <p className="text-xs text-neutral-500 mb-1.5">{fieldSchema.description}</p>
+              <p className="text-[10px] text-neutral-500 mb-0.5">{fieldSchema.description}</p>
             )}
 
             {/* Field input */}
@@ -122,19 +124,23 @@ function renderField(
   depth: number,
   isCollapsed: boolean,
 ) {
-  // If schema is untyped (e.g. `any` in Go) but the actual value is an object, render as map
-  if (fieldType === 'string' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+  // Untyped schema (Go `any`): always use AnyValueEditor with type switcher
+  if (fieldType === 'string' && !fieldSchema.type && !fieldSchema.anyOf && !fieldSchema.pattern && !fieldSchema.errorMessage) {
     return (
-      <MapEditor
+      <AnyValueEditor
         value={value}
-        valueSchema={{}}
+        onChange={onChange}
         kindSchemas={kindSchemas}
         allServices={allServices}
-        onChange={onChange}
         path={path}
         depth={depth}
       />
     )
+  }
+
+  // $dref reference
+  if (isDref(value)) {
+    return <DrefValue value={value} onChange={onChange} />
   }
 
   switch (fieldType) {

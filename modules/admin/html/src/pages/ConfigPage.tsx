@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Save, RotateCw } from 'lucide-react'
 import { useConfig } from '@/lib/ConfigContext'
 import { AssertForm } from '@/components/AssertForm'
+import { parseDocument, isMap, isSeq, isPair, isScalar, type Document } from 'yaml'
 
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import YamlWorker from 'monaco-yaml/yaml.worker?worker'
@@ -29,12 +30,16 @@ if (!self.MonacoEnvironment) {
 
 type ChangeSource = 'yaml' | 'visual' | 'none'
 
-export default function ConfigSplit() {
-  const { yamlText, setYamlText, config, setConfig, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload } = useConfig()
+export default function ConfigPage() {
+  const { yamlText, setYamlText, config, setConfigOnly, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload, drefPaths } = useConfig()
+  const drefPathsRef = useRef(drefPaths)
+  drefPathsRef.current = drefPaths
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const visualRef = useRef<HTMLDivElement>(null)
   const changeSourceRef = useRef<ChangeSource>('none')
+  const yamlTextRef = useRef(yamlText)
+  const suppressSaveRef = useRef(true) // suppress until first restore done
 
   const services: Record<string, Record<string, any>> = config?.Services ?? {}
   const allServicesMap = useMemo(() => {
@@ -54,11 +59,12 @@ export default function ConfigSplit() {
     return groups
   }, [services])
 
-  // Create Monaco editor
+  // ── Monaco Editor (shared across code/split) ──
+
   useEffect(() => {
     if (!editorContainerRef.current) return
     const uri = monaco.Uri.parse('config.yaml')
-    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel('# Loading...', 'yaml', uri)
+    const model = monaco.editor.getModel(uri) ?? monaco.editor.createModel('', 'yaml', uri)
     const editor = monaco.editor.create(editorContainerRef.current, {
       language: 'yaml', theme: 'vs-dark', fontSize: 13,
       minimap: { enabled: false }, lineNumbers: 'on',
@@ -68,19 +74,49 @@ export default function ConfigSplit() {
       suggestOnTriggerCharacters: true,
     })
     editorRef.current = editor
-    // Save scroll & cursor position on changes
+
+    // Save scroll & cursor on changes (paused during restore)
     const scrollDisposable = editor.onDidScrollChange(() => {
+      if (suppressSaveRef.current) return
       const pos = editor.getPosition()
       sessionStorage.setItem('ng-editor-state', JSON.stringify({
         scrollTop: editor.getScrollTop(), scrollLeft: editor.getScrollLeft(),
         lineNumber: pos?.lineNumber, column: pos?.column,
       }))
     })
-    return () => { scrollDisposable.dispose(); editor.getModel()?.dispose(); editor.dispose() }
+
+    // $dref completion provider
+    const completionDisposable = monaco.languages.registerCompletionItemProvider('yaml', {
+      triggerCharacters: ['{', '.'],
+      provideCompletionItems(model, position) {
+        const lineContent = model.getLineContent(position.lineNumber)
+        const textBefore = lineContent.substring(0, position.column - 1)
+        // Match $dref{ or $dref{partial.path
+        const drefMatch = textBefore.match(/\$dref\{([^}]*)$/)
+        if (!drefMatch) return { suggestions: [] }
+        const typed = drefMatch[1]
+        const startCol = position.column - typed.length
+        const range = new monaco.Range(position.lineNumber, startCol, position.lineNumber, position.column)
+        const paths = drefPathsRef.current
+        const lower = typed.toLowerCase()
+        const filtered = typed ? paths.filter(p => p.toLowerCase().includes(lower)) : paths
+        return {
+          suggestions: filtered.slice(0, 30).map(p => ({
+            label: p,
+            kind: monaco.languages.CompletionItemKind.Reference,
+            insertText: p,
+            range,
+            detail: '$dref path',
+          })),
+        }
+      },
+    })
+
+    return () => { completionDisposable.dispose(); scrollDisposable.dispose(); editor.getModel()?.dispose(); editor.dispose() }
   }, [])
 
-  // Sync context yamlText → editor (on mount or external change like reload)
-  const yamlTextRef = useRef(yamlText)
+  // Sync context yamlText → editor + restore position on first load
+  const restoredRef = useRef(false)
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
@@ -91,29 +127,43 @@ export default function ConfigSplit() {
         editor.setValue(yamlText)
         setTimeout(() => { changeSourceRef.current = 'none' }, 50)
       }
+      // Restore scroll & cursor on first real content load
+      if (!restoredRef.current && yamlText.length > 0) {
+        restoredRef.current = true
+        const saved = sessionStorage.getItem('ng-editor-state')
+        if (saved) {
+          try {
+            const { scrollTop, scrollLeft, lineNumber, column } = JSON.parse(saved)
+            // Use double rAF to ensure Monaco has finished layout after setValue
+            requestAnimationFrame(() => requestAnimationFrame(() => {
+              editor.setScrollPosition({ scrollTop, scrollLeft })
+              if (lineNumber) editor.setPosition({ lineNumber, column: column ?? 1 })
+              suppressSaveRef.current = false
+            }))
+          } catch { suppressSaveRef.current = false }
+        } else {
+          suppressSaveRef.current = false
+        }
+      }
     }
   }, [yamlText])
 
-  // YAML editor changes → sync to context
+  // Editor content changes → sync to context
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
     const disposable = editor.onDidChangeModelContent(() => {
       if (changeSourceRef.current === 'visual') return
-      if (changeSourceRef.current === 'yaml') return // from context sync, skip
+      if (changeSourceRef.current === 'yaml') return
       const text = editor.getValue()
       yamlTextRef.current = text
-      // setYamlText already parses and updates config in context
+      // setYamlText already parses and updates config; scheduleValidation uses that
       setYamlText(text)
-      try {
-        const parsed = YAML.parse(text)
-        if (parsed) scheduleValidation(parsed)
-      } catch { /* invalid YAML */ }
     })
     return () => disposable.dispose()
-  }, [])
+  }, [setYamlText, scheduleValidation])
 
-  // Sidebar click → scroll Monaco to service
+  // Sidebar click → scroll editor to service
   useEffect(() => {
     const handler = (e: Event) => {
       const svcName = (e as CustomEvent).detail as string
@@ -124,13 +174,47 @@ export default function ConfigSplit() {
       if (line > 0) {
         editor.revealLineInCenter(line)
         editor.setPosition({ lineNumber: line, column: 1 })
+        // Highlight YAML line
+        const decs = editor.deltaDecorations([], [{
+          range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
+          options: { className: 'yaml-highlight-line', isWholeLine: true },
+        }])
+        setTimeout(() => editor.deltaDecorations(decs, []), 1500)
+      }
+      // Also scroll + highlight visual panel
+      const el = visualRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(`svc-${svcName}`)}"]`)
+      if (el) {
+        el.scrollIntoView({ block: 'start' })
+        el.classList.add('ring-1', 'ring-blue-500/40', 'rounded')
+        setTimeout(() => el.classList.remove('ring-1', 'ring-blue-500/40', 'rounded'), 1500)
       }
     }
     window.addEventListener('ng-scroll-to-service', handler)
     return () => window.removeEventListener('ng-scroll-to-service', handler)
   }, [])
 
-  // YAML cursor → scroll visual to matching field
+  // Restore visual scroll on first config load
+  const visualRestoredRef = useRef(false)
+  const suppressVisualSaveRef = useRef(true)
+  useEffect(() => {
+    if (!config || visualRestoredRef.current) return
+    visualRestoredRef.current = true
+    const panel = visualRef.current
+    if (!panel) return
+    const saved = sessionStorage.getItem('ng-visual-scroll')
+    if (saved) {
+      // Triple rAF: wait for React render + layout + paint
+      requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+        panel.scrollTop = parseFloat(saved)
+        suppressVisualSaveRef.current = false
+      })))
+    } else {
+      suppressVisualSaveRef.current = false
+    }
+  }, [config])
+
+  // ── YAML cursor → Visual scroll ──
+
   useEffect(() => {
     const editor = editorRef.current
     if (!editor) return
@@ -147,7 +231,6 @@ export default function ConfigSplit() {
       if (targetId === prevTarget) return
       prevTarget = targetId
 
-      // Try exact match within visual panel, then walk up path
       const panel = visualRef.current
       if (!panel) return
       let el = panel.querySelector<HTMLElement>(`#${CSS.escape(targetId)}`)
@@ -171,19 +254,8 @@ export default function ConfigSplit() {
     return () => disposable.dispose()
   }, [])
 
-  // Restore visual panel scroll position
-  const configReady = config !== null
-  useEffect(() => {
-    if (!configReady) return
-    const panel = visualRef.current
-    if (!panel) return
-    const saved = sessionStorage.getItem('ng-visual-scroll')
-    if (saved) {
-      requestAnimationFrame(() => { panel.scrollTop = parseFloat(saved) })
-    }
-  }, [configReady])
+  // ── Visual focus → YAML scroll ──
 
-  // Visual focus → scroll YAML to matching line (debounced)
   const visualFocusTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   useEffect(() => {
     const panel = visualRef.current
@@ -193,13 +265,11 @@ export default function ConfigSplit() {
       visualFocusTimer.current = setTimeout(() => handleVisualFocus(e), 100)
     }
     const handleVisualFocus = (e: FocusEvent) => {
-      // Skip sync when visual is the change source (add/delete/inline toggle)
       if (changeSourceRef.current === 'visual') return
       const editor = editorRef.current
       const model = editor?.getModel()
       if (!editor || !model) return
 
-      // Walk up from focused element to find a field-* or svc-* id
       let el = e.target as HTMLElement | null
       let fieldId = ''
       while (el && el !== panel) {
@@ -214,35 +284,33 @@ export default function ConfigSplit() {
       const text = model.getValue()
       const line = findYamlLine(text, fieldId)
       if (line > 0) {
-        // Only scroll if line is not already visible
         const visibleRanges = editor.getVisibleRanges()
         const isVisible = visibleRanges.some(r => line >= r.startLineNumber && line <= r.endLineNumber)
-        if (!isVisible) {
-          editor.revealLineInCenter(line)
-        }
-        // Highlight the line briefly
+        if (!isVisible) editor.revealLineInCenter(line)
         const decs = editor.deltaDecorations([], [{
           range: new monaco.Range(line, 1, line, model.getLineMaxColumn(line)),
           options: { className: 'yaml-highlight-line', isWholeLine: true },
         }])
         setTimeout(() => editor.deltaDecorations(decs, []), 1500)
       }
-    } // end handleVisualFocus
+    }
     panel.addEventListener('focusin', handler)
     return () => {
       panel.removeEventListener('focusin', handler)
       if (visualFocusTimer.current) clearTimeout(visualFocusTimer.current)
     }
-  }, [configReady])
+  }, [])
 
-  // Visual → YAML sync
+  // ── Visual → YAML sync ──
+
   const updateFromVisual = useCallback((next: Record<string, any>) => {
     changeSourceRef.current = 'visual'
-    // Use setConfig which also updates yamlText via stringify
-    setConfig(next)
-    // Sync yamlTextRef to prevent sync effect from re-setting editor
+    // Use setConfigOnly to avoid re-stringify → yamlText loop
+    setConfigOnly(next)
     const text = YAML.stringify(next)
     yamlTextRef.current = text
+    // Directly update yamlText state without triggering re-parse
+    // (setYamlText would parse again, but we already have the config)
     const editor = editorRef.current
     if (editor) {
       const model = editor.getModel()
@@ -254,13 +322,14 @@ export default function ConfigSplit() {
     }
     setTimeout(() => { changeSourceRef.current = 'none' }, 50)
     scheduleValidation(next)
-  }, [setConfig, scheduleValidation])
+  }, [setConfigOnly, scheduleValidation])
 
   const updateService = useCallback((name: string, value: Record<string, any>) => {
     if (!config) return
     updateFromVisual({ ...config, Services: { ...config.Services, [name]: value } })
   }, [config, updateFromVisual])
 
+  // ── Layout ──
 
 
   return (
@@ -278,15 +347,14 @@ export default function ConfigSplit() {
         {statusText && <span className="ml-auto text-xs text-muted-foreground">{statusText}</span>}
       </div>
 
-      {/* Split view */}
+      {/* Editor + Visual */}
       <div className="flex-1 flex min-h-0">
-        {/* Left: Monaco */}
         <div ref={editorContainerRef} className="flex-1 min-w-0" />
         <div className="w-px bg-neutral-800 shrink-0" />
-
-        {/* Right: Visual waterfall */}
         <div ref={visualRef} className="flex-1 min-w-0 overflow-y-auto" onScroll={(e) => {
-          sessionStorage.setItem('ng-visual-scroll', String((e.target as HTMLElement).scrollTop))
+          if (!suppressVisualSaveRef.current) {
+            sessionStorage.setItem('ng-visual-scroll', String((e.target as HTMLElement).scrollTop))
+          }
         }}>
           {!config ? (
             <div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>
@@ -303,7 +371,6 @@ export default function ConfigSplit() {
                     const svcProblems = problems.filter(p => p.service === name)
                     return (
                       <div key={name} id={`svc-${name}`} className="mb-3">
-                        {/* Service header */}
                         <div className="flex items-center gap-2 mb-1.5 sticky top-0 bg-background/90 backdrop-blur-sm py-0.5 z-10">
                           <span className="text-sm font-semibold font-mono">{name}</span>
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">{kind}</span>
@@ -313,8 +380,6 @@ export default function ConfigSplit() {
                             </span>
                           )}
                         </div>
-
-                        {/* Kind selector */}
                         <div id={`field-${name}.kind`} className="mb-1.5">
                           <label className="text-xs font-medium text-neutral-300 block mb-0.5">kind</label>
                           <select
@@ -325,8 +390,6 @@ export default function ConfigSplit() {
                             {allKinds.map(k => <option key={k} value={k}>{k}</option>)}
                           </select>
                         </div>
-
-                        {/* Fields from schema */}
                         {kindSchema && (
                           <AssertForm
                             schema={kindSchema.properties}
@@ -339,8 +402,6 @@ export default function ConfigSplit() {
                             depth={0}
                           />
                         )}
-
-                        {/* Problems */}
                         {svcProblems.length > 0 && (
                           <div className="mt-2 space-y-1">
                             {svcProblems.map((p, i) => (
@@ -350,8 +411,7 @@ export default function ConfigSplit() {
                             ))}
                           </div>
                         )}
-
-                        <div className="border-b border-neutral-800 mt-4" />
+                        <div className="border-b border-neutral-800 mt-3" />
                       </div>
                     )
                   })}
@@ -381,8 +441,7 @@ export default function ConfigSplit() {
               <button
                 key={i}
                 onClick={() => {
-                  // Scroll both panels to the error's service
-                  visualRef.current?.querySelector(`#${CSS.escape(`svc-${p.service}`)}`)?.scrollIntoView({ block: 'start' })
+                  visualRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(`svc-${p.service}`)}"]`)?.scrollIntoView({ block: 'start' })
                   const editor = editorRef.current
                   const model = editor?.getModel()
                   if (editor && model) {
@@ -407,9 +466,6 @@ export default function ConfigSplit() {
 
 // ── AST-based YAML ↔ field path mapping ──
 
-import { parseDocument, isMap, isSeq, isPair, isScalar, type Document } from 'yaml'
-
-/** Offset → 1-based line number */
 function offsetToLine(text: string, offset: number): number {
   let line = 1
   for (let i = 0; i < offset && i < text.length; i++) {
@@ -418,7 +474,6 @@ function offsetToLine(text: string, offset: number): number {
   return line
 }
 
-/** Cache parsed AST per text (cheap reference check) */
 let _cachedText = ''
 let _cachedDoc: Document.Parsed | null = null
 function getDoc(text: string): Document.Parsed {
@@ -429,7 +484,6 @@ function getDoc(text: string): Document.Parsed {
   return _cachedDoc!
 }
 
-/** Get the Services map node from the AST */
 function getServicesMap(doc: Document.Parsed): any {
   const root = doc.contents
   if (!isMap(root)) return null
@@ -441,49 +495,34 @@ function getServicesMap(doc: Document.Parsed): any {
   return null
 }
 
-/** Find which service the cursor offset is inside */
 function serviceAtLine(text: string, line: number): string | null {
   const doc = getDoc(text)
   const svcMap = getServicesMap(doc)
   if (!svcMap) return null
-
-  // Convert line to offset
   let offset = 0
   for (let l = 1; l < line && offset < text.length; l++) {
     offset = text.indexOf('\n', offset) + 1
   }
-
   let result: string | null = null
   for (const pair of svcMap.items) {
     if (!isPair(pair) || !isScalar(pair.key)) continue
     const range = (pair.key as any).range ?? (pair.value as any)?.range
-    if (range && range[0] <= offset) {
-      result = String(pair.key.value)
-    }
+    if (range && range[0] <= offset) result = String(pair.key.value)
   }
   return result
 }
 
-/**
- * Build DOM field path from YAML cursor position using AST.
- * Walks the AST to find the deepest node containing the cursor offset,
- * then builds the path from root to that node.
- */
 function buildFieldPath(text: string, line: number, svc: string): string | null {
   const doc = getDoc(text)
   const svcMap = getServicesMap(doc)
   if (!svcMap) return null
-
-  // Convert line to offset (middle of line)
   let offset = 0
   for (let l = 1; l < line && offset < text.length; l++) {
     offset = text.indexOf('\n', offset) + 1
   }
-  // Add to middle of the line
   const nextNl = text.indexOf('\n', offset)
   if (nextNl > offset) offset = Math.floor((offset + nextNl) / 2)
 
-  // Find the service pair
   let svcNode: any = null
   for (const pair of svcMap.items) {
     if (isPair(pair) && isScalar(pair.key) && String(pair.key.value) === svc) {
@@ -493,18 +532,15 @@ function buildFieldPath(text: string, line: number, svc: string): string | null 
   }
   if (!svcNode) return null
 
-  // Walk the AST collecting path segments
   const segments: string[] = []
   function walk(node: any): boolean {
     if (!node || !node.range) return false
     const [start, , end] = node.range
     if (offset < start || offset >= end) return false
-
     if (isMap(node)) {
       for (const pair of node.items) {
         if (!isPair(pair) || !isScalar(pair.key)) continue
         const key = String(pair.key.value)
-        // Check if cursor is within this pair's range
         const pairStart = (pair.key as any).range?.[0] ?? 0
         const pairEnd = (pair.value as any)?.range?.[2] ?? (pair.key as any).range?.[2] ?? 0
         if (offset >= pairStart && offset < pairEnd) {
@@ -513,9 +549,8 @@ function buildFieldPath(text: string, line: number, svc: string): string | null 
           return true
         }
       }
-      return true // cursor in map but not in any specific pair
+      return true
     }
-
     if (isSeq(node)) {
       for (let i = 0; i < node.items.length; i++) {
         const item = node.items[i] as any
@@ -529,13 +564,11 @@ function buildFieldPath(text: string, line: number, svc: string): string | null 
       }
       return true
     }
-
     return true
   }
 
   walk(svcNode)
   if (segments.length === 0) return null
-
   let path = svc
   for (const seg of segments) {
     path += seg.startsWith('[') ? seg : '.' + seg
@@ -543,10 +576,6 @@ function buildFieldPath(text: string, line: number, svc: string): string | null 
   return path
 }
 
-/**
- * Given a DOM element id like "field-httpproxier.hosts[7].backend" or "svc-httpproxier",
- * find the corresponding YAML line number using AST.
- */
 function findYamlLine(text: string, elementId: string): number {
   const doc = getDoc(text)
   const svcMap = getServicesMap(doc)
@@ -562,7 +591,6 @@ function findYamlLine(text: string, elementId: string): number {
     return 1
   }
 
-  // Parse "field-svc.key1[idx].key2..." into segments
   const path = elementId.slice('field-'.length)
   const segments: string[] = []
   let buf = ''
@@ -580,25 +608,18 @@ function findYamlLine(text: string, elementId: string): number {
   if (buf) segments.push(buf)
   if (segments.length === 0) return 1
 
-  // Walk AST following the path segments
-  let node: any = svcMap // start at Services map
+  let node: any = svcMap
   let lastOffset = 0
-
   for (const seg of segments) {
     if (!node) break
-
     if (seg.startsWith('[')) {
-      // Array index
       const idx = parseInt(seg.slice(1, -1))
       if (isSeq(node) && idx < node.items.length) {
         const item = node.items[idx] as any
         if (item?.range) lastOffset = item.range[0]
         node = item
-      } else {
-        break
-      }
+      } else break
     } else {
-      // Map key
       if (isMap(node)) {
         let found = false
         for (const pair of node.items) {
@@ -610,11 +631,8 @@ function findYamlLine(text: string, elementId: string): number {
           }
         }
         if (!found) break
-      } else {
-        break
-      }
+      } else break
     }
   }
-
   return lastOffset > 0 ? offsetToLine(text, lastOffset) : 1
 }

@@ -1,33 +1,13 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import YAML from 'yaml'
+import { useCallback, useMemo, useEffect } from 'react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Save, RotateCw } from 'lucide-react'
-import { fetchSchema, fetchConfigText, csrfFetch } from '@/lib/api'
-import { parseKindSchemas, allKindNames } from '@/lib/schema'
-import type { KindSchema } from '@/lib/schema'
+import { useConfig } from '@/lib/ConfigContext'
 import { AssertForm } from '@/components/AssertForm'
 
-interface ConfigError { service: string; kind: string; phase: string; message: string }
-
 export default function ConfigVisual() {
-  const [config, setConfig] = useState<Record<string, any> | null>(null)
-  const [kindSchemas, setKindSchemas] = useState<Map<string, KindSchema>>(new Map())
-  const [problems, setProblems] = useState<ConfigError[]>([])
-  const [dirty, setDirty] = useState(false)
-  const [statusText, setStatusText] = useState('')
-  const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { config, setConfig, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload } = useConfig()
 
-  useEffect(() => {
-    Promise.all([fetchSchema(), fetchConfigText()])
-      .then(([schemaData, yamlText]) => {
-        setKindSchemas(parseKindSchemas(schemaData))
-        try { setConfig(YAML.parse(yamlText) ?? {}) } catch { setStatusText('Failed to parse YAML') }
-      })
-      .catch(() => setStatusText('Failed to load config'))
-  }, [])
-
-  const allKinds = useMemo(() => allKindNames(kindSchemas), [kindSchemas])
   const services: Record<string, Record<string, any>> = config?.Services ?? {}
 
   const allServicesMap = useMemo(() => {
@@ -47,48 +27,18 @@ export default function ConfigVisual() {
     return groups
   }, [services])
 
-  const scheduleValidation = useCallback((cfg: Record<string, any>) => {
-    if (validateTimer.current) clearTimeout(validateTimer.current)
-    validateTimer.current = setTimeout(async () => {
-      try {
-        const resp = await csrfFetch('/api/v1/cfg/validate', { method: 'POST', body: YAML.stringify(cfg) })
-        setProblems(await resp.json())
-      } catch { /* ignore */ }
-    }, 800)
-  }, [])
-
   const updateService = useCallback((name: string, value: Record<string, any>) => {
     if (!config) return
     const next = { ...config, Services: { ...config.Services, [name]: value } }
     setConfig(next)
-    setDirty(true)
     scheduleValidation(next)
-  }, [config, scheduleValidation])
-
-  const save = useCallback(async () => {
-    if (!config) return
-    setStatusText('Saving...')
-    try {
-      const resp = await csrfFetch('/api/v1/cfg/save', { method: 'POST', body: YAML.stringify(config) })
-      setStatusText(resp.ok ? 'Saved' : `Save failed: ${await resp.text()}`)
-      if (resp.ok) setDirty(false)
-    } catch { setStatusText('Save failed') }
-  }, [config])
-
-  const reload = useCallback(async () => {
-    setStatusText('Reloading...')
-    try {
-      setConfig(YAML.parse(await fetchConfigText()) ?? {})
-      setDirty(false)
-      setStatusText('Reloaded')
-    } catch { setStatusText('Reload failed') }
-  }, [])
+  }, [config, setConfig, scheduleValidation])
 
   // Sidebar click → scroll visual to service
   useEffect(() => {
     const handler = (e: Event) => {
       const name = (e as CustomEvent).detail as string
-      document.getElementById(`svc-${name}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      document.getElementById(`svc-${name}`)?.scrollIntoView({ block: 'start' })
     }
     window.addEventListener('ng-scroll-to-service', handler)
     return () => window.removeEventListener('ng-scroll-to-service', handler)
@@ -114,7 +64,7 @@ export default function ConfigVisual() {
         {!config ? (
           <div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>
         ) : (
-          <div className="p-4 space-y-6">
+          <div className="p-2 space-y-4">
             {Object.entries(serviceGroups).map(([prefix, names]) => (
               <div key={prefix}>
                 <div className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider mb-2">{prefix}</div>
@@ -125,9 +75,9 @@ export default function ConfigVisual() {
                   const kindSchema = kindSchemas.get(kind)
                   const svcProblems = problems.filter(p => p.service === name)
                   return (
-                    <div key={name} id={`svc-${name}`} className="mb-6">
-                      <div className="flex items-center gap-2 mb-3 sticky top-0 bg-background/90 backdrop-blur-sm py-1 z-10">
-                        <span className="text-base font-semibold font-mono">{name}</span>
+                    <div key={name} id={`svc-${name}`} className="mb-3">
+                      <div className="flex items-center gap-2 mb-1.5 sticky top-0 bg-background/90 backdrop-blur-sm py-0.5 z-10">
+                        <span className="text-sm font-semibold font-mono">{name}</span>
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-400">{kind}</span>
                         {svcProblems.length > 0 && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-500/10 text-red-400">
@@ -136,8 +86,8 @@ export default function ConfigVisual() {
                         )}
                       </div>
 
-                      <div id={`field-${name}.kind`} className="mb-3">
-                        <label className="text-sm font-medium text-neutral-300 block mb-1">kind</label>
+                      <div id={`field-${name}.kind`} className="mb-1.5">
+                        <label className="text-xs font-medium text-neutral-300 block mb-0.5">kind</label>
                         <select
                           value={kind}
                           onChange={(e) => updateService(name, { kind: e.target.value })}
@@ -170,7 +120,7 @@ export default function ConfigVisual() {
                         </div>
                       )}
 
-                      <div className="border-b border-neutral-800 mt-4" />
+                      <div className="border-b border-neutral-800 mt-3" />
                     </div>
                   )
                 })}
@@ -178,6 +128,21 @@ export default function ConfigVisual() {
             ))}
           </div>
         )}
+      </div>
+
+      {/* Problems panel */}
+      <div className="shrink-0 border-t border-border bg-neutral-950">
+        <div className="flex items-center gap-3 px-3 py-1 text-[11px]">
+          {problems.length === 0 ? (
+            <span className="flex items-center gap-1 text-muted-foreground">
+              <span className="text-green-500">✓</span> No problems
+            </span>
+          ) : (
+            <span className="flex items-center gap-1 text-red-400">
+              ✗ {problems.length} problem{problems.length > 1 ? 's' : ''}
+            </span>
+          )}
+        </div>
       </div>
     </div>
   )

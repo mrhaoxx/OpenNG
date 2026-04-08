@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useEffect } from 'react'
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
 import type { SpaceMapData, SpaceNode } from '@/lib/api'
 import ELK from 'elkjs/lib/elk.bundled'
 
@@ -51,7 +51,6 @@ async function computeLayout(
       height: NODE_H,
     })),
     edges: validEdges
-      .filter(e => connected.has(e.from) && connected.has(e.to))
       .map((e, i) => ({
         id: `e${i}`,
         sources: [e.from],
@@ -92,11 +91,10 @@ async function computeLayout(
   }
 
   // Edges with routing info
-  const resultEdges: LayoutEdge[] = (layout.edges || []).map(le => ({
-    from: (le as any).sources[0],
-    to: (le as any).targets[0],
-    sections: (le as any).sections,
-  }))
+  const resultEdges: LayoutEdge[] = (layout.edges || []).map(le => {
+    const e = le as unknown as { sources: string[]; targets: string[]; sections?: LayoutEdge['sections'] }
+    return { from: e.sources[0], to: e.targets[0], sections: e.sections }
+  })
 
   return { nodes: resultNodes, edges: resultEdges }
 }
@@ -165,10 +163,14 @@ export default function SpaceMap({ data, onSelectNode }: { data: SpaceMapData; o
     })
   }, [])
 
+  const transformRef = useRef(transform)
+  useEffect(() => { transformRef.current = transform }, [transform])
+
   const onBgDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as Element).closest('[data-node]')) return
-    panRef.current = { sx: e.clientX, sy: e.clientY, tx: transform.x, ty: transform.y }
-  }, [transform])
+    const t = transformRef.current
+    panRef.current = { sx: e.clientX, sy: e.clientY, tx: t.x, ty: t.y }
+  }, [])
 
   useEffect(() => {
     function onMove(e: MouseEvent) {
@@ -189,7 +191,7 @@ export default function SpaceMap({ data, onSelectNode }: { data: SpaceMapData; o
     return <div className="flex items-center justify-center h-full text-muted-foreground">Computing layout...</div>
   }
 
-  const nodeMap = new Map(layoutResult.nodes.map(n => [n.name, n]))
+  const nodeMap = useMemo(() => new Map(layoutResult.nodes.map(n => [n.name, n])), [layoutResult])
 
   return (
     <div ref={containerRef}

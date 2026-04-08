@@ -24,7 +24,7 @@ export default function Instance({ name }: { name: string }) {
   const hasDeps = (detail.dependsOn?.length ?? 0) > 0 || (detail.dependedBy?.length ?? 0) > 0
 
   return (
-    <div className="p-6 max-w-5xl">
+    <div className="p-6 max-w-5xl h-full overflow-auto">
       {/* Header */}
       <div className="mb-6">
         <div className="flex items-center gap-3">

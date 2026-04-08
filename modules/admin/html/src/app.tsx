@@ -1,5 +1,6 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { LayoutGrid, Settings, ScrollText, Info } from 'lucide-react'
+import { ConfigProvider } from '@/lib/ConfigContext'
 import { Badge } from '@/components/ui/badge'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
@@ -7,7 +8,7 @@ import type { SpaceMapData } from '@/lib/api'
 import { fetchJSON } from '@/lib/api'
 import SpaceMap from '@/pages/SpaceMap'
 import Instance from '@/pages/Instance'
-import Config from '@/pages/Config'
+import ConfigPage from '@/pages/ConfigPage'
 import Logs from '@/pages/Logs'
 import System from '@/pages/System'
 
@@ -21,7 +22,7 @@ type Route =
 function parseHash(): Route {
   const hash = location.hash.slice(1) || '/'
   if (hash.startsWith('/instance/')) return { page: 'instance', name: hash.slice('/instance/'.length) }
-  if (hash === '/config') return { page: 'config' }
+  if (hash.startsWith('/config')) return { page: 'config' }
   if (hash === '/logs') return { page: 'logs' }
   if (hash === '/sys') return { page: 'sys' }
   return { page: 'map' }
@@ -48,17 +49,19 @@ export default function App() {
     fetchJSON<SpaceMapData>('/api/v1/space/map').then(setSpaceMap).catch(() => {})
   }, [])
 
-  const nav = useCallback((hash: string) => { location.hash = hash }, [])
+  const nav = (hash: string) => { location.hash = hash }
   const activeRail = route.page === 'instance' ? 'map' : route.page
 
-  // Group all instances by kind prefix
-  const instanceGroups: Record<string, { name: string; kind: string; hasAdmin: boolean }[]> = {}
-  if (spaceMap) {
-    for (const n of spaceMap.nodes) {
-      const prefix = n.kind.split('::')[0] || 'other'
-      ;(instanceGroups[prefix] ??= []).push(n)
+  const instanceGroups = useMemo(() => {
+    const groups: Record<string, { name: string; kind: string; hasAdmin: boolean }[]> = {}
+    if (spaceMap) {
+      for (const n of spaceMap.nodes) {
+        const prefix = n.kind.split('::')[0] || 'other'
+        ;(groups[prefix] ??= []).push(n)
+      }
     }
-  }
+    return groups
+  }, [spaceMap])
 
   return (
     <div className="h-screen flex overflow-hidden bg-background text-foreground">
@@ -89,7 +92,7 @@ export default function App() {
           {route.page === 'map' || route.page === 'instance' ? 'Instances' : railItems.find(r => r.id === route.page)?.label ?? ''}
         </div>
         <Separator className="bg-neutral-800" />
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 overflow-hidden">
           <div className="p-2">
             {(route.page === 'map' || route.page === 'instance') && (
               <>
@@ -127,6 +130,37 @@ export default function App() {
                 ))}
               </>
             )}
+
+            {route.page === 'config' && (
+              <>
+                {/* Service list */}
+                {spaceMap && (
+                  <>
+                    {Object.entries(instanceGroups).map(([prefix, nodes]) => (
+                      <div key={prefix} className="mb-3">
+                        <div className="text-[10px] font-medium text-neutral-600 uppercase tracking-wider px-2 mb-1">{prefix}</div>
+                        {nodes.map(n => {
+                          const handleClick = () => {
+                            document.getElementById(`svc-${n.name}`)?.scrollIntoView({ block: 'start' })
+                            window.dispatchEvent(new CustomEvent('ng-scroll-to-service', { detail: n.name }))
+                          }
+                          return (
+                            <button
+                              key={n.name}
+                              onClick={handleClick}
+                              className="w-full text-left px-2 py-1.5 rounded-md text-sm transition-colors text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800/50"
+                            >
+                              <span className="block truncate font-mono">{n.name}</span>
+                              <span className="block text-[10px] text-neutral-600 truncate">{n.kind}</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ))}
+                  </>
+                )}
+              </>
+            )}
           </div>
         </ScrollArea>
         <div className="p-2 border-t border-neutral-800">
@@ -137,13 +171,17 @@ export default function App() {
       </div>
 
       {/* Content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 overflow-hidden">
         {route.page === 'map' && (spaceMap
           ? <SpaceMap data={spaceMap} onSelectNode={name => nav(`#/instance/${name}`)} />
           : <div className="flex items-center justify-center h-full text-muted-foreground">Loading...</div>
         )}
         {route.page === 'instance' && <Instance name={route.name} />}
-        {route.page === 'config' && <Config />}
+        {route.page === 'config' && (
+          <ConfigProvider>
+            <ConfigPage />
+          </ConfigProvider>
+        )}
         {route.page === 'logs' && <Logs />}
         {route.page === 'sys' && <System />}
       </main>

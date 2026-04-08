@@ -18,6 +18,8 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import type { JsonSchema, KindSchema } from '@/lib/schema'
 import { classifyField, defaultForType } from '@/lib/schema'
+import { AnyValueEditor } from './AnyValueEditor'
+import { DrefValue, isDref } from './DrefValue'
 import { AssertForm } from './AssertForm'
 import { PtrField } from './PtrField'
 import { MapEditor } from './MapEditor'
@@ -152,6 +154,25 @@ export function ListEditor({
   }
 
   const renderItem = (item: any, index: number) => {
+    // $dref reference (including spread $dref{...}...)
+    if (isDref(item)) {
+      return <DrefValue value={item} onChange={(v) => updateItem(index, v)} />
+    }
+
+    // Untyped schema (empty {}): always use AnyValueEditor with type switcher
+    if (itemType === 'string' && !itemSchema.type && !itemSchema.anyOf && !itemSchema.pattern && !itemSchema.errorMessage) {
+      return (
+        <AnyValueEditor
+          value={item}
+          onChange={(v) => updateItem(index, v)}
+          kindSchemas={kindSchemas}
+          allServices={allServices}
+          path={`${path}[${index}]`}
+          depth={depth + 1}
+        />
+      )
+    }
+
     if (itemType === 'ptr') {
       return (
         <PtrField
@@ -245,7 +266,7 @@ export function ListEditor({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <SortableContext items={itemIds} strategy={verticalListSortingStrategy}>
           {value.map((item, index) => (

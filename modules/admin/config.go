@@ -12,28 +12,42 @@ import (
 )
 
 func GenerateJsonSchema() []byte {
-	refs_assertions := ng.AssertionsRegistry()
+	registry := ng.AssertionsRegistry()
 
-	// Build per-kind if/then conditions for service entries
-	allOf := []any{}
-	for k, v := range refs_assertions {
+	// Build definitions: one entry per kind with full schema (no depth limit)
+	definitions := map[string]any{}
+	for k, v := range registry {
 		if k == "_" {
 			continue
 		}
-		thenSchema := ToSchema(v, 0, 6)
-		thenProps := map[string]any{}
-		if m, ok := thenSchema.(map[string]any); ok {
+		kindSchema := toSchemaRef(v)
+		kindProps := map[string]any{}
+		if m, ok := kindSchema.(map[string]any); ok {
 			if p, ok := m["properties"].(map[string]any); ok {
-				thenProps = p
+				kindProps = p
 			}
 		}
-		// Include "kind" in then.properties so additionalProperties works
-		thenProps["kind"] = map[string]any{"const": k}
-		thenRequired := []string{"kind"}
-		if m, ok := thenSchema.(map[string]any); ok {
+		kindProps["kind"] = map[string]any{"const": k}
+		kindRequired := []string{"kind"}
+		if m, ok := kindSchema.(map[string]any); ok {
 			if r, ok := m["required"].([]string); ok {
-				thenRequired = append(thenRequired, r...)
+				kindRequired = append(kindRequired, r...)
 			}
+		}
+		definitions[k] = map[string]any{
+			"type":                 "object",
+			"properties":          kindProps,
+			"required":            kindRequired,
+			"additionalProperties": false,
+			"description":         v.Desc,
+		}
+	}
+
+	// Service entry: allOf with if/then using $ref
+	allOf := []any{}
+	for k := range registry {
+		if k == "_" {
+			continue
 		}
 		allOf = append(allOf, map[string]any{
 			"if": map[string]any{
@@ -42,15 +56,11 @@ func GenerateJsonSchema() []byte {
 				},
 			},
 			"then": map[string]any{
-				"properties":            thenProps,
-				"required":              thenRequired,
-				"additionalProperties":  false,
-				"description":           v.Desc,
+				"$ref": "#/definitions/" + k,
 			},
 		})
 	}
 
-	// Service entry schema: {kind: string, ...fields} with if/then per kind
 	serviceEntry := map[string]any{
 		"type": "object",
 		"properties": map[string]any{
@@ -65,14 +75,14 @@ func GenerateJsonSchema() []byte {
 		serviceEntry["allOf"] = allOf
 	}
 
-	root := ToSchema(ngcmd.TopLevelConfigAssertion, 0, 5)
+	root := toSchemaRef(ngcmd.TopLevelConfigAssertion)
 	rootMap, ok := root.(map[string]any)
 	if !ok {
 		rootMap = map[string]any{}
 	}
 	rootMap["$schema"] = "https://json-schema.org/draft/2020-12/schema"
+	rootMap["definitions"] = definitions
 
-	// Override Services as map of name → service entry
 	if props, ok := rootMap["properties"].(map[string]any); ok {
 		props["Services"] = map[string]any{
 			"type":                 "object",
@@ -85,7 +95,8 @@ func GenerateJsonSchema() []byte {
 	return s
 }
 
-func ToSchema(m ng.Assert, depth, maxDepth int) any {
+// toSchemaRef converts an Assert to JSON Schema using $ref for ptr types (no depth limit).
+func toSchemaRef(m ng.Assert) any {
 	switch m.Type {
 	case "int":
 		res := map[string]any{
@@ -95,8 +106,8 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		if m.Default != nil {
 			res["default"] = m.Default
 		}
-
 		return res
+
 	case "ptr":
 		argsRegistry := ng.AssertionsRegistry()
 		retRegistry := ng.ReturnAssertionsRegistry()
@@ -159,55 +170,42 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 
 		schemas := []any{stringSchema}
 
-		if depth < maxDepth {
-			allowAnon := len(m.Impls) == 0 || len(allowedKinds) > 0
-			if allowAnon {
-				kindProp := map[string]any{"type": "string"}
-				if len(m.Impls) > 0 && len(allowedKinds) > 0 {
-					kindProp["enum"] = allowedKinds
-				}
-
-				anon := map[string]any{
-					"type":        "object",
-					"description": "(anonymous) " + m.Desc,
-					"properties": map[string]any{
-						"kind": kindProp,
-					},
-				}
-
-				conds := []any{}
-				for _, name := range allowedKinds {
-					value, ok := argsRegistry[name]
-					if !ok {
-						continue
-					}
-					thenSchema := ToSchema(value, depth+1, maxDepth)
-					thenProps := map[string]any{}
-					if sm, ok := thenSchema.(map[string]any); ok {
-						if p, ok := sm["properties"].(map[string]any); ok {
-							thenProps = p
-						}
-					}
-					conds = append(conds, map[string]any{
-						"if": map[string]any{
-							"properties": map[string]any{
-								"kind": map[string]any{"const": name},
-							},
-							"required": []string{"kind"},
-						},
-						"then": map[string]any{
-							"properties":  thenProps,
-							"description": value.Desc,
-						},
-					})
-				}
-
-				if len(conds) > 0 {
-					anon["allOf"] = conds
-				}
-
-				schemas = append(schemas, anon)
+		// Always generate inline option — use $ref, no depth limit
+		allowAnon := len(m.Impls) == 0 || len(allowedKinds) > 0
+		if allowAnon {
+			kindProp := map[string]any{"type": "string"}
+			if len(m.Impls) > 0 && len(allowedKinds) > 0 {
+				kindProp["enum"] = allowedKinds
 			}
+
+			anon := map[string]any{
+				"type":        "object",
+				"description": "(anonymous) " + m.Desc,
+				"properties": map[string]any{
+					"kind": kindProp,
+				},
+			}
+
+			conds := []any{}
+			for _, name := range allowedKinds {
+				conds = append(conds, map[string]any{
+					"if": map[string]any{
+						"properties": map[string]any{
+							"kind": map[string]any{"const": name},
+						},
+						"required": []string{"kind"},
+					},
+					"then": map[string]any{
+						"$ref": "#/definitions/" + name,
+					},
+				})
+			}
+
+			if len(conds) > 0 {
+				anon["allOf"] = conds
+			}
+
+			schemas = append(schemas, anon)
 		}
 
 		if m.AllowNil {
@@ -231,43 +229,19 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		if m.Default != nil {
 			res["default"] = m.Default
 		}
-
-		// if len(m.Enum) > 0 {
-		// 	if m.AllowNonEnum {
-		// 		res["anyOf"] = []any{
-		// 			map[string]any{
-		// 				"type": "string",
-		// 			},
-		// 			map[string]any{
-		// 				"enum": m.Enum,
-		// 			},
-		// 		}
-		// 	} else {
-		// 		res["enum"] = m.Enum
-		// 	}
-		// }
-
 		return res
+
 	case "bool":
 		res := map[string]any{
 			"type":        "boolean",
 			"description": m.Desc,
 		}
-
 		if m.Default != nil {
 			res["default"] = m.Default
 		}
-
 		return res
 
 	case "map":
-		if depth >= maxDepth {
-			return map[string]any{
-				"type":         "object",
-				"description":  "(map) " + m.Desc,
-				"errorMessage": "Map must be an object (max nesting depth reached)",
-			}
-		}
 		result := map[string]any{
 			"type":        "object",
 			"description": m.Desc,
@@ -276,18 +250,17 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		if sub, ok := m.Sub["_"]; !ok {
 			result["additionalProperties"] = false
 		} else {
-			result["additionalProperties"] = ToSchema(sub, depth, maxDepth)
+			result["additionalProperties"] = toSchemaRef(sub)
 		}
 
 		props := map[string]any{}
-
 		requried := []string{}
 
 		for key, value := range m.Sub {
 			if key == "_" {
 				continue
 			}
-			props[key] = ToSchema(value, depth+1, maxDepth)
+			props[key] = toSchemaRef(value)
 			if value.Required {
 				requried = append(requried, key)
 			}
@@ -311,14 +284,12 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 		if len(m.SubList) > 0 {
 			prefix := make([]any, 0, len(m.SubList))
 			for _, sub := range m.SubList {
-				prefix = append(prefix, ToSchema(sub, depth+1, maxDepth))
+				prefix = append(prefix, toSchemaRef(sub))
 			}
 			result["prefixItems"] = prefix
 		}
 		if def, ok := m.Sub["_"]; ok {
-			result["items"] = ToSchema(def, depth+1, maxDepth)
-		} else if len(m.SubList) > 0 {
-			// result["items"] = false // no default assertion means extra entries are forbidden
+			result["items"] = toSchemaRef(def)
 		}
 
 		if m.Default != nil {
@@ -371,5 +342,4 @@ func ToSchema(m ng.Assert, depth, maxDepth int) any {
 	}
 
 	return map[string]any{}
-
 }

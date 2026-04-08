@@ -4,6 +4,7 @@ import { configureMonacoYaml } from 'monaco-yaml'
 import { Button } from '@/components/ui/button'
 import { csrfFetch } from '@/lib/api'
 import { Save, RotateCw, Check, AlertCircle, AlertTriangle } from 'lucide-react'
+import { useConfig } from '@/lib/ConfigContext'
 
 // Configure Monaco workers
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
@@ -52,14 +53,16 @@ const PHASE_LABEL: Record<string, string> = {
 }
 
 export default function Config() {
+  const { yamlText, setYamlText, save: ctxSave, reload: ctxReload } = useConfig()
   const containerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const [problems, setProblems] = useState<Problem[]>([])
   const [validating, setValidating] = useState(false)
-  const [statusText, setStatusText] = useState('')
+  const [statusText] = useState('')
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const serverProblemsRef = useRef<Problem[]>([])
   const schemaProblemsRef = useRef<Problem[]>([])
+  const yamlTextRef = useRef(yamlText)
 
   const mergeProblems = useCallback(() => {
     setProblems([...schemaProblemsRef.current, ...serverProblemsRef.current])
@@ -138,15 +141,19 @@ export default function Config() {
 
     editorRef.current = editor
 
-    fetch('/api/v1/cfg/get')
-      .then(r => r.text())
-      .then(text => {
-        editor.getModel()?.setValue(text)
-        runValidation()
-      })
-      .catch(() => setStatusText('Failed to load config'))
-
-    const contentDisposable = editor.onDidChangeModelContent(scheduleValidation)
+    const scrollDisposable = editor.onDidScrollChange(() => {
+      const pos = editor.getPosition()
+      sessionStorage.setItem('ng-editor-state', JSON.stringify({
+        scrollTop: editor.getScrollTop(), scrollLeft: editor.getScrollLeft(),
+        lineNumber: pos?.lineNumber, column: pos?.column,
+      }))
+    })
+    const contentDisposable = editor.onDidChangeModelContent(() => {
+      scheduleValidation()
+      const text = editor.getValue()
+      yamlTextRef.current = text
+      setYamlText(text)
+    })
 
     // Listen for Monaco marker changes (JSON Schema / YAML syntax errors)
     const markerDisposable = monaco.editor.onDidChangeMarkers(([resource]) => {
@@ -165,6 +172,7 @@ export default function Config() {
     })
 
     return () => {
+      scrollDisposable.dispose()
       contentDisposable.dispose()
       markerDisposable.dispose()
       if (timerRef.current) clearTimeout(timerRef.current)
@@ -173,28 +181,45 @@ export default function Config() {
     }
   }, [runValidation, scheduleValidation, mergeProblems])
 
-  const save = useCallback(async () => {
-    const content = editorRef.current?.getValue()
-    if (!content) return
-    setStatusText('Saving...')
-    try {
-      const resp = await csrfFetch('/api/v1/cfg/save', { method: 'POST', body: content })
-      setStatusText(resp.ok ? 'Saved' : `Save failed: ${await resp.text()}`)
-      if (resp.ok) runValidation()
-    } catch {
-      setStatusText('Save failed')
+  // Sidebar click → scroll to service in editor
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const svcName = (e as CustomEvent).detail as string
+      const editor = editorRef.current
+      const model = editor?.getModel()
+      if (!editor || !model) return
+      const text = model.getValue()
+      // Find service line by simple regex
+      const lines = text.split('\n')
+      const pat = new RegExp(`^\\s{2}${svcName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:`)
+      for (let i = 0; i < lines.length; i++) {
+        if (pat.test(lines[i])) {
+          editor.revealLineInCenter(i + 1)
+          editor.setPosition({ lineNumber: i + 1, column: 1 })
+          break
+        }
+      }
     }
-  }, [runValidation])
-
-  const reload = useCallback(async () => {
-    setStatusText('Reloading...')
-    try {
-      const resp = await csrfFetch('/api/v1/cfg/reload', { method: 'POST' })
-      setStatusText(resp.ok ? 'Config reloaded' : `Reload failed: ${await resp.text()}`)
-    } catch {
-      setStatusText('Reload failed')
-    }
+    window.addEventListener('ng-scroll-to-service', handler)
+    return () => window.removeEventListener('ng-scroll-to-service', handler)
   }, [])
+
+  // Sync context yamlText → editor (external changes from other modes)
+  useEffect(() => {
+    const editor = editorRef.current
+    if (!editor) return
+    if (yamlText !== yamlTextRef.current) {
+      yamlTextRef.current = yamlText
+      if (editor.getValue() !== yamlText) {
+        editor.setValue(yamlText)
+      }
+    }
+  }, [yamlText])
+
+  const save = useCallback(async () => {
+    await ctxSave()
+    runValidation()
+  }, [ctxSave, runValidation])
 
   const goToProblem = useCallback((p: Problem) => {
     const editor = editorRef.current
@@ -215,7 +240,7 @@ export default function Config() {
         <Button size="sm" variant="outline" onClick={save} className="gap-1.5 h-7">
           <Save size={14} /> Save
         </Button>
-        <Button size="sm" variant="outline" onClick={reload} className="gap-1.5 h-7">
+        <Button size="sm" variant="outline" onClick={ctxReload} className="gap-1.5 h-7">
           <RotateCw size={14} /> Reload
         </Button>
         {statusText && (

@@ -5,6 +5,7 @@ import { classifyField } from '@/lib/schema'
 import { AssertForm } from './AssertForm'
 import { ListEditor } from './ListEditor'
 import { PtrField } from './PtrField'
+import { AnyValueEditor } from './AnyValueEditor'
 
 export interface MapEditorProps {
   value: Record<string, any>
@@ -93,6 +94,20 @@ export function MapEditor({
   }
 
   const renderValue = (key: string, val: any) => {
+    // Untyped schema (Go `any`): always use AnyValueEditor with type switcher
+    if (fieldType === 'string' && !valueSchema.type && !valueSchema.anyOf && !valueSchema.pattern && !valueSchema.errorMessage) {
+      return (
+        <AnyValueEditor
+          value={val}
+          onChange={(v) => updateValue(key, v)}
+          kindSchemas={kindSchemas}
+          allServices={allServices}
+          path={`${path}.${key}`}
+          depth={depth + 1}
+        />
+      )
+    }
+
     // Array values
     if (fieldType === 'array' || valueSchema.type === 'array') {
       return (
@@ -173,14 +188,14 @@ export function MapEditor({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {entries.map(([key, val], idx) => {
         const isComplex = fieldType === 'array' || fieldType === 'object' || fieldType === 'ptr' ||
           (valueSchema.type === 'array') || (valueSchema.type === 'object' && valueSchema.properties)
 
         if (isComplex) {
           return (
-            <div key={idx} id={`field-${path}.${key}`} className="border border-neutral-800 rounded-md p-3 bg-neutral-900/50">
+            <div key={idx} id={`field-${path}.${key}`} className="border border-neutral-800 rounded-md p-2 bg-neutral-900/50">
               <div className="flex items-center gap-2 mb-2">
                 <MapKeyInput
                   value={key}

@@ -85,7 +85,7 @@ export function PtrField({
 
   // Inline mode
   const currentKind = value?.kind ?? allowedKinds[0] ?? ''
-  const kindSchema = getInlineKindSchema(inlineAllOf, currentKind) ?? kindSchemas.get(currentKind) ?? null
+  const kindSchema = kindSchemas.get(currentKind) ?? getInlineKindSchema(inlineAllOf, currentKind)
 
   const changeKind = (newKind: string) => {
     onChange({ kind: newKind })
@@ -96,7 +96,7 @@ export function PtrField({
   }
 
   return (
-    <div className="border-l-2 border-blue-500/30 pl-3 space-y-2">
+    <div className="border-l-2 border-blue-500/30 pl-2 space-y-1">
       <div className="flex items-center gap-2">
         <select
           value={currentKind}
@@ -137,7 +137,7 @@ export function PtrField({
           onChange={changeFields}
           kindSchemas={kindSchemas}
           allServices={allServices}
-          path={`${path}(${currentKind})`}
+          path={path}
           depth={depth + 1}
         />
       )}
