@@ -293,6 +293,14 @@ func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 			return RequestEnd
 		},
 		CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/trace$", regexp2.None)},
+	}, {
+		CgiHandler: func(ctx *HttpCtx, path string) Ret {
+			ctx.Resp.Header().Set("Content-Type", "image/svg+xml")
+			ctx.Resp.Header().Set("Cache-Control", "public, max-age=86400")
+			ctx.Resp.Write(ng.Logo())
+			return RequestEnd
+		},
+		CgiPaths: []*regexp2.Regexp{regexp2.MustCompile("^/logo$", regexp2.None)},
 	},
 	}
 

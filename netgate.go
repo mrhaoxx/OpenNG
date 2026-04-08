@@ -15,7 +15,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
-//go:embed NetGATE.svg
+//go:embed modules/admin/html/public/NetGATE.svg
 var logo_svg []byte
 
 func Logo() []byte {
