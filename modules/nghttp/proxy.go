@@ -149,11 +149,9 @@ func NewHTTPProxier(allowedhosts groupexp.GroupRegexp) *ReverseProxy {
 
 	hpx.buf = lookup.NewBufferedLookup(func(host string) *HttpHost {
 		for _, t := range hpx.hosts {
-			if t.ServerName.MatchString(host) {
-				// fmt.Println(t.ServerName.String(), host, "success")
+			if t.ServerName == nil || t.ServerName.MatchString(host) {
 				return t
 			}
-			// fmt.Println(t.ServerName.String(), host, "failed")
 		}
 		return nil
 	})

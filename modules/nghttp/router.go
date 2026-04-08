@@ -8,9 +8,6 @@ import (
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 )
 
-// Router implements path-based routing, similar to nginx location blocks.
-// It matches requests by path (prefix, exact, or regex) and optionally by method,
-// then dispatches to a target service.
 type Router struct {
 	hosts    groupexp.GroupRegexp
 	routes   []route
@@ -18,108 +15,60 @@ type Router struct {
 }
 
 type route struct {
-	matcher   pathMatcher
-	methods   map[string]bool // nil = all methods
+	match     func(string) bool
+	methods   map[string]bool
 	service   Service
-	stripPath string // prefix to strip before forwarding
+	stripPath string
 }
 
-type pathMatcher interface {
-	match(path string) bool
-}
-
-type prefixMatcher string
-
-func (p prefixMatcher) match(path string) bool {
-	return strings.HasPrefix(path, string(p))
-}
-
-type exactMatcher string
-
-func (e exactMatcher) match(path string) bool {
-	return path == string(e)
-}
-
-type regexMatcher struct {
-	re *regexp2.Regexp
-}
-
-func (r *regexMatcher) match(path string) bool {
-	ok, _ := r.re.MatchString(path)
-	return ok
-}
-
-func (r *Router) Hosts() groupexp.GroupRegexp {
-	return r.hosts
-}
+func (r *Router) Hosts() groupexp.GroupRegexp { return r.hosts }
 
 func (r *Router) HandleHTTP(ctx *HttpCtx) Ret {
-	path := ctx.Req.URL.Path
-	method := ctx.Req.Method
-
+	orig := ctx.Req.URL.Path
 	for _, rt := range r.routes {
-		if !rt.matcher.match(path) {
-			continue
-		}
-		if rt.methods != nil && !rt.methods[method] {
+		if !rt.match(orig) || (rt.methods != nil && !rt.methods[ctx.Req.Method]) {
 			continue
 		}
 		if rt.stripPath != "" {
-			ctx.Req.URL.Path = strings.TrimPrefix(path, rt.stripPath)
-			if ctx.Req.URL.Path == "" || ctx.Req.URL.Path[0] != '/' {
-				ctx.Req.URL.Path = "/" + ctx.Req.URL.Path
+			p := strings.TrimPrefix(orig, rt.stripPath)
+			if p == "" || p[0] != '/' {
+				p = "/" + p
 			}
+			ctx.Req.URL.Path = p
 		}
-		return rt.service.HandleHTTP(ctx)
+		if rt.service.HandleHTTP(ctx) == RequestEnd {
+			return RequestEnd
+		}
+		ctx.Req.URL.Path = orig
 	}
-
 	if r.fallback != nil {
 		return r.fallback.HandleHTTP(ctx)
 	}
-
-	ctx.Resp.ErrorPage(StatusNotFound, "No matching route for "+path)
-	return RequestEnd
+	return Continue
 }
 
-// --- Config & Registration ---
-
 type RouteConfig struct {
-	Path        string   `ng:"path,required" desc:"path pattern: '/api/' (prefix), '= /health' (exact), '~ ^/user/\\d+' (regex)"`
-	Method      []string `ng:"method" desc:"allowed HTTP methods (empty = all)"`
+	Path        string   `ng:"path,required" desc:"prefix '/api/', exact '= /health', regex '~ ^/u/\\d+'"`
+	Method      []string `ng:"method" desc:"allowed methods (empty = all)"`
 	Service     Service  `ng:"service,required" desc:"target service"`
-	StripPrefix bool     `ng:"strip_prefix" desc:"strip matched prefix before forwarding"`
+	StripPrefix bool     `ng:"strip_prefix" desc:"strip matched prefix"`
 }
 
 type RouterConfig struct {
-	Hosts    ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames this router handles"`
+	Hosts    ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames to handle"`
 	Routes   []RouteConfig    `ng:"routes,required" desc:"route rules, matched in order"`
-	Fallback Service          `ng:"fallback" desc:"default service when no route matches"`
-}
-
-func parsePath(pattern string) pathMatcher {
-	pattern = strings.TrimSpace(pattern)
-	if strings.HasPrefix(pattern, "= ") {
-		return exactMatcher(pattern[2:])
-	}
-	if strings.HasPrefix(pattern, "~ ") {
-		re := regexp2.MustCompile(pattern[2:], regexp2.RE2)
-		return &regexMatcher{re: re}
-	}
-	return prefixMatcher(pattern)
+	Fallback Service          `ng:"fallback" desc:"default when no route matches"`
 }
 
 func NewRouter(cfg RouterConfig) (*Router, error) {
-	r := &Router{
-		hosts:    cfg.Hosts.GroupRegexp(),
-		fallback: cfg.Fallback,
-	}
+	r := &Router{hosts: cfg.Hosts.GroupRegexp(), fallback: cfg.Fallback}
 	for _, rc := range cfg.Routes {
-		rt := route{
-			matcher: parsePath(rc.Path),
-			service: rc.Service,
-		}
-		if rc.StripPrefix && !strings.HasPrefix(rc.Path, "= ") && !strings.HasPrefix(rc.Path, "~ ") {
-			rt.stripPath = strings.TrimSpace(rc.Path)
+		rt := route{match: parsePath(rc.Path), service: rc.Service}
+		if rc.StripPrefix {
+			p := strings.TrimSpace(rc.Path)
+			if !strings.HasPrefix(p, "= ") && !strings.HasPrefix(p, "~ ") {
+				rt.stripPath = p
+			}
 		}
 		if len(rc.Method) > 0 {
 			rt.methods = make(map[string]bool, len(rc.Method))
@@ -132,6 +81,17 @@ func NewRouter(cfg RouterConfig) (*Router, error) {
 	return r, nil
 }
 
-func init() {
-	ng.RegisterFunc("http::router", NewRouter)
+func parsePath(p string) func(string) bool {
+	p = strings.TrimSpace(p)
+	if strings.HasPrefix(p, "= ") {
+		exact := p[2:]
+		return func(s string) bool { return s == exact }
+	}
+	if strings.HasPrefix(p, "~ ") {
+		re := regexp2.MustCompile(p[2:], regexp2.RE2)
+		return func(s string) bool { ok, _ := re.MatchString(s); return ok }
+	}
+	return func(s string) bool { return strings.HasPrefix(s, p) }
 }
+
+func init() { ng.RegisterFunc("http::router", NewRouter) }
