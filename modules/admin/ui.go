@@ -20,7 +20,7 @@ import (
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	ngcmd "github.com/mrhaoxx/OpenNG/cmd"
-	w "github.com/mrhaoxx/OpenNG/modules/admin/widget"
+	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	zlog "github.com/rs/zerolog/log"
@@ -105,7 +105,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
 		if len(errors) > 0 {
-			w.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusUnprocessableEntity, errors)
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusUnprocessableEntity, errors)
 			return nghttp.RequestEnd
 		}
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
@@ -119,9 +119,9 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		b, _ := io.ReadAll(ctx.Req.Body)
 		errors := ngcmd.ValidateCfg(b)
 		if len(errors) > 0 {
-			w.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, errors)
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, errors)
 		} else {
-			w.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, []any{})
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, []any{})
 		}
 	case "/api/v1/cfg/get":
 		ctx.Resp.Header().Set("Content-Type", "text/yaml; charset=utf-8")
@@ -243,7 +243,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	case "/api/v1/space/map":
 		space := u.getSpace()
 		if space == nil {
-			w.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+			admeta.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
 			return nghttp.RequestEnd
 		}
 		type nodeInfo struct {
@@ -253,7 +253,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		}
 		var nodes []nodeInfo
 		for name, svc := range space.Services {
-			_, hasAdmin := svc.(w.AdminProvider)
+			_, hasAdmin := svc.(admeta.AdminProvider)
 			nodes = append(nodes, nodeInfo{
 				Name:     name,
 				Kind:     space.ServiceKinds[name],
@@ -264,22 +264,22 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			"nodes": nodes,
 			"edges": space.Edges,
 		}
-		w.WriteJSON(ctx.ResponseWriter(), 200, result)
+		admeta.WriteJSON(ctx.ResponseWriter(), 200, result)
 
 	case "/api/v1/admin/modules":
 		space := u.getSpace()
 		if space == nil {
-			w.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+			admeta.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
 			return nghttp.RequestEnd
 		}
 		type moduleInfo struct {
 			Name string       `json:"name"`
 			Kind string       `json:"kind"`
-			Meta w.AdminMeta `json:"meta"`
+			Meta admeta.AdminMeta `json:"meta"`
 		}
 		var modules []moduleInfo
 		for name, svc := range space.Services {
-			if provider, ok := svc.(w.AdminProvider); ok {
+			if provider, ok := svc.(admeta.AdminProvider); ok {
 				modules = append(modules, moduleInfo{
 					Name: name,
 					Kind: space.ServiceKinds[name],
@@ -287,7 +287,7 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 				})
 			}
 		}
-		w.WriteJSON(ctx.ResponseWriter(), 200, modules)
+		admeta.WriteJSON(ctx.ResponseWriter(), 200, modules)
 
 	default:
 		if strings.HasPrefix(ctx.Req.URL.Path, "/debug/pprof") {
@@ -314,7 +314,7 @@ func (u *UI) handleInstanceRoute(ctx *nghttp.HttpCtx, name string, subPath strin
 	if !ok {
 		return false
 	}
-	provider, ok := svc.(w.AdminProvider)
+	provider, ok := svc.(admeta.AdminProvider)
 	if !ok {
 		return false
 	}
@@ -331,12 +331,12 @@ func (u *UI) handleInstanceRoute(ctx *nghttp.HttpCtx, name string, subPath strin
 func (u *UI) handleInstanceDetail(ctx *nghttp.HttpCtx, name string) {
 	space := u.getSpace()
 	if space == nil {
-		w.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
+		admeta.WriteJSON(ctx.ResponseWriter(), 424, map[string]string{"error": "space not available"})
 		return
 	}
 	svc, ok := space.Services[name]
 	if !ok {
-		w.WriteJSON(ctx.ResponseWriter(), 404, map[string]string{"error": "instance not found"})
+		admeta.WriteJSON(ctx.ResponseWriter(), 404, map[string]string{"error": "instance not found"})
 		return
 	}
 
@@ -358,10 +358,10 @@ func (u *UI) handleInstanceDetail(ctx *nghttp.HttpCtx, name string) {
 		"dependsOn":  dependsOn,
 		"dependedBy": dependedBy,
 	}
-	if provider, ok := svc.(w.AdminProvider); ok {
+	if provider, ok := svc.(admeta.AdminProvider); ok {
 		result["admin"] = provider.AdminMeta()
 	}
-	w.WriteJSON(ctx.ResponseWriter(), 200, result)
+	admeta.WriteJSON(ctx.ResponseWriter(), 200, result)
 }
 
 func (*UI) HandleHTTPInternal(ctx *nghttp.HttpCtx) nghttp.Ret {

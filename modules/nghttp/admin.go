@@ -1,18 +1,18 @@
 package nghttp
 
 import (
-	w "github.com/mrhaoxx/OpenNG/modules/admin/widget"
+	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 )
 
-func (mid *Midware) AdminMeta() w.AdminMeta {
-	return w.AdminMeta{
-		Routes: []w.AdminRoute{
-			{Method: "GET", Path: "/requests", Handler: func(ctx w.AdminContext) {
+func (mid *Midware) AdminMeta() admeta.AdminMeta {
+	return admeta.AdminMeta{
+		Routes: []admeta.AdminRoute{
+			{Method: "GET", Path: "/requests", Handler: func(ctx admeta.AdminContext) {
 				res, _ := mid.Report()
-				w.WriteJSON(ctx.ResponseWriter(), 200, res)
+				admeta.WriteJSON(ctx.ResponseWriter(), 200, res)
 			}},
-			{Method: "GET", Path: "/stats", Handler: func(ctx w.AdminContext) {
-				w.WriteJSON(ctx.ResponseWriter(), 200, map[string]any{
+			{Method: "GET", Path: "/stats", Handler: func(ctx admeta.AdminContext) {
+				admeta.WriteJSON(ctx.ResponseWriter(), 200, map[string]any{
 					"totalRequests":  mid.TotalRequests.Load(),
 					"activeRequests": mid.ActiveRequests.Load(),
 					"totalBytesOut":  mid.TotalBytesOut.Load(),
@@ -25,23 +25,23 @@ func (mid *Midware) AdminMeta() w.AdminMeta {
 				})
 			}},
 		},
-		Root: w.Column(1,
-			w.Row(
-				w.Widget{Content: w.Stat{Label: "Total Requests", Source: "stats", Field: "totalRequests", Poll: "2s"}},
-				w.Widget{Content: w.Stat{Label: "Active", Source: "stats", Field: "activeRequests", Poll: "1s"}},
-				w.Widget{Content: w.Stat{Label: "Req/s (5s)", Source: "stats", Field: "reqRate5s", Poll: "2s"}},
-				w.Widget{Content: w.Stat{Label: "Total TX", Source: "stats", Field: "totalBytesOut", Unit: "bytes", Poll: "2s"}},
+		Root: admeta.Column(1,
+			admeta.Row(
+				admeta.Widget{Content: admeta.Stat{Label: "Total Requests", Source: "stats", Field: "totalRequests", Poll: "2s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "Active", Source: "stats", Field: "activeRequests", Poll: "1s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "Req/s (5s)", Source: "stats", Field: "reqRate5s", Poll: "2s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "Total TX", Source: "stats", Field: "totalBytesOut", Unit: "bytes", Poll: "2s"}},
 			),
-			w.Row(
-				w.Widget{Content: w.Stat{Label: "2xx", Source: "stats", Field: "status2xx", Poll: "2s"}},
-				w.Widget{Content: w.Stat{Label: "3xx", Source: "stats", Field: "status3xx", Poll: "2s"}},
-				w.Widget{Content: w.Stat{Label: "4xx", Source: "stats", Field: "status4xx", Poll: "2s"}},
-				w.Widget{Content: w.Stat{Label: "5xx", Source: "stats", Field: "status5xx", Poll: "2s"}},
+			admeta.Row(
+				admeta.Widget{Content: admeta.Stat{Label: "2xx", Source: "stats", Field: "status2xx", Poll: "2s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "3xx", Source: "stats", Field: "status3xx", Poll: "2s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "4xx", Source: "stats", Field: "status4xx", Poll: "2s"}},
+				admeta.Widget{Content: admeta.Stat{Label: "5xx", Source: "stats", Field: "status5xx", Poll: "2s"}},
 			),
-			w.Widget{Content: w.Table{
+			admeta.Widget{Content: admeta.Table{
 				Source: "requests",
 				Poll:   "1s",
-				Columns: []w.ColumnDef{
+				Columns: []admeta.ColumnDef{
 					{Field: "method", Label: "Method", Type: "string"},
 					{Field: "host", Label: "Host", Type: "string"},
 					{Field: "uri", Label: "URI", Type: "string"},
@@ -57,4 +57,4 @@ func (mid *Midware) AdminMeta() w.AdminMeta {
 	}
 }
 
-var _ w.AdminProvider = (*Midware)(nil)
+var _ admeta.AdminProvider = (*Midware)(nil)

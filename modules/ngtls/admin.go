@@ -3,13 +3,13 @@ package ngtls
 import (
 	"time"
 
-	w "github.com/mrhaoxx/OpenNG/modules/admin/widget"
+	"github.com/mrhaoxx/OpenNG/modules/admin/admeta"
 )
 
-func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
-	return w.AdminMeta{
-		Routes: []w.AdminRoute{
-			{Method: "POST", Path: "/reload", Handler: func(ctx w.AdminContext) {
+func (mgr *TlsMgr) AdminMeta() admeta.AdminMeta {
+	return admeta.AdminMeta{
+		Routes: []admeta.AdminRoute{
+			{Method: "POST", Path: "/reload", Handler: func(ctx admeta.AdminContext) {
 				rw := ctx.ResponseWriter()
 				if err := mgr.Reload(); err != nil {
 					rw.WriteHeader(400)
@@ -18,7 +18,7 @@ func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
 					rw.WriteHeader(202)
 				}
 			}},
-			{Method: "GET", Path: "/certs", Handler: func(ctx w.AdminContext) {
+			{Method: "GET", Path: "/certs", Handler: func(ctx admeta.AdminContext) {
 				certs := mgr.GetActiveCertificates()
 				type certInfo struct {
 					CertFile  string   `json:"certfile"`
@@ -40,15 +40,15 @@ func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
 						Issuer:    c.Leaf.Issuer.CommonName,
 					})
 				}
-				w.WriteJSON(ctx.ResponseWriter(), 200, result)
+				admeta.WriteJSON(ctx.ResponseWriter(), 200, result)
 			}},
 		},
-		Root: w.Columns(
-			w.Column(12,
-				w.Card("Certificates",
-					w.Widget{Content: w.Table{
+		Root: admeta.Columns(
+			admeta.Column(12,
+				admeta.Card("Certificates",
+					admeta.Widget{Content: admeta.Table{
 						Source: "certs",
-						Columns: []w.ColumnDef{
+						Columns: []admeta.ColumnDef{
 							{Field: "certfile", Label: "File", Type: "string"},
 							{Field: "domains", Label: "Domains", Type: "string"},
 							{Field: "issuer", Label: "Issuer", Type: "string"},
@@ -56,7 +56,7 @@ func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
 						},
 					}},
 				),
-				w.Widget{Content: w.Action{
+				admeta.Widget{Content: admeta.Action{
 					Label:    "Reload Certificates",
 					Endpoint: "reload",
 					Method:   "POST",
@@ -68,4 +68,4 @@ func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
 	}
 }
 
-var _ w.AdminProvider = (*TlsMgr)(nil)
+var _ admeta.AdminProvider = (*TlsMgr)(nil)

@@ -1,6 +1,6 @@
-// Package widget defines the admin UI widget type system and provider interface.
+// Package admeta defines the admin UI widget type system and provider interface.
 // This package has no dependencies on any module, so it can be imported by all services.
-package widget
+package admeta
 
 import (
 	"encoding/json"
