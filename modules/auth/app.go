@@ -19,7 +19,7 @@ func init() {
 
 type AuthManagerConfig struct {
 	Backends   []AuthHandle             `ng:"backends"`
-	Allowhosts ng.HostnameSliceDefault  `ng:"allowhosts"`
+	Allowhosts ng.HostnameSlice `ng:"allowhosts" default:"[*]"`
 }
 
 func NewAuthManagerFromConfig(cfg AuthManagerConfig) (*AuthMgr, error) {

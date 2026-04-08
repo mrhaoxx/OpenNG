@@ -871,6 +871,24 @@ func parseDefaultTag(raw string, assertType string) any {
 		if d, err := time.ParseDuration(raw); err == nil {
 			return d
 		}
+	case "list":
+		// Support [item1,item2,...] syntax
+		s := strings.TrimSpace(raw)
+		if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
+			inner := strings.TrimSpace(s[1 : len(s)-1])
+			if inner == "" {
+				return []*ArgNode{}
+			}
+			parts := strings.Split(inner, ",")
+			nodes := make([]*ArgNode, 0, len(parts))
+			for _, p := range parts {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					nodes = append(nodes, &ArgNode{Type: "string", Value: p})
+				}
+			}
+			return nodes
+		}
 	case "ptr":
 		return raw
 	case "url":

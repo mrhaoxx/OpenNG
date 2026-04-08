@@ -63,26 +63,3 @@ func (r RegexpSlice) GroupRegexp() groupexp.GroupRegexp {
 func (r RegexpSlice) MatchString(s string) bool {
 	return groupexp.GroupRegexp(r).MatchString(s)
 }
-
-// HostnameSliceDefault is like HostnameSlice but defaults to ["*"] (match all).
-type HostnameSliceDefault HostnameSlice
-
-func (*HostnameSliceDefault) Assert() Assert {
-	return Assert{
-		Type:    "list",
-		Default: []*ArgNode{{Type: "hostname", Value: "*"}},
-		Sub:     AssertMap{"_": {Type: "hostname"}},
-	}
-}
-
-func (h *HostnameSliceDefault) UnmarshalArgNode(node *ArgNode) error {
-	return (*HostnameSlice)(h).UnmarshalArgNode(node)
-}
-
-func (h HostnameSliceDefault) GroupRegexp() groupexp.GroupRegexp {
-	return groupexp.GroupRegexp(h)
-}
-
-func (h HostnameSliceDefault) MatchString(s string) bool {
-	return groupexp.GroupRegexp(h).MatchString(s)
-}

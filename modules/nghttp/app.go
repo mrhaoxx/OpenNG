@@ -23,7 +23,7 @@ type ReverseProxierHostConfig struct {
 
 type ReverseProxierConfig struct {
 	Hosts      []ReverseProxierHostConfig `ng:"hosts" desc:"reverse proxy host configurations"`
-	Allowhosts ng.HostnameSliceDefault    `ng:"allowhosts" desc:"hostnames that this proxy will handle"`
+	Allowhosts ng.HostnameSlice `ng:"allowhosts" default:"[*]" desc:"hostnames that this proxy will handle"`
 }
 
 func NewReverseProxierFromConfig(cfg ReverseProxierConfig) (*ReverseProxy, error) {
