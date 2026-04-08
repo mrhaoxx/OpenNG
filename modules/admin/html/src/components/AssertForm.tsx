@@ -122,6 +122,21 @@ function renderField(
   depth: number,
   isCollapsed: boolean,
 ) {
+  // If schema is untyped (e.g. `any` in Go) but the actual value is an object, render as map
+  if (fieldType === 'string' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    return (
+      <MapEditor
+        value={value}
+        valueSchema={{}}
+        kindSchemas={kindSchemas}
+        allServices={allServices}
+        onChange={onChange}
+        path={path}
+        depth={depth}
+      />
+    )
+  }
+
   switch (fieldType) {
     case 'string':
     case 'duration':

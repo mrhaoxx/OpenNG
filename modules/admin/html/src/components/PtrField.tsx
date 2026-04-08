@@ -85,7 +85,7 @@ export function PtrField({
 
   // Inline mode
   const currentKind = value?.kind ?? allowedKinds[0] ?? ''
-  const kindSchema = getInlineKindSchema(inlineAllOf, currentKind)
+  const kindSchema = getInlineKindSchema(inlineAllOf, currentKind) ?? kindSchemas.get(currentKind) ?? null
 
   const changeKind = (newKind: string) => {
     onChange({ kind: newKind })

@@ -44,7 +44,6 @@ export default function ConfigSplit() {
   const [statusText, setStatusText] = useState('')
   const changeSourceRef = useRef<ChangeSource>('none')
   const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const yamlSyncTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const allKinds = useMemo(() => allKindNames(kindSchemas), [kindSchemas])
   const services: Record<string, Record<string, any>> = config?.Services ?? {}
@@ -99,20 +98,17 @@ export default function ConfigSplit() {
     if (!editor) return
     const disposable = editor.onDidChangeModelContent(() => {
       if (changeSourceRef.current === 'visual') return
-      if (yamlSyncTimer.current) clearTimeout(yamlSyncTimer.current)
-      yamlSyncTimer.current = setTimeout(() => {
-        const text = editor.getValue()
-        try {
-          const parsed = YAML.parse(text)
-          if (parsed) {
-            changeSourceRef.current = 'yaml'
-            setConfig(parsed)
-            setTimeout(() => { changeSourceRef.current = 'none' }, 50)
-            scheduleValidation(parsed)
-          }
-        } catch { /* invalid YAML */ }
-        setDirty(true)
-      }, 300)
+      const text = editor.getValue()
+      setDirty(true)
+      try {
+        const parsed = YAML.parse(text)
+        if (parsed) {
+          changeSourceRef.current = 'yaml'
+          setConfig(parsed)
+          setTimeout(() => { changeSourceRef.current = 'none' }, 50)
+          scheduleValidation(parsed)
+        }
+      } catch { /* invalid YAML */ }
     })
     return () => disposable.dispose()
   }, [])
@@ -162,7 +158,15 @@ export default function ConfigSplit() {
         if (!el) el = document.getElementById(`svc-${svc}`)
       }
       if (el) {
-        el.scrollIntoView({ block: 'nearest' })
+        const rect = el.getBoundingClientRect()
+        const panel = visualRef.current
+        if (panel) {
+          const panelRect = panel.getBoundingClientRect()
+          const inView = rect.top >= panelRect.top && rect.bottom <= panelRect.bottom
+          el.scrollIntoView({ block: inView ? 'nearest' : 'center' })
+        } else {
+          el.scrollIntoView({ block: 'nearest' })
+        }
         el.classList.add('ring-1', 'ring-blue-500/40', 'rounded')
         setTimeout(() => el.classList.remove('ring-1', 'ring-blue-500/40', 'rounded'), 1200)
       }
@@ -538,9 +542,9 @@ function findYamlLine(text: string, elementId: string): number {
     const seg = segments[si]
 
     if (seg.startsWith('[')) {
-      // List index: find nth "- " at expectIndent+2
+      // List index: "- " items appear at expectIndent (same level as parent key's content)
       const idx = parseInt(seg.slice(1, -1))
-      const listIndent = expectIndent + 2
+      const listIndent = expectIndent
       let count = 0
       let found = false
       for (let i = lineIdx + 1; i < lines.length; i++) {
@@ -555,24 +559,22 @@ function findYamlLine(text: string, elementId: string): number {
       }
       if (!found) break
     } else {
-      // Key: find "seg:" at exactly expectIndent
+      // Key: find "seg:" within current scope
       const escaped = seg.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+      const keyPat = new RegExp(`^-?\\s*${escaped}\\s*:`)
       let found = false
-      for (let i = lineIdx; i < lines.length; i++) {
+      for (let i = lineIdx + (si === 0 ? 0 : 1); i < lines.length; i++) {
         const raw = lines[i]
         const trimmed = raw.trimStart()
+        if (!trimmed) continue
         const indent = raw.length - trimmed.length
-        // Stop if we've left the scope
-        if (i > lineIdx && indent < expectIndent && trimmed) break
-        // Match key at expected indent (or within list item at expectIndent-2)
-        if (indent === expectIndent || (indent >= expectIndent && indent <= expectIndent + 2)) {
-          const keyPat = new RegExp(`^-?\\s*${escaped}\\s*:`)
-          if (keyPat.test(trimmed)) {
-            lineIdx = i
-            expectIndent = indent + 2
-            found = true
-            break
-          }
+        // Left the parent scope — key doesn't exist here
+        if (i > lineIdx && indent <= expectIndent - 2 && si > 0) break
+        if (indent >= expectIndent && indent <= expectIndent + 2 && keyPat.test(trimmed)) {
+          lineIdx = i
+          expectIndent = indent + 2
+          found = true
+          break
         }
       }
       if (!found) break

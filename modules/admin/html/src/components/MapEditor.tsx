@@ -1,3 +1,4 @@
+import { useState, useCallback } from 'react'
 import { Plus, Trash2 } from 'lucide-react'
 import type { JsonSchema, KindSchema } from '@/lib/schema'
 import { classifyField } from '@/lib/schema'
@@ -13,6 +14,38 @@ export interface MapEditorProps {
   onChange: (v: Record<string, any>) => void
   path: string
   depth: number
+}
+
+/** Editable map key that only commits on blur/enter — prevents focus loss while typing */
+function MapKeyInput({ value, onCommit, className, placeholder }: {
+  value: string
+  onCommit: (newKey: string) => void
+  className?: string
+  placeholder?: string
+}) {
+  const [draft, setDraft] = useState(value)
+  // Sync external changes (e.g. after reorder) but not while user is typing
+  if (value !== draft && document.activeElement?.getAttribute('data-map-key') !== value) {
+    setDraft(value)
+  }
+  const commit = useCallback(() => {
+    const trimmed = draft.trim()
+    if (trimmed && trimmed !== value) onCommit(trimmed)
+    else setDraft(value) // revert if empty or unchanged
+  }, [draft, value, onCommit])
+
+  return (
+    <input
+      type="text"
+      data-map-key={value}
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit() }}
+      className={className}
+      placeholder={placeholder}
+    />
+  )
 }
 
 export function MapEditor({
@@ -141,18 +174,17 @@ export function MapEditor({
 
   return (
     <div className="space-y-2">
-      {entries.map(([key, val]) => {
+      {entries.map(([key, val], idx) => {
         const isComplex = fieldType === 'array' || fieldType === 'object' || fieldType === 'ptr' ||
           (valueSchema.type === 'array') || (valueSchema.type === 'object' && valueSchema.properties)
 
         if (isComplex) {
           return (
-            <div key={key} id={`field-${path}.${key}`} className="border border-neutral-800 rounded-md p-3 bg-neutral-900/50">
+            <div key={idx} id={`field-${path}.${key}`} className="border border-neutral-800 rounded-md p-3 bg-neutral-900/50">
               <div className="flex items-center gap-2 mb-2">
-                <input
-                  type="text"
+                <MapKeyInput
                   value={key}
-                  onChange={(e) => updateKey(key, e.target.value)}
+                  onCommit={(newKey) => updateKey(key, newKey)}
                   className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-foreground font-mono"
                   placeholder="key"
                 />
@@ -171,11 +203,10 @@ export function MapEditor({
         }
 
         return (
-          <div key={key} id={`field-${path}.${key}`} className="flex items-start gap-2">
-            <input
-              type="text"
+          <div key={idx} id={`field-${path}.${key}`} className="flex items-start gap-2">
+            <MapKeyInput
               value={key}
-              onChange={(e) => updateKey(key, e.target.value)}
+              onCommit={(newKey) => updateKey(key, newKey)}
               className="bg-neutral-800 border border-neutral-700 rounded px-2 py-1 text-sm text-foreground w-40 shrink-0"
               placeholder="key"
             />
