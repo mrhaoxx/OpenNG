@@ -150,6 +150,7 @@ export function MapEditor({
           allServices={allServices}
           path={`${path}.${key}`}
           depth={depth + 1}
+          order={valueSchema['x-order']}
         />
       )
     }

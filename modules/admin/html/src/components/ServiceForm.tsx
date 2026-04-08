@@ -73,6 +73,8 @@ export function ServiceForm({
             allServices={allServices}
             path={serviceName}
             depth={0}
+            order={kindSchema.order}
+            exprKind={currentKind}
           />
         )}
 

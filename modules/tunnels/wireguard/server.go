@@ -9,10 +9,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/netstack"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/tcp"
 	"github.com/mrhaoxx/OpenNG/modules/tunnels/wireguard/udp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"golang.zx2c4.com/wireguard/conn"
 	"golang.zx2c4.com/wireguard/device"
 	"golang.zx2c4.com/wireguard/tun"
@@ -53,7 +53,17 @@ type WireGuardConfig struct {
 	Peers []PeerConfig
 }
 
+var wgServers map[int]*WireGuardServer = make(map[int]*WireGuardServer)
+var wgLock sync.Mutex
+
 func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
+	// Close old server on same port
+	wgLock.Lock()
+	if old, ok := wgServers[cfg.ListenPort]; ok {
+		zlog.Warn().Str("type", "wireguard/listen").Int("port", cfg.ListenPort).Msg("rebind wireguard")
+		old.Close()
+	}
+	wgLock.Unlock()
 
 	addr, err := netip.ParseAddr(cfg.Address)
 
@@ -146,12 +156,15 @@ func NewWireGuardServer(cfg *WireGuardConfig) (*WireGuardServer, error) {
 		}
 	}
 
+	wgLock.Lock()
+	wgServers[cfg.ListenPort] = server
+	wgLock.Unlock()
+
 	return server, nil
 }
 
 func (wg *WireGuardServer) Close() {
 	wg.wgDevice.Close()
-	wg.tun.Close()
 }
 
 func (wg *WireGuardServer) AddPeer(PublicKey string, AllowedIPs []string) error {

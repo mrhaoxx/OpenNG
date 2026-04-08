@@ -12,11 +12,11 @@ import (
 
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
+	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/pkg/stats"
-	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"golang.org/x/net/http2"
 )
 

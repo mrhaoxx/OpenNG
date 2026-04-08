@@ -34,13 +34,19 @@ func GenerateJsonSchema() []byte {
 				kindRequired = append(kindRequired, r...)
 			}
 		}
-		definitions[k] = map[string]any{
+		def := map[string]any{
 			"type":                 "object",
 			"properties":          kindProps,
 			"required":            kindRequired,
 			"additionalProperties": false,
 			"description":         v.Desc,
 		}
+		if m, ok := kindSchema.(map[string]any); ok {
+			if order, ok := m["x-order"].([]string); ok {
+				def["x-order"] = order
+			}
+		}
+		definitions[k] = def
 	}
 
 	// Service entry: allOf with if/then using $ref
@@ -256,8 +262,22 @@ func toSchemaRef(m ng.Assert) any {
 		props := map[string]any{}
 		requried := []string{}
 
-		for key, value := range m.Sub {
-			if key == "_" {
+		// Use SubOrder to iterate fields in struct declaration order
+		keys := m.SubOrder
+		if len(keys) == 0 {
+			// fallback: iterate map (unordered)
+			keys = make([]string, 0, len(m.Sub))
+			for key := range m.Sub {
+				if key != "_" {
+					keys = append(keys, key)
+				}
+			}
+			sort.Strings(keys)
+		}
+
+		for _, key := range keys {
+			value, ok := m.Sub[key]
+			if !ok {
 				continue
 			}
 			props[key] = toSchemaRef(value)
@@ -272,6 +292,10 @@ func toSchemaRef(m ng.Assert) any {
 
 		if len(requried) > 0 {
 			result["required"] = requried
+		}
+
+		if len(m.SubOrder) > 0 {
+			result["x-order"] = m.SubOrder
 		}
 
 		return result
@@ -305,6 +329,17 @@ func toSchemaRef(m ng.Assert) any {
 		}
 
 		return result
+
+	case "expr":
+		res := map[string]any{
+			"type":        "string",
+			"description": m.Desc,
+			"x-expr":      true,
+		}
+		if m.ExprEnv != nil {
+			res["x-expr-env"] = m.ExprEnv
+		}
+		return res
 
 	case "duration":
 		res := map[string]any{

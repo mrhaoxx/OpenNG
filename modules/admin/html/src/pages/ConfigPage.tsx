@@ -1,12 +1,15 @@
-import { useEffect, useCallback, useRef, useMemo } from 'react'
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import * as monaco from 'monaco-editor'
 import YAML from 'yaml'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Save, RotateCw } from 'lucide-react'
+import { Save, RotateCw, Play } from 'lucide-react'
 import { useConfig } from '@/lib/ConfigContext'
 import { AssertForm } from '@/components/AssertForm'
 import { parseDocument, isMap, isSeq, isPair, isScalar, type Document } from 'yaml'
+import type { ExprEnvNode } from '@/lib/schema'
+import { collectExprEnvs, getExprCompletions } from '@/lib/expr'
+import { applyExprDecorations, injectExprHighlightCSS } from '@/lib/expr-highlight'
 
 import EditorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker'
 import YamlWorker from 'monaco-yaml/yaml.worker?worker'
@@ -31,11 +34,38 @@ if (!self.MonacoEnvironment) {
 type ChangeSource = 'yaml' | 'visual' | 'none'
 
 export default function ConfigPage() {
-  const { yamlText, setYamlText, setYamlTextRaw, config, setConfigOnly, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload, drefPaths } = useConfig()
+  const { yamlText, setYamlText, setYamlTextRaw, config, setConfigOnly, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, setStatusText, save, reload, drefPaths, rawDefinitions } = useConfig()
+  const [applyError, setApplyError] = useState<string | null>(null)
   const drefPathsRef = useRef(drefPaths)
   drefPathsRef.current = drefPaths
+
+  // Build expr env lookup from schema definitions
+  const exprEnvs = useMemo(() => collectExprEnvs(rawDefinitions), [rawDefinitions])
+  const exprEnvsRef = useRef(exprEnvs)
+  exprEnvsRef.current = exprEnvs
   const saveRef = useRef(save)
   saveRef.current = save
+
+  const applyConfig = useCallback(async () => {
+    setStatusText('Applying...')
+    setApplyError(null)
+    try {
+      const { csrfFetch } = await import('@/lib/csrf')
+      const resp = await csrfFetch('/api/v1/cfg/reload', { method: 'POST' })
+      const data = await resp.json()
+      if (resp.ok) {
+        setStatusText('Applied')
+        setApplyError(null)
+      } else {
+        const msg = data.error ?? resp.statusText
+        setStatusText('Apply failed')
+        setApplyError(msg)
+      }
+    } catch (e) {
+      setStatusText('Apply failed')
+      setApplyError(String(e))
+    }
+  }, [setStatusText])
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const visualRef = useRef<HTMLDivElement>(null)
@@ -119,7 +149,62 @@ export default function ConfigPage() {
       },
     })
 
-    return () => { completionDisposable.dispose(); scrollDisposable.dispose(); editor.getModel()?.dispose(); editor.dispose() }
+    // Expr completion provider — detect expr fields by scanning YAML context
+    const exprCompletionDisposable = monaco.languages.registerCompletionItemProvider('yaml', {
+      triggerCharacters: ['.'],
+      provideCompletionItems(model, position) {
+        const envs = exprEnvsRef.current
+        if (envs.size === 0) return { suggestions: [] }
+
+        // Find the expr env for the current cursor position:
+        // Scan upward to find the field key (e.g. "condition:" or "exp:")
+        // and the "kind:" value to determine which expr env to use.
+        const env = findExprEnvAtPosition(model, position, envs)
+        if (!env) return { suggestions: [] }
+
+        // Get text on the current value line (after the YAML key)
+        const lineContent = model.getLineContent(position.lineNumber)
+        const textBefore = lineContent.substring(0, position.column - 1)
+        // Extract just the expr part — strip leading YAML key if on same line
+        const valueText = textBefore.replace(/^\s*\w+:\s*/, '')
+
+        const { items, replaceLen } = getExprCompletions(valueText, env)
+        if (items.length === 0) return { suggestions: [] }
+
+        const startCol = position.column - replaceLen
+        const range = new monaco.Range(position.lineNumber, startCol, position.lineNumber, position.column)
+
+        return {
+          suggestions: items.map(item => ({
+            label: item.label,
+            kind: item.kind === 'method' ? monaco.languages.CompletionItemKind.Method
+              : item.kind === 'function' ? monaco.languages.CompletionItemKind.Function
+              : item.kind === 'keyword' ? monaco.languages.CompletionItemKind.Keyword
+              : monaco.languages.CompletionItemKind.Field,
+            insertText: item.insertText,
+            range,
+            detail: item.type,
+            sortText: (item.kind === 'field' ? '0' : '1') + item.label,
+          })),
+        }
+      },
+    })
+
+    // Expr syntax highlighting
+    injectExprHighlightCSS()
+    let decorationIds: string[] = []
+    let highlightTimer: ReturnType<typeof setTimeout> | null = null
+    const updateHighlights = () => {
+      if (highlightTimer) clearTimeout(highlightTimer)
+      highlightTimer = setTimeout(() => {
+        decorationIds = applyExprDecorations(editor, exprEnvsRef.current, decorationIds)
+      }, 300)
+    }
+    const contentDisposable = editor.onDidChangeModelContent(updateHighlights)
+    // initial highlight
+    updateHighlights()
+
+    return () => { contentDisposable.dispose(); exprCompletionDisposable.dispose(); completionDisposable.dispose(); scrollDisposable.dispose(); editor.getModel()?.dispose(); editor.dispose() }
   }, [])
 
   // Ctrl+S to save
@@ -361,6 +446,9 @@ export default function ConfigPage() {
         <Button size="sm" variant="outline" onClick={reload} className="gap-1.5 h-7">
           <RotateCw size={14} /> Reload
         </Button>
+        <Button size="sm" variant="outline" onClick={applyConfig} className="gap-1.5 h-7">
+          <Play size={14} /> Apply
+        </Button>
         {dirty && <Badge variant="outline" className="text-[10px] border-amber-600 text-amber-500">unsaved</Badge>}
         {statusText && <span className="ml-auto text-xs text-muted-foreground">{statusText}</span>}
       </div>
@@ -418,6 +506,8 @@ export default function ConfigPage() {
                             allServices={allServicesMap}
                             path={name}
                             depth={0}
+                            order={kindSchema.order}
+                            exprKind={kind}
                           />
                         )}
                         {svcProblems.length > 0 && (
@@ -440,16 +530,32 @@ export default function ConfigPage() {
         </div>
       </div>
 
+      {/* Apply error banner */}
+      {applyError && (
+        <div className="shrink-0 border-t border-red-500/30 bg-red-950/50 px-4 py-2">
+          <div className="flex items-start gap-2">
+            <span className="text-red-400 font-bold text-xs shrink-0 mt-0.5">Apply failed</span>
+            <button
+              onClick={() => setApplyError(null)}
+              className="ml-auto text-neutral-500 hover:text-neutral-300 text-xs shrink-0"
+            >
+              dismiss
+            </button>
+          </div>
+          <pre className="text-xs text-red-300 font-mono mt-1 whitespace-pre-wrap break-all max-h-40 overflow-auto">{applyError}</pre>
+        </div>
+      )}
+
       {/* Problems panel */}
       <div className="shrink-0 border-t border-border bg-neutral-950">
         <div className="flex items-center gap-3 px-3 py-1 text-[11px]">
-          {problems.length === 0 ? (
+          {problems.length === 0 && !applyError ? (
             <span className="flex items-center gap-1 text-muted-foreground">
               <span className="text-green-500">✓</span> No problems
             </span>
           ) : (
             <span className="flex items-center gap-1 text-red-400">
-              ✗ {problems.length} problem{problems.length > 1 ? 's' : ''}
+              ✗ {problems.length} problem{problems.length > 1 ? 's' : ''}{applyError ? ' + apply error' : ''}
             </span>
           )}
         </div>
@@ -459,11 +565,12 @@ export default function ConfigPage() {
               <button
                 key={i}
                 onClick={() => {
-                  visualRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(`svc-${p.service}`)}"]`)?.scrollIntoView({ block: 'start' })
+                  const jumpId = p.fieldPath ? `field-${p.fieldPath}` : `svc-${p.service}`
+                  visualRef.current?.querySelector<HTMLElement>(`[id="${CSS.escape(jumpId)}"]`)?.scrollIntoView({ block: 'start' })
                   const editor = editorRef.current
                   const model = editor?.getModel()
                   if (editor && model) {
-                    const line = findYamlLine(model.getValue(), `svc-${p.service}`)
+                    const line = findYamlLine(model.getValue(), jumpId)
                     if (line > 0) editor.revealLineInCenter(line)
                   }
                 }}
@@ -653,4 +760,86 @@ function findYamlLine(text: string, elementId: string): number {
     }
   }
   return lastOffset > 0 ? offsetToLine(text, lastOffset) : 1
+}
+
+/**
+ * Find the expr env for the cursor position using YAML AST.
+ * Walks the AST to find which map node contains the cursor,
+ * checks its `kind` field, and returns the env for the matching expr field.
+ */
+function findExprEnvAtPosition(
+  model: monaco.editor.ITextModel,
+  position: monaco.Position,
+  envs: Map<string, Map<string, ExprEnvNode[]>>,
+): ExprEnvNode[] | null {
+  const text = model.getValue()
+  // Convert line/column to offset
+  let offset = 0
+  for (let l = 1; l < position.lineNumber && offset < text.length; l++) {
+    offset = text.indexOf('\n', offset) + 1
+  }
+  offset += position.column - 1
+
+  let doc
+  try { doc = parseDocument(text) } catch { return null }
+
+  // Recursively find the innermost map that contains the cursor
+  // and has a `kind` field matching an expr env
+  function search(node: any): ExprEnvNode[] | null {
+    if (!node) return null
+    if (isMap(node)) {
+      // Check if cursor is inside one of this map's value ranges
+      for (const pair of node.items) {
+        if (!isPair(pair) || !isScalar(pair.key)) continue
+        const valNode = pair.value as any
+        if (!valNode?.range) continue
+        const [vStart, , vEnd] = valNode.range
+        if (offset >= vStart && offset < vEnd) {
+          // Cursor is inside this pair's value — recurse first (depth-first)
+          const deeper = search(valNode)
+          if (deeper) return deeper
+        }
+      }
+
+      // No deeper match — check if THIS map has kind + expr field at cursor
+      let kind: string | null = null
+      for (const pair of node.items) {
+        if (isPair(pair) && isScalar(pair.key) && pair.key.value === 'kind' && isScalar(pair.value)) {
+          kind = String(pair.value.value)
+          break
+        }
+      }
+      if (!kind) return null
+      const fieldEnvs = envs.get(kind)
+      if (!fieldEnvs) return null
+
+      // Which field's value contains the cursor?
+      for (const pair of node.items) {
+        if (!isPair(pair) || !isScalar(pair.key)) continue
+        const fieldName = String(pair.key.value)
+        const valNode = pair.value as any
+        if (!valNode?.range) continue
+        const [vStart, , vEnd] = valNode.range
+        if (offset >= vStart && offset < vEnd) {
+          return fieldEnvs.get(fieldName) ?? null
+        }
+      }
+    }
+    // Recurse into sequences
+    if (node?.items) {
+      for (const item of node.items) {
+        if (isMap(item)) {
+          const r = search(item)
+          if (r) return r
+        }
+        if (isPair(item) && item.value) {
+          const r = search(item.value)
+          if (r) return r
+        }
+      }
+    }
+    return null
+  }
+
+  return search(doc.contents)
 }

@@ -4,10 +4,13 @@ import (
 	"io/fs"
 	"net/http"
 	"strings"
+	"sync"
 
+	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	"golang.org/x/time/rate"
 )
 
 // ── http::redirect ──
@@ -149,6 +152,101 @@ func NewFSServiceFromFS(fsys fs.FS) *FSService {
 	return &FSService{handler: http.FileServer(http.FS(fsys))}
 }
 
+// ── http::rewrite ──
+
+type RewriteService struct {
+	pattern *regexp2.Regexp
+	replace string
+}
+
+func (r *RewriteService) Hosts() groupexp.GroupRegexp { return nil }
+
+func (r *RewriteService) HandleHTTP(ctx *HttpCtx) Ret {
+	path := ctx.Req.URL.Path
+	result, err := r.pattern.Replace(path, r.replace, -1, -1)
+	if err != nil || result == path {
+		return Continue
+	}
+	if result == "" || result[0] != '/' {
+		result = "/" + result
+	}
+	ctx.Req.URL.Path = result
+	return Continue
+}
+
+type RewriteConfig struct {
+	Match   string `ng:"match,required" desc:"regex pattern to match against path"`
+	Replace string `ng:"replace,required" desc:"replacement string ($1, $2 for capture groups)"`
+}
+
+func NewRewriteService(cfg RewriteConfig) (*RewriteService, error) {
+	re, err := regexp2.Compile(cfg.Match, regexp2.RE2)
+	if err != nil {
+		return nil, err
+	}
+	return &RewriteService{pattern: re, replace: cfg.Replace}, nil
+}
+
+// ── http::ratelimit ──
+
+type RateLimitService struct {
+	global  *rate.Limiter            // used when by == "global"
+	perIP   sync.Map                 // ip → *rate.Limiter
+	rate    rate.Limit
+	burst   int
+	byIP    bool
+	code    int
+	message string
+}
+
+func (r *RateLimitService) Hosts() groupexp.GroupRegexp { return nil }
+
+func (r *RateLimitService) HandleHTTP(ctx *HttpCtx) Ret {
+	var limiter *rate.Limiter
+	if r.byIP {
+		val, _ := r.perIP.LoadOrStore(ctx.RemoteIP, rate.NewLimiter(r.rate, r.burst))
+		limiter = val.(*rate.Limiter)
+	} else {
+		limiter = r.global
+	}
+	if !limiter.Allow() {
+		ctx.Resp.WriteHeader(r.code)
+		if r.message != "" {
+			ctx.WriteString(r.message)
+		}
+		return RequestEnd
+	}
+	return Continue
+}
+
+type RateLimitConfig struct {
+	Rate    float64 `ng:"rate,required" desc:"requests per second"`
+	Burst   int     `ng:"burst" default:"10" desc:"max burst size"`
+	By      string  `ng:"by" default:"ip" desc:"'ip' for per-IP limiting, 'global' for shared"`
+	Code    int     `ng:"code" default:"429" desc:"HTTP status code when limited"`
+	Message string  `ng:"message" desc:"response body when limited"`
+}
+
+func NewRateLimitService(cfg RateLimitConfig) (*RateLimitService, error) {
+	r := &RateLimitService{
+		rate:    rate.Limit(cfg.Rate),
+		burst:   cfg.Burst,
+		byIP:    cfg.By != "global",
+		code:    cfg.Code,
+		message: cfg.Message,
+	}
+	if r.burst == 0 {
+		r.burst = 10
+	}
+	if r.code == 0 {
+		r.code = http.StatusTooManyRequests
+	}
+	if !r.byIP {
+		r.global = rate.NewLimiter(r.rate, r.burst)
+	}
+	return r, nil
+}
+
 // ── Registration ──
 
 func init() {
@@ -156,4 +254,6 @@ func init() {
 	ng.RegisterFunc("http::response", NewResponseService)
 	ng.RegisterFunc("http::file", NewFileService)
 	ng.RegisterFunc("http::proxy_pass", NewProxyPassService)
+	ng.RegisterFunc("http::rewrite", NewRewriteService)
+	ng.RegisterFunc("http::ratelimit", NewRateLimitService)
 }

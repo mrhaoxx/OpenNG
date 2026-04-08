@@ -3,6 +3,7 @@ package dns
 import (
 	"net"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -13,6 +14,9 @@ import (
 
 	zlog "github.com/rs/zerolog/log"
 )
+
+var dnsServers map[string]*mdns.Server = make(map[string]*mdns.Server)
+var dnsLock sync.Mutex
 
 type record struct {
 	rtype  uint16
@@ -127,8 +131,20 @@ _end:
 }
 
 func (s *server) Listen(address string) error {
+	dnsLock.Lock()
+	if old, ok := dnsServers[address]; ok {
+		zlog.Warn().Str("type", "dns/listen").Str("addr", address).Msg("rebind dns listen")
+		old.Shutdown()
+	}
+	dnsLock.Unlock()
+
 	srv := &mdns.Server{Addr: address, Net: "udp"}
 	srv.Handler = s
+
+	dnsLock.Lock()
+	dnsServers[address] = srv
+	dnsLock.Unlock()
+
 	return srv.ListenAndServe()
 }
 

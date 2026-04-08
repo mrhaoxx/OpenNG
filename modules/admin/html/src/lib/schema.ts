@@ -1,5 +1,12 @@
 // JSON Schema types and utilities for config GUI editor
 
+export interface ExprEnvNode {
+  name: string
+  type: string
+  kind: 'field' | 'method'
+  children?: ExprEnvNode[]
+}
+
 export interface JsonSchema {
   $schema?: string
   type?: string
@@ -18,6 +25,9 @@ export interface JsonSchema {
   enum?: string[]
   if?: JsonSchema
   then?: JsonSchema
+  'x-order'?: string[]
+  'x-expr'?: boolean
+  'x-expr-env'?: ExprEnvNode[]
 }
 
 export interface KindSchema {
@@ -25,12 +35,13 @@ export interface KindSchema {
   required: string[]
   description: string
   additionalProperties?: JsonSchema | boolean
+  order?: string[]
 }
 
 export type FieldType =
   | 'string' | 'integer' | 'boolean'
   | 'duration' | 'url' | 'hostname' | 'regexp'
-  | 'ptr' | 'object' | 'array'
+  | 'ptr' | 'object' | 'array' | 'expr'
 
 const DURATION_PATTERN = /^\^-\?/  // duration pattern starts with ^-?
 
@@ -46,6 +57,7 @@ export function parseKindSchemas(schema: JsonSchema): Map<string, KindSchema> {
       required: def.required ?? [],
       description: def.description ?? '',
       additionalProperties: def.additionalProperties,
+      order: def['x-order'],
     })
   }
   return map
@@ -65,6 +77,9 @@ export function classifyField(schema: JsonSchema): FieldType {
     )
     if (hasPtr) return 'ptr'
   }
+
+  // expr: string with x-expr flag
+  if (schema['x-expr']) return 'expr'
 
   // duration: string with duration-like pattern
   if (schema.type === 'string' && schema.pattern && DURATION_PATTERN.test(schema.pattern)) {
@@ -125,6 +140,7 @@ export function getInlineKindSchema(inlineAllOf: JsonSchema[], kind: string): Ki
         properties: item.then.properties ?? {},
         required: item.then.required ?? [],
         description: item.then.description ?? '',
+        order: item.then['x-order'],
       }
     }
   }
@@ -135,7 +151,7 @@ export function getInlineKindSchema(inlineAllOf: JsonSchema[], kind: string): Ki
 export function defaultForType(schema: JsonSchema, fieldType: FieldType): unknown {
   if (schema.default !== undefined) return schema.default
   switch (fieldType) {
-    case 'string': case 'duration': case 'url': case 'hostname': case 'regexp':
+    case 'string': case 'duration': case 'url': case 'hostname': case 'regexp': case 'expr':
       return ''
     case 'integer': return 0
     case 'boolean': return false

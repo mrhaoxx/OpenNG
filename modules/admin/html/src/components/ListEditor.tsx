@@ -213,6 +213,7 @@ export function ListEditor({
             allServices={allServices}
             path={`${path}[${index}]`}
             depth={depth + 1}
+            order={itemSchema['x-order']}
           />
         </div>
       )

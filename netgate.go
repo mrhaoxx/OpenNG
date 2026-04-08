@@ -68,8 +68,9 @@ type Assert struct {
 	Required bool
 	Forced   bool
 
-	Sub     AssertMap
-	SubList AssertList
+	Sub      AssertMap
+	SubList  AssertList
+	SubOrder []string // field order for struct-derived maps
 
 	Default any
 
@@ -78,6 +79,9 @@ type Assert struct {
 	Struct   bool
 	Impls    []reflect.Type
 	AllowNil bool
+
+	ExprEnv   any              // for type "expr": environment tree for autocomplete
+	ExprCheck func(string) error // for type "expr": compile-check an expression string
 }
 
 type MemberFunction struct {
@@ -692,6 +696,7 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 		}
 
 		sub := AssertMap{}
+		var order []string
 		numFields := refType.NumField()
 		for i := 0; i < numFields; i++ {
 			field := refType.Field(i)
@@ -728,11 +733,13 @@ func ParseStruct(refType reflect.Type) (Assert, error) {
 			}
 
 			sub[tag.key] = fieldAssert
+			order = append(order, tag.key)
 		}
 		return Assert{
-			Type:    "map",
-			Sub:     sub,
-			Default: map[string]*ArgNode{},
+			Type:     "map",
+			Sub:      sub,
+			SubOrder: order,
+			Default:  map[string]*ArgNode{},
 		}, nil
 	case reflect.Ptr:
 		return Assert{

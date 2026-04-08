@@ -139,6 +139,8 @@ export function PtrField({
           allServices={allServices}
           path={path}
           depth={depth + 1}
+          order={kindSchema.order}
+          exprKind={currentKind}
         />
       )}
     </div>

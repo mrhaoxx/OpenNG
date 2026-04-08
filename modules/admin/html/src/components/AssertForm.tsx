@@ -7,6 +7,7 @@ import { ListEditor } from './ListEditor'
 import { MapEditor } from './MapEditor'
 import { AnyValueEditor } from './AnyValueEditor'
 import { DrefValue, isDref } from './DrefValue'
+import { ExprField } from './ExprField'
 
 export interface AssertFormProps {
   schema: Record<string, JsonSchema>
@@ -17,6 +18,8 @@ export interface AssertFormProps {
   allServices: Record<string, { kind: string }>
   path: string
   depth: number
+  order?: string[]
+  exprKind?: string // service kind name for expr lint API
 }
 
 const INPUT_CLS = 'bg-neutral-800 border border-neutral-700 rounded px-1.5 py-0.5 text-xs text-foreground w-full'
@@ -40,6 +43,8 @@ export function AssertForm({
   allServices,
   path,
   depth,
+  order,
+  exprKind,
 }: AssertFormProps) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
   const requiredSet = new Set(required)
@@ -52,9 +57,14 @@ export function AssertForm({
     setCollapsed((prev) => ({ ...prev, [key]: !prev[key] }))
   }
 
+  // Use order if provided, otherwise fall back to Object.keys
+  const fieldKeys = order ?? Object.keys(schema)
+
   return (
     <div className="space-y-1.5">
-      {Object.entries(schema).map(([key, fieldSchema]) => {
+      {fieldKeys.map((key) => {
+        const fieldSchema = schema[key]
+        if (!fieldSchema) return null
         if (key === 'kind') return null
 
         const fieldType = classifyField(fieldSchema)
@@ -105,6 +115,8 @@ export function AssertForm({
               fieldPath,
               depth,
               collapsed[key] ?? false,
+              exprKind,
+              key,
             )}
           </div>
         )
@@ -123,6 +135,8 @@ function renderField(
   path: string,
   depth: number,
   isCollapsed: boolean,
+  exprKind?: string,
+  fieldName?: string,
 ) {
   // Untyped schema (Go `any`): always use AnyValueEditor with type switcher
   if (fieldType === 'string' && !fieldSchema.type && !fieldSchema.anyOf && !fieldSchema.pattern && !fieldSchema.errorMessage) {
@@ -144,6 +158,18 @@ function renderField(
   }
 
   switch (fieldType) {
+    case 'expr':
+      return (
+        <ExprField
+          value={value ?? ''}
+          onChange={onChange}
+          env={fieldSchema['x-expr-env']}
+          kind={exprKind}
+          field={fieldName}
+          path={path}
+        />
+      )
+
     case 'string':
     case 'duration':
     case 'url':
@@ -243,6 +269,7 @@ function renderField(
               allServices={allServices}
               path={path}
               depth={depth + 1}
+              order={fieldSchema['x-order']}
             />
           </div>
         )

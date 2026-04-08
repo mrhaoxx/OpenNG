@@ -2,19 +2,21 @@ package nghttp
 
 import (
 	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngexpr"
 )
+
+// Chain and Branch return nil Hosts() — host matching is done by the
+// midware's per-entry config, so these services don't need their own.
 
 // ── http::chain — sequential service pipeline ──
 
 type Chain struct {
-	hosts    ng.HostnameSlice
 	services []Service
 }
 
-func (c *Chain) Hosts() groupexp.GroupRegexp { return c.hosts.GroupRegexp() }
+func (c *Chain) Hosts() groupexp.GroupRegexp { return nil }
 
 func (c *Chain) HandleHTTP(ctx *HttpCtx) Ret {
 	for _, svc := range c.services {
@@ -26,31 +28,31 @@ func (c *Chain) HandleHTTP(ctx *HttpCtx) Ret {
 }
 
 type ChainConfig struct {
-	Hosts    ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames to handle"`
-	Services []Service        `ng:"services,required" desc:"services to execute in order"`
+	Services []Service `ng:"services,required" desc:"services to execute in order"`
 }
 
 func NewChain(cfg ChainConfig) (*Chain, error) {
-	return &Chain{hosts: cfg.Hosts, services: cfg.Services}, nil
+	return &Chain{services: cfg.Services}, nil
 }
 
 // ── http::branch — conditional dispatch via expr ──
 
-type condEnv struct {
-	Http *HttpCtx `expr:"http"`
+type CondEnv struct {
+	Http     *HttpCtx `expr:"http"`
+	Continue bool     `expr:"Continue"` // true — pass to next service
+	End      bool     `expr:"End"`      // false — stop processing
 }
 
 type Branch struct {
-	hosts     ng.HostnameSlice
-	cond      *vm.Program
+	cond      ngexpr.BoolExpr[CondEnv]
 	then      Service
 	otherwise Service
 }
 
-func (b *Branch) Hosts() groupexp.GroupRegexp { return b.hosts.GroupRegexp() }
+func (b *Branch) Hosts() groupexp.GroupRegexp { return nil }
 
 func (b *Branch) HandleHTTP(ctx *HttpCtx) Ret {
-	result, err := expr.Run(b.cond, condEnv{Http: ctx})
+	result, err := expr.Run(b.cond.Program, CondEnv{Http: ctx, Continue: true, End: false})
 	if err != nil {
 		ctx.Resp.ErrorPage(500, "branch condition error: "+err.Error())
 		return RequestEnd
@@ -69,21 +71,13 @@ func (b *Branch) HandleHTTP(ctx *HttpCtx) Ret {
 }
 
 type BranchConfig struct {
-	Hosts     ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames to handle"`
-	Condition string           `ng:"condition,required" desc:"expr expression evaluating to bool"`
-	Then      Service          `ng:"then,required" desc:"service when condition is true"`
-	Else      Service          `ng:"else" desc:"service when condition is false"`
+	Condition ngexpr.BoolExpr[CondEnv] `ng:"condition,required" desc:"expr expression evaluating to bool"`
+	Then      Service                  `ng:"then,required" desc:"service when condition is true"`
+	Else      Service                  `ng:"else" desc:"service when condition is false"`
 }
 
 func NewBranch(cfg BranchConfig) (*Branch, error) {
-	program, err := expr.Compile(cfg.Condition,
-		expr.Env(condEnv{Http: &HttpCtx{}}),
-		expr.AsBool(),
-	)
-	if err != nil {
-		return nil, err
-	}
-	return &Branch{hosts: cfg.Hosts, cond: program, then: cfg.Then, otherwise: cfg.Else}, nil
+	return &Branch{cond: cfg.Condition, then: cfg.Then, otherwise: cfg.Else}, nil
 }
 
 func init() {

@@ -56,3 +56,12 @@ export async function fetchConfigText(): Promise<string> {
   if (!res.ok) throw new Error(`${res.status}`)
   return res.text()
 }
+
+export async function checkExpr(expr: string, kind: string, field: string): Promise<{ ok: boolean; error?: string }> {
+  const res = await csrfFetch('/api/v1/expr/check', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ expr, kind, field }),
+  })
+  return res.json()
+}

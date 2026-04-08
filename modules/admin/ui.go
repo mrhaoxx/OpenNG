@@ -83,19 +83,6 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 	case "/logs":
 		Sselogger.ServeHTTP(ctx.Resp, ctx.Req)
 
-	case "/api/v1/cfg/reload":
-		if ctx.Req.Method != stdhttp.MethodPost {
-			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
-			return nghttp.RequestEnd
-		}
-		ctx.Resp.Header().Set("Cache-Control", "no-cache")
-		err := Reload()
-		if err != nil {
-			ctx.Resp.WriteHeader(nghttp.StatusBadRequest)
-			ctx.WriteString(err.Error())
-		} else {
-			ctx.Resp.WriteHeader(nghttp.StatusAccepted)
-		}
 	case "/api/v1/cfg/save":
 		if ctx.Req.Method != stdhttp.MethodPost {
 			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
@@ -110,6 +97,18 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		}
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
+	case "/api/v1/cfg/reload":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
+		}
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		if err := Reload(); err != nil {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusInternalServerError, map[string]string{"error": err.Error()})
+		} else {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, map[string]string{"status": "reloaded"})
+		}
+
 	case "/api/v1/cfg/validate":
 		if ctx.Req.Method != stdhttp.MethodPost {
 			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
@@ -140,6 +139,32 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 			cachedSchema = GenerateJsonSchema()
 		}
 		ctx.Resp.Write(cachedSchema)
+	case "/api/v1/expr/check":
+		if ctx.Req.Method != stdhttp.MethodPost {
+			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
+			return nghttp.RequestEnd
+		}
+		ctx.Resp.Header().Set("Cache-Control", "no-cache")
+		var req struct {
+			Expr  string `json:"expr"`
+			Kind  string `json:"kind"`
+			Field string `json:"field"`
+		}
+		if err := json.NewDecoder(ctx.Req.Body).Decode(&req); err != nil {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusBadRequest, map[string]string{"error": err.Error()})
+			return nghttp.RequestEnd
+		}
+		checker := findExprChecker(req.Kind, req.Field)
+		if checker == nil {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusBadRequest, map[string]string{"error": "unknown kind/field"})
+			return nghttp.RequestEnd
+		}
+		if err := checker(req.Expr); err != nil {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		} else {
+			admeta.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusOK, map[string]any{"ok": true})
+		}
+
 	case "/api/v1/call":
 		if ctx.Req.Method != stdhttp.MethodPost {
 			ctx.Resp.ErrorPage(nghttp.StatusMethodNotAllowed, "Method not allowed")
@@ -540,6 +565,20 @@ func writeJSON(ctx *nghttp.HttpCtx, status int, payload any) {
 	if err := enc.Encode(payload); err != nil {
 		zlog.Error().Err(err).Msg("failed to encode json response")
 	}
+}
+
+// findExprChecker looks up the ExprCheck function for a given kind + field name.
+func findExprChecker(kind, field string) func(string) error {
+	registry := ng.AssertionsRegistry()
+	kindAssert, ok := registry[kind]
+	if !ok || kindAssert.Sub == nil {
+		return nil
+	}
+	fieldAssert, ok := kindAssert.Sub[field]
+	if !ok || fieldAssert.Type != "expr" || fieldAssert.ExprCheck == nil {
+		return nil
+	}
+	return fieldAssert.ExprCheck
 }
 
 var _ nghttp.Service = (*UI)(nil)

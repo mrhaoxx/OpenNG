@@ -2,16 +2,21 @@ package expr
 
 import (
 	"github.com/expr-lang/expr"
-	"github.com/expr-lang/expr/vm"
+	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngexpr"
 )
 
+type TcpExprEnv struct {
+	Tcp *ngtcp.Conn `expr:"tcp"`
+}
+
 type TcpExpr struct {
-	*vm.Program
+	cond ngexpr.IntExpr[TcpExprEnv]
 }
 
 func (e *TcpExpr) HandleTCP(ctx *ngtcp.Conn) ngtcp.Ret {
-	output, err := expr.Run(e.Program, ctx)
+	output, err := expr.Run(e.cond.Program, TcpExprEnv{Tcp: ctx})
 	if err != nil {
 		panic(err)
 	}
@@ -19,22 +24,16 @@ func (e *TcpExpr) HandleTCP(ctx *ngtcp.Conn) ngtcp.Ret {
 	return ngtcp.Ret(ret)
 }
 
-func (e *TcpExpr) Compile(expression string) error {
-	program, err := expr.Compile(expression, expr.Env(&ngtcp.Conn{}), expr.AsInt(), expr.Patch(MethodAsFuncPatcher{}), caller)
-	if err != nil {
-		return err
-	}
-	e.Program = program
-	return nil
+type TcpExprConfig struct {
+	Exp ngexpr.IntExpr[TcpExprEnv] `ng:"exp,required" desc:"expression to evaluate"`
 }
 
-func NewTCPExpr(cfg ExprConfig) (*TcpExpr, error) {
-	obj := &TcpExpr{}
-	err := obj.Compile(cfg.Exp)
-	if err != nil {
-		return nil, err
-	}
-	return obj, nil
+func NewTCPExpr(cfg TcpExprConfig) (*TcpExpr, error) {
+	return &TcpExpr{cond: cfg.Exp}, nil
+}
+
+func init() {
+	ng.RegisterFunc("expr::tcp", NewTCPExpr)
 }
 
 var _ ngtcp.Service = (*TcpExpr)(nil)

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, useRef, useMemo, type ReactNode } from 'react'
 import YAML, { parseDocument, isMap, isSeq, isPair, isScalar } from 'yaml'
 import { fetchSchema, fetchConfigText, csrfFetch } from './api'
 import { parseKindSchemas, allKindNames } from './schema'
@@ -8,6 +8,7 @@ export interface ConfigError {
   phase: string
   service: string
   message: string
+  fieldPath?: string // full path for precise jump (e.g. "e2.routes[0].service.condition")
 }
 
 interface ConfigContextValue {
@@ -41,6 +42,10 @@ interface ConfigContextValue {
   loading: boolean
   /** All config paths for dref autocomplete (computed from YAML AST) */
   drefPaths: string[]
+  /** Raw schema definitions for expr env lookups */
+  rawDefinitions: Record<string, any> | undefined
+  /** Expr lint errors — keyed by path, set/clear by ExprField instances */
+  setExprError: (path: string, error: string | null) => void
 }
 
 const ConfigContext = createContext<ConfigContextValue | null>(null)
@@ -55,11 +60,32 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   const [yamlText, setYamlTextState] = useState('')
   const [config, setConfigState] = useState<Record<string, any> | null>(null)
   const [kindSchemas, setKindSchemas] = useState<Map<string, KindSchema>>(new Map())
-  const [problems, setProblems] = useState<ConfigError[]>([])
+  const [validationProblems, setValidationProblems] = useState<ConfigError[]>([])
+  const [exprErrors, setExprErrors] = useState<Map<string, string>>(new Map())
   const [dirty, setDirty] = useState(false)
   const [statusText, setStatusText] = useState('')
   const [loading, setLoading] = useState(true)
+  const [rawDefinitions, setRawDefinitions] = useState<Record<string, any> | undefined>(undefined)
   const validateTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const setExprError = useCallback((path: string, error: string | null) => {
+    setExprErrors(prev => {
+      const next = new Map(prev)
+      if (error) next.set(path, error)
+      else next.delete(path)
+      return next
+    })
+  }, [])
+
+  // Merge validation problems + expr lint errors
+  const problems: ConfigError[] = useMemo(() => {
+    const exprProblems: ConfigError[] = []
+    for (const [path, msg] of exprErrors) {
+      const service = path.split('.')[0]
+      exprProblems.push({ phase: 'expr', service, message: msg, fieldPath: path })
+    }
+    return [...validationProblems, ...exprProblems]
+  }, [validationProblems, exprErrors])
 
   const allKinds = allKindNames(kindSchemas)
 
@@ -82,6 +108,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     Promise.all([fetchSchema(), fetchConfigText()])
       .then(([schemaData, text]) => {
         setKindSchemas(parseKindSchemas(schemaData))
+        setRawDefinitions(schemaData.definitions)
         setYamlTextState(text)
         try {
           setConfigState(YAML.parse(text) ?? {})
@@ -134,7 +161,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
     validateTimer.current = setTimeout(async () => {
       try {
         const resp = await csrfFetch('/api/v1/cfg/validate', { method: 'POST', body: YAML.stringify(cfg) })
-        setProblems(await resp.json())
+        setValidationProblems(await resp.json())
       } catch { /* ignore */ }
     }, 800)
   }, [])
@@ -152,7 +179,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       if (resp.status === 422) {
         // Validation failed — update problems from response
         const errors = await resp.json()
-        setProblems(errors)
+        setValidationProblems(errors)
         setStatusText(`Save blocked: ${errors.length} validation error${errors.length > 1 ? 's' : ''}`)
         return false
       }
@@ -188,6 +215,8 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       save, reload,
       loading,
       drefPaths,
+      rawDefinitions,
+      setExprError,
     }}>
       {children}
     </ConfigContext.Provider>

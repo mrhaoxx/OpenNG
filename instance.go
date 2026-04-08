@@ -1087,6 +1087,11 @@ func IfCompatibleAndConvert(node *ArgNode, assertions Assert) bool {
 			node.Value = exp
 			return true
 		}
+	case "expr":
+		if node.Type == "string" {
+			node.Type = "expr"
+			return true
+		}
 	}
 
 	return false

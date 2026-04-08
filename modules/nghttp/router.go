@@ -9,7 +9,6 @@ import (
 )
 
 type Router struct {
-	hosts  groupexp.GroupRegexp
 	routes []route
 }
 
@@ -20,7 +19,7 @@ type route struct {
 	stripPath string
 }
 
-func (r *Router) Hosts() groupexp.GroupRegexp { return r.hosts }
+func (r *Router) Hosts() groupexp.GroupRegexp { return nil }
 
 func (r *Router) HandleHTTP(ctx *HttpCtx) Ret {
 	orig := ctx.Req.URL.Path
@@ -51,12 +50,11 @@ type RouteConfig struct {
 }
 
 type RouterConfig struct {
-	Hosts    ng.HostnameSlice `ng:"hosts" default:"[*]" desc:"hostnames to handle"`
-	Routes   []RouteConfig    `ng:"routes,required" desc:"route rules, matched in order"`
+	Routes []RouteConfig `ng:"routes,required" desc:"route rules, matched in order"`
 }
 
 func NewRouter(cfg RouterConfig) (*Router, error) {
-	r := &Router{hosts: cfg.Hosts.GroupRegexp()}
+	r := &Router{}
 	for _, rc := range cfg.Routes {
 		rt := route{match: parsePath(rc.Path), service: rc.Service}
 		if rc.StripPrefix {
