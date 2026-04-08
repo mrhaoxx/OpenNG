@@ -3,22 +3,22 @@ package ngtls
 import (
 	"time"
 
-	ng "github.com/mrhaoxx/OpenNG"
+	w "github.com/mrhaoxx/OpenNG/modules/admin/widget"
 )
 
-func (mgr *TlsMgr) AdminMeta() ng.AdminMeta {
-	return ng.AdminMeta{
-		Routes: []ng.AdminRoute{
-			{Method: "POST", Path: "/reload", Handler: func(ctx ng.AdminContext) {
-				w := ctx.ResponseWriter()
+func (mgr *TlsMgr) AdminMeta() w.AdminMeta {
+	return w.AdminMeta{
+		Routes: []w.AdminRoute{
+			{Method: "POST", Path: "/reload", Handler: func(ctx w.AdminContext) {
+				rw := ctx.ResponseWriter()
 				if err := mgr.Reload(); err != nil {
-					w.WriteHeader(400)
-					w.Write([]byte(err.Error()))
+					rw.WriteHeader(400)
+					rw.Write([]byte(err.Error()))
 				} else {
-					w.WriteHeader(202)
+					rw.WriteHeader(202)
 				}
 			}},
-			{Method: "GET", Path: "/certs", Handler: func(ctx ng.AdminContext) {
+			{Method: "GET", Path: "/certs", Handler: func(ctx w.AdminContext) {
 				certs := mgr.GetActiveCertificates()
 				type certInfo struct {
 					CertFile  string   `json:"certfile"`
@@ -40,15 +40,15 @@ func (mgr *TlsMgr) AdminMeta() ng.AdminMeta {
 						Issuer:    c.Leaf.Issuer.CommonName,
 					})
 				}
-				ng.WriteJSON(ctx.ResponseWriter(), 200, result)
+				w.WriteJSON(ctx.ResponseWriter(), 200, result)
 			}},
 		},
-		Root: ng.Columns(
-			ng.Column(12,
-				ng.Card("Certificates",
-					ng.Widget{Content: ng.Table{
+		Root: w.Columns(
+			w.Column(12,
+				w.Card("Certificates",
+					w.Widget{Content: w.Table{
 						Source: "certs",
-						Columns: []ng.ColumnDef{
+						Columns: []w.ColumnDef{
 							{Field: "certfile", Label: "File", Type: "string"},
 							{Field: "domains", Label: "Domains", Type: "string"},
 							{Field: "issuer", Label: "Issuer", Type: "string"},
@@ -56,7 +56,7 @@ func (mgr *TlsMgr) AdminMeta() ng.AdminMeta {
 						},
 					}},
 				),
-				ng.Widget{Content: ng.Action{
+				w.Widget{Content: w.Action{
 					Label:    "Reload Certificates",
 					Endpoint: "reload",
 					Method:   "POST",
@@ -68,4 +68,4 @@ func (mgr *TlsMgr) AdminMeta() ng.AdminMeta {
 	}
 }
 
-var _ ng.AdminProvider = (*TlsMgr)(nil)
+var _ w.AdminProvider = (*TlsMgr)(nil)

@@ -1,6 +1,46 @@
-package ng
+// Package widget defines the admin UI widget type system and provider interface.
+// This package has no dependencies on any module, so it can be imported by all services.
+package widget
 
-import "encoding/json"
+import (
+	"encoding/json"
+	stdhttp "net/http"
+)
+
+// AdminContext is the interface that admin route handlers receive.
+type AdminContext interface {
+	ResponseWriter() stdhttp.ResponseWriter
+	Request() *stdhttp.Request
+}
+
+// WriteJSON writes a JSON response with the given status code.
+func WriteJSON(w stdhttp.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}
+
+// AdminHandler is a function that handles an admin API request.
+type AdminHandler func(AdminContext)
+
+// AdminProvider is optionally implemented by service instances
+// to provide custom monitoring widgets and API routes.
+type AdminProvider interface {
+	AdminMeta() AdminMeta
+}
+
+// AdminMeta describes a service's admin UI and API routes.
+type AdminMeta struct {
+	Root   Widget       `json:"root"`
+	Routes []AdminRoute `json:"-"`
+}
+
+// AdminRoute is a custom API route exposed by a service.
+type AdminRoute struct {
+	Method  string
+	Path    string
+	Handler AdminHandler
+}
 
 // WidgetContent is implemented by each widget type.
 type WidgetContent interface {
@@ -64,50 +104,6 @@ type Action struct {
 
 func (Action) WidgetType() string { return "action" }
 
-type Stream struct {
-	Source     string `json:"source"`
-	Format     string `json:"format,omitempty"`
-	MaxLines   int    `json:"maxLines,omitempty"`
-	AutoScroll bool   `json:"autoscroll,omitempty"`
-	Filterable bool   `json:"filterable,omitempty"`
-}
-
-func (Stream) WidgetType() string { return "stream" }
-
-type Code struct {
-	Source         string `json:"source"`
-	Language       string `json:"language,omitempty"`
-	ReadOnly       bool   `json:"readonly,omitempty"`
-	SubmitEndpoint string `json:"submitEndpoint,omitempty"`
-	SubmitMethod   string `json:"submitMethod,omitempty"`
-}
-
-func (Code) WidgetType() string { return "code" }
-
-type KV struct {
-	Source string     `json:"source"`
-	Fields []FieldDef `json:"fields"`
-	Poll   string     `json:"poll,omitempty"`
-}
-
-func (KV) WidgetType() string { return "kv" }
-
-type Form struct {
-	Fields         []FieldDef `json:"fields"`
-	SubmitEndpoint string     `json:"submitEndpoint"`
-	SubmitMethod   string     `json:"submitMethod,omitempty"`
-	ResetOnSubmit  bool       `json:"resetOnSubmit,omitempty"`
-}
-
-func (Form) WidgetType() string { return "form" }
-
-type TextWidget struct {
-	Content string `json:"content"`
-	Variant string `json:"variant,omitempty"`
-}
-
-func (TextWidget) WidgetType() string { return "text" }
-
 // --- Layout helpers ---
 
 type columnsLayout struct{ Gap string `json:"gap,omitempty"` }
@@ -121,17 +117,6 @@ func (columnLayout) WidgetType() string { return "column" }
 type cardLayout struct{ Title string `json:"title"` }
 
 func (cardLayout) WidgetType() string { return "card" }
-
-type tabsLayout struct{}
-
-func (tabsLayout) WidgetType() string { return "tabs" }
-
-type tabLayout struct {
-	Label string `json:"label"`
-	Icon  string `json:"icon,omitempty"`
-}
-
-func (tabLayout) WidgetType() string { return "tab" }
 
 type rowLayout struct{ Gap string `json:"gap,omitempty"` }
 
@@ -147,14 +132,6 @@ func Column(span int, children ...Widget) Widget {
 
 func Card(title string, children ...Widget) Widget {
 	return Widget{Content: cardLayout{Title: title}, Children: children}
-}
-
-func Tabs(children ...Widget) Widget {
-	return Widget{Content: tabsLayout{}, Children: children}
-}
-
-func Tab(label string, children ...Widget) Widget {
-	return Widget{Content: tabLayout{Label: label}, Children: children}
 }
 
 func Row(children ...Widget) Widget {
@@ -173,18 +150,6 @@ type ColumnDef struct {
 	Actions  []ActionDef       `json:"actions,omitempty"`
 }
 
-type FieldDef struct {
-	Field       string      `json:"field"`
-	Label       string      `json:"label"`
-	Type        string      `json:"type"`
-	Required    bool        `json:"required,omitempty"`
-	Default     any         `json:"default,omitempty"`
-	Options     []OptionDef `json:"options,omitempty"`
-	Placeholder string      `json:"placeholder,omitempty"`
-	Validation  string      `json:"validation,omitempty"`
-	HelpText    string      `json:"helpText,omitempty"`
-}
-
 type ActionDef struct {
 	Label    string `json:"label"`
 	Icon     string `json:"icon,omitempty"`
@@ -192,9 +157,4 @@ type ActionDef struct {
 	Method   string `json:"method"`
 	Variant  string `json:"variant,omitempty"`
 	Confirm  string `json:"confirm,omitempty"`
-}
-
-type OptionDef struct {
-	Label string `json:"label"`
-	Value any    `json:"value"`
 }
