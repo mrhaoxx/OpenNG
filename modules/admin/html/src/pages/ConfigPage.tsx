@@ -31,9 +31,11 @@ if (!self.MonacoEnvironment) {
 type ChangeSource = 'yaml' | 'visual' | 'none'
 
 export default function ConfigPage() {
-  const { yamlText, setYamlText, config, setConfigOnly, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload, drefPaths } = useConfig()
+  const { yamlText, setYamlText, setYamlTextRaw, config, setConfigOnly, kindSchemas, allKinds, problems, scheduleValidation, dirty, statusText, save, reload, drefPaths } = useConfig()
   const drefPathsRef = useRef(drefPaths)
   drefPathsRef.current = drefPaths
+  const saveRef = useRef(save)
+  saveRef.current = save
   const editorContainerRef = useRef<HTMLDivElement>(null)
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null)
   const visualRef = useRef<HTMLDivElement>(null)
@@ -75,6 +77,11 @@ export default function ConfigPage() {
     })
     editorRef.current = editor
 
+    // Ctrl+S in Monaco
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyS, () => {
+      saveRef.current()
+    })
+
     // Save scroll & cursor on changes (paused during restore)
     const scrollDisposable = editor.onDidScrollChange(() => {
       if (suppressSaveRef.current) return
@@ -114,6 +121,18 @@ export default function ConfigPage() {
 
     return () => { completionDisposable.dispose(); scrollDisposable.dispose(); editor.getModel()?.dispose(); editor.dispose() }
   }, [])
+
+  // Ctrl+S to save
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault()
+        save()
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [save])
 
   // Sync context yamlText → editor + restore position on first load
   const restoredRef = useRef(false)
@@ -305,12 +324,11 @@ export default function ConfigPage() {
 
   const updateFromVisual = useCallback((next: Record<string, any>) => {
     changeSourceRef.current = 'visual'
-    // Use setConfigOnly to avoid re-stringify → yamlText loop
     setConfigOnly(next)
     const text = YAML.stringify(next)
     yamlTextRef.current = text
-    // Directly update yamlText state without triggering re-parse
-    // (setYamlText would parse again, but we already have the config)
+    // Update context yamlText without re-parsing (we already have the config)
+    setYamlTextRaw(text)
     const editor = editorRef.current
     if (editor) {
       const model = editor.getModel()
@@ -322,7 +340,7 @@ export default function ConfigPage() {
     }
     setTimeout(() => { changeSourceRef.current = 'none' }, 50)
     scheduleValidation(next)
-  }, [setConfigOnly, scheduleValidation])
+  }, [setConfigOnly, setYamlTextRaw, scheduleValidation])
 
   const updateService = useCallback((name: string, value: Record<string, any>) => {
     if (!config) return

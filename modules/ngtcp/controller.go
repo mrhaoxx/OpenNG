@@ -8,6 +8,8 @@ import (
 	"time"
 
 	zlog "github.com/rs/zerolog/log"
+
+	"github.com/mrhaoxx/OpenNG/pkg/stats"
 )
 
 const (
@@ -34,9 +36,19 @@ type Controller struct {
 
 	muActiveConnection sync.RWMutex
 	activeConnections  map[string]*Conn
+
+	// Aggregate stats (lock-free)
+	TotalConns  stats.Counter
+	ActiveConns stats.Counter
+	TotalRx     stats.Counter
+	TotalTx     stats.Counter
+	ConnRate    stats.RateWindow
 }
 
 func (c *Controller) Deliver(conn *Conn) {
+	c.TotalConns.Inc()
+	c.ActiveConns.Add(1)
+	c.ConnRate.Inc()
 
 	c.muActiveConnection.Lock()
 	c.activeConnections[conn.Id] = conn
@@ -47,6 +59,14 @@ func (c *Controller) Deliver(conn *Conn) {
 		c.muActiveConnection.Lock()
 		delete(c.activeConnections, conn.Id)
 		c.muActiveConnection.Unlock()
+
+		// Accumulate bytes before closing
+		rx := atomic.LoadUint64(&conn.bytesrx)
+		tx := atomic.LoadUint64(&conn.bytestx)
+		c.TotalRx.Add(rx)
+		c.TotalTx.Add(tx)
+		c.ActiveConns.Add(^uint64(0)) // decrement
+
 		conn.Close()
 		// log.Println(
 		// 	"c"+strconv.FormatUint(conn.Id, 10),

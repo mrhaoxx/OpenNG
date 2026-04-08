@@ -86,8 +86,10 @@ export default function App() {
         ))}
       </div>
 
-      {/* Panel */}
-      <div className="w-52 shrink-0 bg-neutral-900 border-r border-neutral-800 flex flex-col">
+      {/* Panel — hidden for logs/sys */}
+      <div className={`w-52 shrink-0 bg-neutral-900 border-r border-neutral-800 flex flex-col ${
+        route.page === 'logs' || route.page === 'sys' ? 'hidden' : ''
+      }`}>
         <div className="p-3 text-xs font-medium text-neutral-500 uppercase tracking-wider">
           {route.page === 'map' || route.page === 'instance' ? 'Instances' : railItems.find(r => r.id === route.page)?.label ?? ''}
         </div>

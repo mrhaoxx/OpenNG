@@ -408,6 +408,12 @@ func (space *Space) Validate(root *ArgNode) []ConfigError {
 			continue
 		}
 
+		// Validate inline ptr objects' fields against their kind's schema
+		inlineErrs := validateInlinePtrs(spec, assert, space.AssertRefs, "")
+		for _, ie := range inlineErrs {
+			errs = append(errs, ConfigError{Service: name, Kind: kind, Phase: "schema", Message: ie})
+		}
+
 		deps := space.collectDeps(spec, assert)
 		refs := collectPtrRefs(spec, assert, space.AssertRefs)
 		kindByName[name] = kind
@@ -506,6 +512,81 @@ func (space *Space) Validate(root *ArgNode) []ConfigError {
 		errs = append(errs, ConfigError{Phase: "dependency", Message: err.Error()})
 	}
 
+	return errs
+}
+
+// validateInlinePtrs recursively validates inline ptr objects' fields against their kind's schema.
+func validateInlinePtrs(node *ArgNode, assert Assert, assertRefs map[string]Assert, path string) []string {
+	if node == nil {
+		return nil
+	}
+	var errs []string
+	var walk func(*ArgNode, Assert, string, int)
+	walk = func(n *ArgNode, a Assert, p string, depth int) {
+		if depth > 20 {
+			return
+		}
+		if n == nil {
+			return
+		}
+		switch n.Type {
+		case "ptr":
+			if m, ok := n.Value.(map[string]*ArgNode); ok {
+				if kindNode := m["kind"]; kindNode != nil && kindNode.Type == "string" {
+					kind := kindNode.ToString()
+					sub, ok := assertRefs[kind]
+					if !ok {
+						errs = append(errs, fmt.Sprintf("%s: unknown inline kind %q", p, kind))
+						return
+					}
+					spec := &ArgNode{Type: "null"}
+					if len(m) > 1 {
+						remaining := make(map[string]*ArgNode, len(m)-1)
+						for k, v := range m {
+							if k != "kind" {
+								remaining[k] = v
+							}
+						}
+						spec = &ArgNode{Type: "map", Value: remaining}
+					}
+					if err := AssertArg(spec, sub); err != nil {
+						errs = append(errs, fmt.Sprintf("%s (inline %s): %s", p, kind, err.Error()))
+					}
+					// Recurse into the inline object's fields
+					walk(spec, sub, p, depth+1)
+				}
+			}
+		case "map":
+			if m, ok := n.Value.(map[string]*ArgNode); ok {
+				for k, v := range m {
+					sub := Assert{}
+					if s, ok := a.Sub[k]; ok {
+						sub = s
+					} else if s, ok := a.Sub["_"]; ok {
+						sub = s
+					} else {
+						continue
+					}
+					walk(v, sub, p+"."+k, depth+1)
+				}
+			}
+		case "list":
+			if items, ok := n.Value.([]*ArgNode); ok {
+				for i, item := range items {
+					sub := Assert{}
+					if i < len(a.SubList) {
+						sub = a.SubList[i]
+					} else if s, ok := a.Sub["_"]; ok {
+						sub = s
+					} else {
+						continue
+					}
+					walk(item, sub, fmt.Sprintf("%s[%d]", p, i), depth+1)
+				}
+			}
+		}
+	}
+	walk(node, assert, path, 0)
 	return errs
 }
 

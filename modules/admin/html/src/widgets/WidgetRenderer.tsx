@@ -2,6 +2,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import type { WidgetNode } from '@/lib/api'
 import TableWidget from './TableWidget'
 import ActionWidget from './ActionWidget'
+import StatWidget from './StatWidget'
 
 interface Props {
   widget: WidgetNode
@@ -48,14 +49,7 @@ export default function WidgetRenderer({ widget, instanceName }: Props) {
     case 'action':
       return <ActionWidget {...props} instanceName={instanceName} />
     case 'stat':
-      return (
-        <Card className="mb-4">
-          <CardContent className="pt-4">
-            <p className="text-xs text-muted-foreground uppercase tracking-wider">{String(props.label ?? '')}</p>
-            <p className="text-2xl font-bold mt-1">–</p>
-          </CardContent>
-        </Card>
-      )
+      return <StatWidget {...props} instanceName={instanceName} />
     case 'text':
       return <p className="text-sm text-muted-foreground mb-2">{String(props.content ?? '')}</p>
     default:

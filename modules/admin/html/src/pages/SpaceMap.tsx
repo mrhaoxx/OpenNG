@@ -1,238 +1,197 @@
-import { useRef, useState, useCallback, useEffect, useMemo } from 'react'
-import type { SpaceMapData, SpaceNode } from '@/lib/api'
-import ELK from 'elkjs/lib/elk.bundled'
+import { useRef, useEffect } from 'react'
+import type { SpaceMapData } from '@/lib/api'
+import { Network, type Options } from 'vis-network'
+import { DataSet } from 'vis-data'
 
-const NODE_W = 140
-const NODE_H = 44
-
-interface LayoutNode extends SpaceNode {
-  x: number
-  y: number
-}
-
-interface LayoutEdge {
-  from: string
-  to: string
-  sections?: { startPoint: { x: number; y: number }; endPoint: { x: number; y: number }; bendPoints?: { x: number; y: number }[] }[]
-}
-
-const elk = new ELK()
-
-async function computeLayout(
-  nodes: SpaceNode[],
-  edges: { from: string; to: string }[]
-): Promise<{ nodes: LayoutNode[]; edges: LayoutEdge[] }> {
-  if (nodes.length === 0) return { nodes: [], edges: [] }
-
-  // Filter edges: both endpoints must exist in nodes
-  const nodeNames = new Set(nodes.map(n => n.name))
-  const validEdges = edges.filter(e => nodeNames.has(e.from) && nodeNames.has(e.to))
-
-  const connected = new Set<string>()
-  for (const e of validEdges) { connected.add(e.from); connected.add(e.to) }
-
-  const mainNodes = nodes.filter(n => connected.has(n.name))
-  const isolated = nodes.filter(n => !connected.has(n.name))
-
-  const graph = {
-    id: 'root',
-    layoutOptions: {
-      'elk.algorithm': 'layered',
-      'elk.direction': 'DOWN',
-      'elk.spacing.nodeNode': '40',
-      'elk.layered.spacing.nodeNodeBetweenLayers': '80',
-      'elk.edgeRouting': 'SPLINES',
-      'elk.layered.crossingMinimization.strategy': 'LAYER_SWEEP',
-      'elk.layered.nodePlacement.strategy': 'BRANDES_KOEPF',
-    },
-    children: mainNodes.map(n => ({
-      id: n.name,
-      width: NODE_W,
-      height: NODE_H,
-    })),
-    edges: validEdges
-      .map((e, i) => ({
-        id: `e${i}`,
-        sources: [e.from],
-        targets: [e.to],
-      })),
-  }
-
-  const layout = await elk.layout(graph)
-
-  const resultNodes: LayoutNode[] = []
-  const nodeMap = new Map(nodes.map(n => [n.name, n]))
-
-  // Main graph nodes (ELK gives top-left coordinates, convert to center)
-  for (const child of layout.children || []) {
-    const n = nodeMap.get(child.id)
-    if (n) {
-      resultNodes.push({
-        ...n,
-        x: (child.x ?? 0) + NODE_W / 2,
-        y: (child.y ?? 0) + NODE_H / 2,
-      })
-    }
-  }
-
-  // Isolated nodes: column to the right
-  if (isolated.length > 0) {
-    const maxX = resultNodes.length > 0
-      ? Math.max(...resultNodes.map(n => n.x)) + NODE_W / 2
-      : 0
-    const isoX = maxX + NODE_W * 1.5
-    for (let i = 0; i < isolated.length; i++) {
-      resultNodes.push({
-        ...isolated[i],
-        x: isoX,
-        y: i * (NODE_H + 20),
-      })
-    }
-  }
-
-  // Edges with routing info
-  const resultEdges: LayoutEdge[] = (layout.edges || []).map(le => {
-    const e = le as unknown as { sources: string[]; targets: string[]; sections?: LayoutEdge['sections'] }
-    return { from: e.sources[0], to: e.targets[0], sections: e.sections }
-  })
-
-  return { nodes: resultNodes, edges: resultEdges }
-}
-
-function edgePath(edge: LayoutEdge, nodeMap: Map<string, LayoutNode>): string | null {
-  // Use ELK's routed sections if available
-  if (edge.sections?.length) {
-    const parts: string[] = []
-    for (const sec of edge.sections) {
-      parts.push(`M${sec.startPoint.x},${sec.startPoint.y}`)
-      if (sec.bendPoints?.length) {
-        for (const bp of sec.bendPoints) {
-          parts.push(`L${bp.x},${bp.y}`)
-        }
-      }
-      parts.push(`L${sec.endPoint.x},${sec.endPoint.y}`)
-    }
-    return parts.join(' ')
-  }
-
-  // Fallback: simple curve
-  const a = nodeMap.get(edge.from), b = nodeMap.get(edge.to)
-  if (!a || !b) return null
-  const x1 = a.x, y1 = a.y + NODE_H / 2
-  const x2 = b.x, y2 = b.y - NODE_H / 2 - 8
-  const midY = (y1 + y2) / 2
-  return `M${x1},${y1} C${x1},${midY} ${x2},${midY} ${x2},${y2}`
+function truncate(s: string, max: number) {
+  return s.length > max ? s.slice(0, max - 1) + '…' : s
 }
 
 export default function SpaceMap({ data, onSelectNode }: { data: SpaceMapData; onSelectNode: (name: string) => void }) {
   const containerRef = useRef<HTMLDivElement>(null)
-  const [layoutResult, setLayoutResult] = useState<{ nodes: LayoutNode[]; edges: LayoutEdge[] } | null>(null)
-  const [transform, setTransform] = useState({ x: 0, y: 0, scale: 1 })
-  const panRef = useRef<{ sx: number; sy: number; tx: number; ty: number } | null>(null)
+  const networkRef = useRef<Network | null>(null)
 
   useEffect(() => {
-    computeLayout(data.nodes, data.edges).then(setLayoutResult)
-  }, [data])
+    if (!containerRef.current) return
 
-  // Fit to view
-  useEffect(() => {
-    const el = containerRef.current
-    if (!el || !layoutResult?.nodes.length) return
-    const ns = layoutResult.nodes
-    const minX = Math.min(...ns.map(n => n.x)) - NODE_W
-    const maxX = Math.max(...ns.map(n => n.x)) + NODE_W
-    const minY = Math.min(...ns.map(n => n.y)) - NODE_H
-    const maxY = Math.max(...ns.map(n => n.y)) + NODE_H * 2
-    const cw = el.clientWidth, ch = el.clientHeight
-    const scale = Math.min(1.3, cw / (maxX - minX) * 0.9, ch / (maxY - minY) * 0.9)
-    setTransform({
-      scale,
-      x: (cw - (maxX - minX) * scale) / 2 - minX * scale,
-      y: (ch - (maxY - minY) * scale) / 2 - minY * scale,
-    })
-  }, [layoutResult])
+    // Separate connected vs isolated nodes
+    const connected = new Set<string>()
+    const validEdges = data.edges.filter(e =>
+      data.nodes.some(n => n.name === e.from) && data.nodes.some(n => n.name === e.to)
+    )
+    for (const e of validEdges) { connected.add(e.from); connected.add(e.to) }
 
-  const onWheel = useCallback((e: React.WheelEvent) => {
-    e.preventDefault()
-    const rect = containerRef.current!.getBoundingClientRect()
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top
-    const f = e.deltaY < 0 ? 1.1 : 1 / 1.1
-    setTransform(t => {
-      const s = Math.max(0.15, Math.min(4, t.scale * f))
-      return { scale: s, x: mx - (mx - t.x) * (s / t.scale), y: my - (my - t.y) * (s / t.scale) }
-    })
-  }, [])
+    const connectedNodes = data.nodes.filter(n => connected.has(n.name))
+    const isolatedNodes = data.nodes.filter(n => !connected.has(n.name))
 
-  const transformRef = useRef(transform)
-  useEffect(() => { transformRef.current = transform }, [transform])
-
-  const onBgDown = useCallback((e: React.MouseEvent) => {
-    if ((e.target as Element).closest('[data-node]')) return
-    const t = transformRef.current
-    panRef.current = { sx: e.clientX, sy: e.clientY, tx: t.x, ty: t.y }
-  }, [])
-
-  useEffect(() => {
-    function onMove(e: MouseEvent) {
-      if (!panRef.current) return
-      setTransform(t => ({
-        ...t,
-        x: panRef.current!.tx + e.clientX - panRef.current!.sx,
-        y: panRef.current!.ty + e.clientY - panRef.current!.sy,
+    const nodes = new DataSet(
+      data.nodes.map(n => ({
+        id: n.name,
+        label: `${truncate(n.name, 16)}\n${truncate(n.kind || '(no kind)', 20)}`,
+        ...(connected.has(n.name) ? {} : { group: 'isolated' }),
+        ...(n.hasAdmin ? { group: 'admin' } : {}),
       }))
+    )
+
+    const edges = new DataSet(
+      validEdges.map((e, i) => ({ id: `e${i}`, from: e.from, to: e.to }))
+    )
+
+    const options: Options = {
+      layout: {
+        hierarchical: {
+          enabled: true,
+          direction: 'UD',
+          sortMethod: 'directed',
+          shakeTowards: 'roots',
+          nodeSpacing: 180,
+          levelSeparation: 80,
+          treeSpacing: 100,
+          blockShifting: true,
+          edgeMinimization: true,
+          parentCentralization: true,
+        },
+      },
+      physics: { enabled: false },
+      interaction: {
+        hover: true,
+        tooltipDelay: 100,
+        zoomView: true,
+        dragView: true,
+        dragNodes: false,
+      },
+      edges: {
+        arrows: { to: { enabled: true, scaleFactor: 0.4, type: 'arrow' } },
+        color: { color: 'rgba(255,255,255,0.1)', hover: 'rgba(255,255,255,0.25)', highlight: 'rgba(100,180,255,0.4)' },
+        smooth: { enabled: true, type: 'cubicBezier', forceDirection: 'vertical', roundness: 0.4 },
+        width: 1,
+        hoverWidth: 0.3,
+      },
+      nodes: {
+        shape: 'box',
+        widthConstraint: { minimum: 90, maximum: 150 },
+        margin: { top: 5, bottom: 5, left: 8, right: 8 },
+        font: {
+          face: 'ui-monospace, SFMono-Regular, Menlo, monospace',
+          size: 11,
+          color: '#d4d4d4',
+          multi: false,
+          align: 'center',
+        },
+        color: {
+          background: '#1a1a1a',
+          border: '#333',
+          hover: { background: '#222', border: '#555' },
+          highlight: { background: '#1e3a5f', border: '#3b82f6' },
+        },
+        borderWidth: 1,
+        borderWidthSelected: 1.5,
+        shapeProperties: { borderRadius: 5 },
+      },
+      groups: {
+        admin: {
+          color: { border: 'rgba(59,130,246,0.5)' },
+          borderWidth: 1.5,
+        },
+        isolated: {
+          color: { background: '#151515', border: '#2a2a2a' },
+          font: { color: '#777' },
+        },
+      },
     }
-    function onUp() { panRef.current = null }
-    window.addEventListener('mousemove', onMove)
-    window.addEventListener('mouseup', onUp)
-    return () => { window.removeEventListener('mousemove', onMove); window.removeEventListener('mouseup', onUp) }
-  }, [])
 
-  if (!layoutResult) {
-    return <div className="flex items-center justify-center h-full text-muted-foreground">Computing layout...</div>
-  }
+    const network = new Network(containerRef.current, { nodes, edges }, options)
+    networkRef.current = network
 
-  const nodeMap = useMemo(() => new Map(layoutResult.nodes.map(n => [n.name, n])), [layoutResult])
+    network.on('click', (params) => {
+      if (params.nodes.length > 0) {
+        onSelectNode(params.nodes[0] as string)
+      }
+    })
+
+    // After initial draw: reflow wide layers + move isolated nodes
+    network.once('afterDrawing', () => {
+      const positions = network.getPositions()
+      const maxPerRow = 4
+      const nodeW = 160
+      const nodeH = 50
+      const hGap = 20
+      const vGap = 16
+
+      // Group connected nodes by Y level
+      const layers = new Map<number, { id: string; x: number; y: number }[]>()
+      for (const n of connectedNodes) {
+        const pos = positions[n.name]
+        if (!pos) continue
+        // Round Y to group into layers (vis-network uses exact same Y for same level)
+        const ly = Math.round(pos.y)
+        if (!layers.has(ly)) layers.set(ly, [])
+        layers.get(ly)!.push({ id: n.name, x: pos.x, y: pos.y })
+      }
+
+      // Reflow layers that are too wide
+      let yShift = 0
+      const sortedLayers = [...layers.entries()].sort((a, b) => a[0] - b[0])
+      for (const [, layerNodes] of sortedLayers) {
+        // Apply accumulated shift from previous reflows
+        for (const n of layerNodes) n.y += yShift
+
+        if (layerNodes.length > maxPerRow) {
+          layerNodes.sort((a, b) => a.x - b.x)
+          const rows = Math.ceil(layerNodes.length / maxPerRow)
+          const baseY = layerNodes[0].y
+          // Center each row
+          const medianX = layerNodes[Math.floor(layerNodes.length / 2)].x
+          for (let i = 0; i < layerNodes.length; i++) {
+            const row = Math.floor(i / maxPerRow)
+            const col = i % maxPerRow
+            const rowCount = Math.min(maxPerRow, layerNodes.length - row * maxPerRow)
+            const rowW = rowCount * (nodeW + hGap) - hGap
+            const rowStartX = medianX - rowW / 2 + nodeW / 2
+            layerNodes[i].x = rowStartX + col * (nodeW + hGap)
+            layerNodes[i].y = baseY + row * (nodeH + vGap)
+          }
+          yShift += (rows - 1) * (nodeH + vGap)
+        }
+
+        // Apply final positions
+        for (const n of layerNodes) {
+          network.moveNode(n.id, n.x, n.y)
+        }
+      }
+
+      // Move isolated nodes to a row below the main graph
+      if (isolatedNodes.length > 0) {
+        let maxY = -Infinity
+        let sumX = 0
+        let countX = 0
+        for (const n of connectedNodes) {
+          const pos = positions[n.name]
+          if (pos) {
+            if (pos.y + yShift > maxY) maxY = pos.y + yShift
+            sumX += pos.x
+            countX++
+          }
+        }
+        const centerX = countX > 0 ? sumX / countX : 0
+        const isoY = maxY + nodeH + 40
+        const totalW = isolatedNodes.length * (nodeW + hGap) - hGap
+        const startX = centerX - totalW / 2 + nodeW / 2
+        isolatedNodes.forEach((n, i) => {
+          network.moveNode(n.name, startX + i * (nodeW + hGap), isoY)
+        })
+      }
+
+      network.fit({ animation: false })
+    })
+
+    return () => {
+      network.destroy()
+      networkRef.current = null
+    }
+  }, [data, onSelectNode])
 
   return (
-    <div ref={containerRef}
-      className="h-full w-full overflow-hidden cursor-grab active:cursor-grabbing bg-background"
-      onWheel={onWheel} onMouseDown={onBgDown}>
-      <svg className="w-full h-full select-none">
-        <defs>
-          <marker id="arr" markerWidth="10" markerHeight="10" refX="9" refY="4" orient="auto">
-            <path d="M0,0 L0,8 L10,4 z" className="fill-muted-foreground/40" />
-          </marker>
-        </defs>
-        <g transform={`translate(${transform.x},${transform.y}) scale(${transform.scale})`}>
-          {/* Edges */}
-          {layoutResult.edges.map((e, i) => {
-            const d = edgePath(e, nodeMap)
-            if (!d) return null
-            return <path key={i} d={d}
-              fill="none" className="stroke-muted-foreground/20" strokeWidth={1.2}
-              markerEnd="url(#arr)" />
-          })}
-
-          {/* Nodes */}
-          {layoutResult.nodes.map(n => (
-            <g key={n.name} data-node transform={`translate(${n.x},${n.y})`}
-              onClick={() => onSelectNode(n.name)} className="cursor-pointer">
-              <rect x={-NODE_W / 2} y={-NODE_H / 2} width={NODE_W} height={NODE_H} rx={8}
-                className={n.hasAdmin ? 'fill-card stroke-primary/30' : 'fill-card stroke-border'}
-                strokeWidth={1.2} />
-              {n.hasAdmin && <circle cx={NODE_W / 2 - 10} cy={-NODE_H / 2 + 10} r={2.5} className="fill-primary/60" />}
-              <text textAnchor="middle" y={-4} fontSize={11} fontWeight={600}
-                className="fill-foreground pointer-events-none" style={{ fontFamily: 'var(--font-sans)' }}>
-                {n.name.length > 16 ? n.name.slice(0, 14) + '…' : n.name}
-              </text>
-              <text textAnchor="middle" y={12} fontSize={9}
-                className="fill-muted-foreground pointer-events-none" style={{ fontFamily: 'var(--font-sans)' }}>
-                {n.kind}
-              </text>
-            </g>
-          ))}
-        </g>
-      </svg>
-    </div>
+    <div ref={containerRef} className="h-full w-full bg-background" />
   )
 }

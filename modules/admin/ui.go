@@ -102,12 +102,11 @@ func (u *UI) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		}
 		ctx.Resp.Header().Set("Cache-Control", "no-cache")
 		b, _ := io.ReadAll(ctx.Req.Body)
-		// errors := ngcmd.ValidateCfg(b)
-		// if len(errors) > 0 {
-		// 	ctx.Resp.WriteHeader(nghttp.StatusNotAcceptable)
-		// 	ctx.WriteString(strings.Join(errors, "\n"))
-		// 	return nghttp.RequestEnd
-		// }
+		errors := ngcmd.ValidateCfg(b)
+		if len(errors) > 0 {
+			ng.WriteJSON(ctx.ResponseWriter(), stdhttp.StatusUnprocessableEntity, errors)
+			return nghttp.RequestEnd
+		}
 		os.WriteFile(*ngcmd.Configfile, b, fs.ModeCharDevice)
 		ctx.Resp.WriteHeader(nghttp.StatusAccepted)
 	case "/api/v1/cfg/validate":

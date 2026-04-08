@@ -96,6 +96,31 @@ type ArgNode struct {
 	Value any
 }
 
+// DeepCopy returns a deep clone of the ArgNode tree.
+func (node *ArgNode) DeepCopy() *ArgNode {
+	if node == nil {
+		return nil
+	}
+	cp := &ArgNode{Type: node.Type}
+	switch v := node.Value.(type) {
+	case map[string]*ArgNode:
+		m := make(map[string]*ArgNode, len(v))
+		for k, child := range v {
+			m[k] = child.DeepCopy()
+		}
+		cp.Value = m
+	case []*ArgNode:
+		s := make([]*ArgNode, len(v))
+		for i, child := range v {
+			s[i] = child.DeepCopy()
+		}
+		cp.Value = s
+	default:
+		cp.Value = node.Value // scalars are immutable
+	}
+	return cp
+}
+
 func (node *ArgNode) MustGet(path string) *ArgNode {
 	v, _ := node.Get(path)
 	return v

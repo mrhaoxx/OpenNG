@@ -15,6 +15,7 @@ import (
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
+	"github.com/mrhaoxx/OpenNG/pkg/stats"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"golang.org/x/net/http2"
 )
@@ -35,6 +36,13 @@ type Midware struct {
 
 	muActiveRequest sync.RWMutex
 	activeRequests  map[string]*HttpCtx
+
+	// Aggregate stats (lock-free)
+	TotalRequests  stats.Counter
+	ActiveRequests stats.Counter
+	TotalBytesOut  stats.Counter
+	StatusBucket   stats.Bucket // [1]=1xx [2]=2xx [3]=3xx [4]=4xx [5]=5xx
+	ReqRate        stats.RateWindow
 }
 
 type ServiceHandler func(*HttpCtx) Ret
@@ -109,6 +117,10 @@ func (h *Midware) HandleTCP(c *ngtcp.Conn) ngtcp.Ret {
 }
 
 func (h *Midware) Process(RequestCtx *HttpCtx) {
+	h.TotalRequests.Inc()
+	h.ActiveRequests.Add(1)
+	h.ReqRate.Inc()
+
 	h.muActiveRequest.Lock()
 	h.activeRequests[RequestCtx.Id] = RequestCtx
 	h.muActiveRequest.Unlock()
@@ -121,6 +133,13 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		if RequestCtx.Resp.code == 0 {
 			RequestCtx.Resp.ErrorPage(http.StatusTeapot, "It seems the server is not responding.")
 			RequestPath += "#"
+		}
+
+		// Accumulate stats
+		h.TotalBytesOut.Add(atomic.LoadUint64(&RequestCtx.Resp.writtenBytes))
+		h.ActiveRequests.Add(^uint64(0)) // decrement
+		if code := RequestCtx.Resp.code; code > 0 {
+			h.StatusBucket.Inc(code / 100)
 		}
 
 		RequestCtx.Close()

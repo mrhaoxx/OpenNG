@@ -74,20 +74,23 @@ type _dref struct {
 }
 
 func Dedref(nodes *ng.ArgNode) error {
-	var walk func(reqtree map[string]_dref, node *ng.ArgNode, path string)
-	walk = func(reqtree map[string]_dref, node *ng.ArgNode, path string) {
+	var walk func(reqtree map[string]_dref, node *ng.ArgNode, path string, depth int)
+	walk = func(reqtree map[string]_dref, node *ng.ArgNode, path string, depth int) {
+		if depth > 50 {
+			return
+		}
 		switch node.Type {
 		case "map":
 			for k, v := range node.ToMap() {
 				if path != "" {
-					walk(reqtree, v, path+"."+k)
+					walk(reqtree, v, path+"."+k, depth+1)
 				} else {
-					walk(reqtree, v, k)
+					walk(reqtree, v, k, depth+1)
 				}
 			}
 		case "list":
 			for i, v := range node.ToList() {
-				walk(reqtree, v, path+"["+fmt.Sprint(i)+"]")
+				walk(reqtree, v, path+"["+fmt.Sprint(i)+"]", depth+1)
 			}
 		case "dref":
 			reqtree[path] = _dref{path: node.Value.(string), exp: false}
@@ -98,11 +101,17 @@ func Dedref(nodes *ng.ArgNode) error {
 		}
 	}
 
+	regenCount := 0
+
 _regen:
+	if regenCount > 100 {
+		return fmt.Errorf("dref resolution exceeded max iterations (possible circular reference)")
+	}
+	regenCount++
 
 	reqtree := map[string]_dref{}
 
-	walk(reqtree, nodes, "") // find all dref nodes
+	walk(reqtree, nodes, "", 0) // find all dref nodes
 
 	for k, v := range reqtree {
 		var err error
@@ -140,9 +149,15 @@ _regen:
 
 			regen := false
 
+			// Detect direct self-reference (n == parent would create a cycle)
+			if n == parent {
+				delete(reqtree, _k)
+				continue
+			}
+
 			switch parent.Type {
 			case "map":
-				parent.ToMap()[thislevel[1:]] = n
+				parent.ToMap()[thislevel[1:]] = n.DeepCopy()
 			case "list":
 				var index int
 				fmt.Sscanf(thislevel, "[%d]", &index)
@@ -153,13 +168,18 @@ _regen:
 					}
 
 					regen = true // here makes copies, so we need regen the dref table
+					// Deep copy each expanded item
+					copied := make([]*ng.ArgNode, len(n.ToList()))
+					for ci, item := range n.ToList() {
+						copied[ci] = item.DeepCopy()
+					}
 					if index == len(parent.ToList()) {
-						parent.Value = append(parent.ToList(), n.ToList()...)
+						parent.Value = append(parent.ToList(), copied...)
 					} else {
-						parent.Value = append(parent.ToList()[:index], append(n.ToList(), parent.ToList()[index+1:]...)...)
+						parent.Value = append(parent.ToList()[:index], append(copied, parent.ToList()[index+1:]...)...)
 					}
 				} else {
-					parent.ToList()[index] = n
+					parent.ToList()[index] = n.DeepCopy()
 				}
 			default:
 				continue

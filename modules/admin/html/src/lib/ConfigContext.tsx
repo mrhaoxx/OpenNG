@@ -14,6 +14,8 @@ interface ConfigContextValue {
   /** Raw YAML text — source of truth */
   yamlText: string
   setYamlText: (text: string) => void
+  /** Set yamlText without re-parsing config (for when caller already has config) */
+  setYamlTextRaw: (text: string) => void
   /** Parsed config object (derived from yamlText) */
   config: Record<string, any> | null
   /** Set config AND sync to yamlText (triggers re-stringify) */
@@ -33,7 +35,7 @@ interface ConfigContextValue {
   statusText: string
   setStatusText: (s: string) => void
   /** Save & Reload */
-  save: () => Promise<void>
+  save: () => Promise<boolean>
   reload: () => Promise<void>
   /** Loading state */
   loading: boolean
@@ -94,6 +96,12 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
       })
   }, [])
 
+  // Set YAML text without re-parsing (caller already has config)
+  const setYamlTextRaw = useCallback((text: string) => {
+    setYamlTextState(text)
+    setDirty(true)
+  }, [])
+
   // Set YAML text, sync to parsed config, and schedule validation
   const scheduleValidationRef = useRef<(cfg: Record<string, any>) => void>(() => {})
   const setYamlText = useCallback((text: string) => {
@@ -132,13 +140,28 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
   }, [])
   scheduleValidationRef.current = scheduleValidation
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (): Promise<boolean> => {
     setStatusText('Saving...')
     try {
       const resp = await csrfFetch('/api/v1/cfg/save', { method: 'POST', body: yamlText })
-      setStatusText(resp.ok ? 'Saved' : `Save failed: ${await resp.text()}`)
-      if (resp.ok) setDirty(false)
-    } catch { setStatusText('Save failed') }
+      if (resp.ok) {
+        setStatusText('Saved')
+        setDirty(false)
+        return true
+      }
+      if (resp.status === 422) {
+        // Validation failed — update problems from response
+        const errors = await resp.json()
+        setProblems(errors)
+        setStatusText(`Save blocked: ${errors.length} validation error${errors.length > 1 ? 's' : ''}`)
+        return false
+      }
+      setStatusText(`Save failed: ${await resp.text()}`)
+      return false
+    } catch {
+      setStatusText('Save failed')
+      return false
+    }
   }, [yamlText])
 
   const reload = useCallback(async () => {
@@ -156,7 +179,7 @@ export function ConfigProvider({ children }: { children: ReactNode }) {
 
   return (
     <ConfigContext.Provider value={{
-      yamlText, setYamlText,
+      yamlText, setYamlText, setYamlTextRaw,
       config, setConfig, setConfigOnly,
       kindSchemas, allKinds,
       problems, scheduleValidation,
