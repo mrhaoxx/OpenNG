@@ -64,10 +64,10 @@ func LoadCfg(cfgs []byte, reload bool) error {
 			old.Stop()
 		}
 	} else if reload {
-		// The half-built generation may already hold resources (it steals
-		// listeners from the running one on rebind); retire it instead of
-		// leaking it. Ports it took over stay down until the next
-		// successful reload.
+		// Retire the half-built generation instead of leaking it. TCP
+		// addresses it acquired fall back to the running generation via
+		// the listener registry; dns/wireguard rebinds still cut over at
+		// construction time.
 		space.Stop()
 	}
 

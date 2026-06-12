@@ -9,6 +9,7 @@ import (
 
 	zlog "github.com/rs/zerolog/log"
 
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/pkg/stats"
 )
 
@@ -32,7 +33,7 @@ type ServiceBinding struct {
 type Controller struct {
 	binds map[string][]ServiceBinding
 
-	listeners []*net.Listener
+	releases []func() // listener registry releases, one per acquired address
 
 	muActiveConnection sync.RWMutex
 	activeConnections  map[string]*Conn
@@ -127,65 +128,29 @@ _restart:
 
 }
 
-var listeners map[string]net.Listener = make(map[string]net.Listener)
-var listenerlock sync.Mutex
-
+// Listen acquires each address on the process-wide listener registry; this
+// controller becomes the active receiver, and the previous holder (an older
+// generation during reload) resumes if this one is stopped.
 func (ctl *Controller) Listen(addrs []string) error {
 	for _, addr := range addrs {
-		listenerlock.Lock()
-		if lc, ok := listeners[addr]; ok {
-			zlog.Warn().Str("type", "tcp/listen").Str("addr", addr).Msg("rebind tcp listen")
-			lc.Close()
-		}
-
-		lc, err := net.Listen("tcp", addr)
+		release, err := ngnet.AcquireListener("tcp", addr, func(socket net.Conn) {
+			ctl.Deliver(head(socket))
+		})
 		if err != nil {
-			listenerlock.Unlock()
 			return err
 		}
-
-		listeners[addr] = lc
-
-		listenerlock.Unlock()
-
-		ctl.listeners = append(ctl.listeners, &lc)
-		go func() {
-			defer func() {
-				if err := recover(); err != nil {
-					zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen panic")
-				}
-			}()
-			for {
-				socket, err := lc.Accept()
-				if err != nil {
-					zlog.Error().Str("type", "tcp/listen").Interface("err", err).Msg("tcp listen accept")
-					break
-				}
-
-				go func() {
-					i := head(socket)
-					ctl.Deliver(i)
-				}()
-			}
-		}()
+		ctl.releases = append(ctl.releases, release)
 	}
 	return nil
 }
 
-// Stop closes all listeners owned by this controller. Accept loops exit via
-// the listener error; established connections are left to drain naturally.
+// Stop hands this controller's addresses back to the listener registry.
+// Established connections are left to drain naturally.
 func (ctl *Controller) Stop() {
-	listenerlock.Lock()
-	defer listenerlock.Unlock()
-	for _, lc := range ctl.listeners {
-		for addr, cur := range listeners {
-			if cur == *lc {
-				delete(listeners, addr)
-			}
-		}
-		(*lc).Close()
+	for _, release := range ctl.releases {
+		release()
 	}
-	ctl.listeners = nil
+	ctl.releases = nil
 }
 
 type funcInterface func(*Conn) Ret

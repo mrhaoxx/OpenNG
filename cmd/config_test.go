@@ -103,6 +103,11 @@ func TestFailedReloadRetiresHalfBuiltGeneration(t *testing.T) {
 		t.Fatal("CurSpace must stay on the old generation after failed reload")
 	}
 
+	// The half-built generation released the address on retirement, so the
+	// listener registry falls back to the old generation: the port must
+	// still be served.
+	waitListening(t, "127.0.0.1:18987")
+
 	CurSpace.Stop()
 	CurSpace = nil
 }
