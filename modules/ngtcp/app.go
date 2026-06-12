@@ -33,3 +33,5 @@ type ListenConfig struct {
 	AddressBindings []string    `ng:"AddressBindings"`
 	Ptr             *Controller `ng:"ptr"`
 }
+
+var _ ng.Stopper = (*Controller)(nil)

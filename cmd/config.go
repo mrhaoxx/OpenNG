@@ -58,7 +58,17 @@ func LoadCfg(cfgs []byte, reload bool) error {
 	err = space.Apply(nodes, reload, false)
 
 	if err == nil {
+		old := CurSpace
 		CurSpace = &space
+		if old != nil {
+			old.Stop()
+		}
+	} else if reload {
+		// The half-built generation may already hold resources (it steals
+		// listeners from the running one on rebind); retire it instead of
+		// leaking it. Ports it took over stay down until the next
+		// successful reload.
+		space.Stop()
 	}
 
 	return err

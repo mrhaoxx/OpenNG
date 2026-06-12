@@ -37,6 +37,9 @@ type server struct {
 	domain string
 
 	count uint64
+
+	muServers sync.Mutex
+	servers   []*mdns.Server
 }
 
 func joinNames(questions []mdns.Question) string {
@@ -145,7 +148,33 @@ func (s *server) Listen(address string) error {
 	dnsServers[address] = srv
 	dnsLock.Unlock()
 
+	s.muServers.Lock()
+	s.servers = append(s.servers, srv)
+	s.muServers.Unlock()
+
 	return srv.ListenAndServe()
+}
+
+// Stop shuts down all DNS listeners owned by this server instance.
+func (s *server) Stop() {
+	s.muServers.Lock()
+	owned := s.servers
+	s.servers = nil
+	s.muServers.Unlock()
+
+	dnsLock.Lock()
+	for _, srv := range owned {
+		for addr, cur := range dnsServers {
+			if cur == srv {
+				delete(dnsServers, addr)
+			}
+		}
+	}
+	dnsLock.Unlock()
+
+	for _, srv := range owned {
+		srv.Shutdown()
+	}
 }
 
 func (s *server) AddFilter(name *regexp2.Regexp, allowance bool) error {

@@ -172,6 +172,22 @@ func (ctl *Controller) Listen(addrs []string) error {
 	return nil
 }
 
+// Stop closes all listeners owned by this controller. Accept loops exit via
+// the listener error; established connections are left to drain naturally.
+func (ctl *Controller) Stop() {
+	listenerlock.Lock()
+	defer listenerlock.Unlock()
+	for _, lc := range ctl.listeners {
+		for addr, cur := range listeners {
+			if cur == *lc {
+				delete(listeners, addr)
+			}
+		}
+		(*lc).Close()
+	}
+	ctl.listeners = nil
+}
+
 type funcInterface func(*Conn) Ret
 
 func (f funcInterface) HandleTCP(a *Conn) Ret {

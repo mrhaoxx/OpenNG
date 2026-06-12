@@ -83,7 +83,7 @@ type Assert struct {
 	Impls    []reflect.Type
 	AllowNil bool
 
-	ExprEnv   any              // for type "expr": environment tree for autocomplete
+	ExprEnv   any                // for type "expr": environment tree for autocomplete
 	ExprCheck func(string) error // for type "expr": compile-check an expression string
 }
 

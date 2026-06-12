@@ -167,6 +167,19 @@ func (wg *WireGuardServer) Close() {
 	wg.wgDevice.Close()
 }
 
+// Stop releases the WireGuard device when this instance's generation is retired.
+func (wg *WireGuardServer) Stop() {
+	wgLock.Lock()
+	for port, cur := range wgServers {
+		if cur == wg {
+			delete(wgServers, port)
+		}
+	}
+	wgLock.Unlock()
+
+	wg.Close()
+}
+
 func (wg *WireGuardServer) AddPeer(PublicKey string, AllowedIPs []string) error {
 	publickey, err := b64tohex(PublicKey)
 

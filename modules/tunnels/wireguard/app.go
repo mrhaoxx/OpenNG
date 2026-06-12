@@ -66,3 +66,5 @@ func NewWireGuardServerFromConfig(cfg WireGuardServerConfig) (*WireGuardServer, 
 
 	return NewWireGuardServer(wgCfg)
 }
+
+var _ ng.Stopper = (*WireGuardServer)(nil)

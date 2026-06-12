@@ -26,6 +26,37 @@ type Space struct {
 	ServiceKinds map[string]string
 	Edges        []Edge
 	edgeSet      map[Edge]bool
+	order        []string // instantiation order of config-defined services
+}
+
+// Stopper is implemented by service instances that hold resources
+// (listeners, goroutines, devices) which must be released when the
+// generation that created them is retired.
+type Stopper interface {
+	Stop()
+}
+
+// Stop retires this generation of services: every instance created by Apply
+// that implements Stopper is stopped, in reverse instantiation order so that
+// dependents stop before their dependencies.
+func (space *Space) Stop() {
+	for i := len(space.order) - 1; i >= 0; i-- {
+		name := space.order[i]
+		st, ok := space.Services[name].(Stopper)
+		if !ok {
+			continue
+		}
+		func() {
+			defer func() {
+				if r := recover(); r != nil {
+					log.Error().Str("name", name).Str("kind", space.ServiceKinds[name]).
+						Interface("err", r).Msg("service stop panic")
+				}
+			}()
+			st.Stop()
+			log.Info().Str("name", name).Str("kind", space.ServiceKinds[name]).Msg("service stopped")
+		}()
+	}
 }
 
 func (space *Space) addEdge(from, to string) {
@@ -341,9 +372,9 @@ func topoSort(entries []serviceEntry, prePopulated map[string]bool) ([]int, erro
 
 // ConfigError is a structured validation error for a specific service.
 type ConfigError struct {
-	Service string `json:"service"`          // service name
-	Kind    string `json:"kind,omitempty"`   // service kind
-	Phase   string `json:"phase"`            // "parse", "schema", "reference", "dependency", "instantiate"
+	Service string `json:"service"`        // service name
+	Kind    string `json:"kind,omitempty"` // service kind
+	Phase   string `json:"phase"`          // "parse", "schema", "reference", "dependency", "instantiate"
 	Message string `json:"message"`
 }
 
@@ -357,8 +388,8 @@ func (e ConfigError) Error() string {
 // ptrRef is a ptr reference found during validation: source service references target by name,
 // requiring certain interfaces.
 type ptrRef struct {
-	target     string         // service name (named ref) or empty (inline)
-	inlineKind string         // kind name for inline anonymous objects
+	target     string // service name (named ref) or empty (inline)
+	inlineKind string // kind name for inline anonymous objects
 	impls      []reflect.Type
 	fieldPath  string
 }
@@ -680,24 +711,24 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 			spec = &ArgNode{Type: "map", Value: entryMap}
 		}
 
-			ref, ok := space.Refs[kind]
-			if !ok {
-				return fmt.Errorf("service %q: kind not found: %s", name, kind)
-			}
-			assert, ok := space.AssertRefs[kind]
-			if !ok {
-				return fmt.Errorf("service %q: assert not found: %s", name, kind)
-			}
+		ref, ok := space.Refs[kind]
+		if !ok {
+			return fmt.Errorf("service %q: kind not found: %s", name, kind)
+		}
+		assert, ok := space.AssertRefs[kind]
+		if !ok {
+			return fmt.Errorf("service %q: assert not found: %s", name, kind)
+		}
 
-			if err := AssertArg(spec, assert); err != nil {
-				return fmt.Errorf("service %q (%s): assert failed: %w", name, kind, err)
-			}
+		if err := AssertArg(spec, assert); err != nil {
+			return fmt.Errorf("service %q (%s): assert failed: %w", name, kind, err)
+		}
 
-			deps := space.collectDeps(spec, assert)
-			entries = append(entries, serviceEntry{
-				name: name, kind: kind, spec: spec,
-				ref: ref, assert: assert, deps: deps,
-			})
+		deps := space.collectDeps(spec, assert)
+		entries = append(entries, serviceEntry{
+			name: name, kind: kind, spec: spec,
+			ref: ref, assert: assert, deps: deps,
+		})
 	}
 
 	// Build set of pre-populated service names
@@ -741,6 +772,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 	fmt.Fprintln(os.Stderr, "")
 
 	// Instantiate in dependency order
+	space.order = space.order[:0]
 	reload_errors := []error{}
 	for _, idx := range order {
 		e := entries[idx]
@@ -775,6 +807,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 		if e.name != "" && e.name != "_" && inst != nil {
 			space.Services[e.name] = inst
 			space.ServiceKinds[e.name] = e.kind
+			space.order = append(space.order, e.name)
 		}
 
 		log.Info().Str("kind", e.kind).Str("name", e.name).Dur("elapsed", time.Since(_time)).Msg("service applied")

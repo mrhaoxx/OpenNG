@@ -63,3 +63,5 @@ func NewDnsServerFromConfig(cfg DnsServerConfig) (any, error) {
 
 	return srv, nil
 }
+
+var _ ng.Stopper = (*server)(nil)
