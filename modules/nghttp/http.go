@@ -19,8 +19,8 @@ import (
 	"time"
 
 	netgate "github.com/mrhaoxx/OpenNG"
-	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	"github.com/andybalholm/brotli"
 )
@@ -35,7 +35,7 @@ type HttpCtx struct {
 	RemoteIP   string
 	RemotePort int
 
-	Req *http.Request
+	Req  *http.Request
 	Resp *NgResponseWriter
 
 	conn *ngtcp.Conn
@@ -45,6 +45,12 @@ type HttpCtx struct {
 	kill func()
 
 	onClose []func(*HttpCtx)
+
+	routine string // routing trace for the request log, appended by the dispatch chain
+}
+
+func (ctx *HttpCtx) tracePath(s string) {
+	ctx.routine += s
 }
 
 func (ctx *HttpCtx) ResponseWriter() http.ResponseWriter {

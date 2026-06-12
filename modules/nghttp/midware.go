@@ -127,12 +127,10 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 
 	defer RequestCtx.Resp.Close()
 
-	var RequestPath string // record the path of the request
-
 	defer func() { //cleanup
 		if RequestCtx.Resp.code == 0 {
 			RequestCtx.Resp.ErrorPage(http.StatusTeapot, "It seems the server is not responding.")
-			RequestPath += "#"
+			RequestCtx.tracePath("#")
 		}
 
 		// Accumulate stats
@@ -173,16 +171,16 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 			Str("method", RequestCtx.Req.Method).
 			Str("host", RequestCtx.Req.Host).
 			Str("path", RequestCtx.Req.URL.Path).
-			Str("routine", RequestPath).
+			Str("routine", RequestCtx.routine).
 			Str("type", "http/request").Msg("")
 	}()
 
 	defer func() {
 		if err := recover(); err != nil {
 			if e, ok := err.(error); ok {
-				RequestPath += "$<" + e.Error() + "> "
+				RequestCtx.tracePath("$<" + e.Error() + "> ")
 			} else {
-				RequestPath += "$<> "
+				RequestCtx.tracePath("$<> ")
 			}
 
 			if RequestCtx.Resp.code == 0 {
@@ -191,38 +189,45 @@ func (h *Midware) Process(RequestCtx *HttpCtx) {
 		}
 	}()
 
-	// forward proxy handle
-	if len(h.currentForward) > 0 {
-		_, ok := RequestCtx.Req.Header["Proxy-Authorization"]
-		if ok || RequestCtx.Req.Method == http.MethodConnect {
-			RequestPath += "> "
-			h.ngForwardProxy(RequestCtx, &RequestPath)
+	ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host)
+	for i := 0; i < len(ServicesToExecute); i++ {
+
+		if ServicesToExecute[i].Id != "" {
+			RequestCtx.tracePath(ServicesToExecute[i].Id + " ") // record the executed service
+		}
+		switch ServicesToExecute[i].ServiceHandler(RequestCtx) {
+		case RequestEnd:
+			RequestCtx.tracePath("-")
 			return
-		}
-	}
-	// cgi content handle
-	if strings.HasPrefix(RequestCtx.Req.URL.Path, PrefixNg) {
-		RequestPath += "@ "
-		h.ngCgi(RequestCtx, &RequestPath)
-		return
-
-	}
-
-	{
-		ServicesToExecute := h.bufferedLookupForHost.Lookup(RequestCtx.Req.Host)
-		for i := 0; i < len(ServicesToExecute); i++ {
-
-			RequestPath += ServicesToExecute[i].Id + " " // record the executed service
-			switch ServicesToExecute[i].ServiceHandler(RequestCtx) {
-			case RequestEnd:
-				RequestPath += "-"
-				return
-			case Continue:
-				continue
-			}
+		case Continue:
+			continue
 		}
 	}
 
+}
+
+// serveForward dispatches forward-proxy requests (CONNECT or
+// Proxy-Authorization); plain requests continue down the chain.
+func (h *Midware) serveForward(ctx *HttpCtx) Ret {
+	if len(h.currentForward) == 0 {
+		return Continue
+	}
+	if _, ok := ctx.Req.Header["Proxy-Authorization"]; !ok && ctx.Req.Method != http.MethodConnect {
+		return Continue
+	}
+	ctx.tracePath("> ")
+	h.ngForwardProxy(ctx)
+	return RequestEnd
+}
+
+// serveCgi dispatches /ng-cgi/ requests; other paths continue down the chain.
+func (h *Midware) serveCgi(ctx *HttpCtx) Ret {
+	if !strings.HasPrefix(ctx.Req.URL.Path, PrefixNg) {
+		return Continue
+	}
+	ctx.tracePath("@ ")
+	h.ngCgi(ctx)
+	return RequestEnd
 }
 
 type Hostmatch struct {
@@ -278,7 +283,13 @@ func NewHttpMidware(cfg MidwareConfig) (*Midware, error) {
 		sni:            nil,
 		activeRequests: map[string]*HttpCtx{},
 	}
-	hmw.current = make([]*ServiceStruct, 0)
+
+	// Forward-proxy and CGI dispatch are ordinary chain services at the
+	// head of the chain; they Continue on requests that aren't theirs.
+	hmw.current = []*ServiceStruct{
+		{Id: "", ServiceHandler: hmw.serveForward},
+		{Id: "", ServiceHandler: hmw.serveCgi},
+	}
 
 	hmw.currentCgi = []*CgiStruct{{
 		CgiHandler: func(ctx *HttpCtx, path string) Ret {

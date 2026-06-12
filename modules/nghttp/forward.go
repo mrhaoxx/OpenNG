@@ -1,14 +1,13 @@
 package nghttp
 
-func (h *Midware) ngForwardProxy(ctx *HttpCtx, RequestPath *string) {
+func (h *Midware) ngForwardProxy(ctx *HttpCtx) {
 
 	ServicesToExecute := h.bufferedLookupForForward.Lookup(ctx.Req.Host)
 	for i := 0; i < len(ServicesToExecute); i++ {
 
-		*RequestPath += ServicesToExecute[i].Id + " "
+		ctx.tracePath(ServicesToExecute[i].Id + " ")
 		switch ServicesToExecute[i].ServiceHandler(ctx) {
 		case RequestEnd:
-			*RequestPath += "-"
 			return
 		case Continue:
 			continue

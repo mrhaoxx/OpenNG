@@ -6,7 +6,7 @@ import (
 
 const PrefixNg = "/ng-cgi"
 
-func (mid *Midware) ngCgi(RequestCtx *HttpCtx, RequestPath *string) {
+func (mid *Midware) ngCgi(RequestCtx *HttpCtx) {
 
 	path := strings.TrimPrefix(RequestCtx.Req.URL.Path, PrefixNg)
 
@@ -19,12 +19,9 @@ func (mid *Midware) ngCgi(RequestCtx *HttpCtx, RequestPath *string) {
 	for _, t := range s {
 		switch t.CgiHandler(RequestCtx, path) {
 		case RequestEnd:
-			goto _break
+			return
 		case Continue:
 			continue
 		}
 	}
-_break:
-	*RequestPath += "-"
-
 }
