@@ -1,6 +1,7 @@
 package dns
 
 import (
+	"context"
 	"net"
 	"strings"
 	"sync"
@@ -11,12 +12,10 @@ import (
 	mdns "github.com/miekg/dns"
 	"github.com/mrhaoxx/OpenNG/pkg/lookup"
 	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 
 	zlog "github.com/rs/zerolog/log"
 )
-
-var dnsServers map[string]*mdns.Server = make(map[string]*mdns.Server)
-var dnsLock sync.Mutex
 
 type record struct {
 	rtype  uint16
@@ -133,47 +132,40 @@ _end:
 	w.WriteMsg(m)
 }
 
+// Listen binds address with SO_REUSEPORT, so a newer generation can bind
+// alongside this one and the kernel hands traffic over when either side
+// closes its socket — no rebind gap, and a failed reload's half-built
+// generation gives the address straight back to the running one.
 func (s *server) Listen(address string) error {
-	dnsLock.Lock()
-	if old, ok := dnsServers[address]; ok {
-		zlog.Warn().Str("type", "dns/listen").Str("addr", address).Msg("rebind dns listen")
-		old.Shutdown()
+	lc := ngnet.ReusePortListenConfig()
+	pc, err := lc.ListenPacket(context.Background(), "udp", address)
+	if err != nil {
+		zlog.Error().Str("type", "dns/listen").Str("addr", address).Err(err).Msg("dns bind failed")
+		return err
 	}
-	dnsLock.Unlock()
 
-	srv := &mdns.Server{Addr: address, Net: "udp"}
-	srv.Handler = s
-
-	dnsLock.Lock()
-	dnsServers[address] = srv
-	dnsLock.Unlock()
+	srv := &mdns.Server{PacketConn: pc, Handler: s}
 
 	s.muServers.Lock()
 	s.servers = append(s.servers, srv)
 	s.muServers.Unlock()
 
-	return srv.ListenAndServe()
+	return srv.ActivateAndServe()
 }
 
-// Stop shuts down all DNS listeners owned by this server instance.
+// Stop shuts down all DNS listeners owned by this server instance and closes
+// their sockets (Shutdown only unblocks reads on a caller-provided conn).
 func (s *server) Stop() {
 	s.muServers.Lock()
 	owned := s.servers
 	s.servers = nil
 	s.muServers.Unlock()
 
-	dnsLock.Lock()
-	for _, srv := range owned {
-		for addr, cur := range dnsServers {
-			if cur == srv {
-				delete(dnsServers, addr)
-			}
-		}
-	}
-	dnsLock.Unlock()
-
 	for _, srv := range owned {
 		srv.Shutdown()
+		if srv.PacketConn != nil {
+			srv.PacketConn.Close()
+		}
 	}
 }
 
