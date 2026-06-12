@@ -186,18 +186,22 @@ func (space *Space) instantiateAnon(m map[string]*ArgNode, validate bool, owner 
 		return nil, fmt.Errorf("kind not found: %s", kind)
 	}
 
-	if validate {
-		defer func() {
-			if r := recover(); r != nil {
-			}
-		}()
-	}
-
-	inst, err := ref(spec)
+	inst, err := safeInst(ref, spec)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", kind, err)
 	}
 	return inst, nil
+}
+
+// safeInst calls a constructor and converts panics into errors, so a faulty
+// service constructor cannot crash a running gateway during hot reload.
+func safeInst(ref Inst, spec *ArgNode) (inst any, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("constructor panic: %v", r)
+		}
+	}()
+	return ref(spec)
 }
 
 // collectDeps walks an ArgNode tree and collects all service names
@@ -755,7 +759,7 @@ func (space *Space) Apply(root *ArgNode, reload bool, dry bool) error {
 
 		var inst any
 		if !dry {
-			inst, err = e.ref(e.spec)
+			inst, err = safeInst(e.ref, e.spec)
 		}
 
 		if err != nil {
@@ -809,7 +813,7 @@ func (space *Space) Call(ref string, spec *ArgNode) (any, error) {
 		return nil, fmt.Errorf("%s: %w", ref, err)
 	}
 
-	inst, err := ref_func(spec)
+	inst, err := safeInst(ref_func, spec)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", ref, err)
 	}
@@ -841,8 +845,10 @@ func AssertArg(node *ArgNode, assertions Assert) error {
 			return fmt.Errorf("required field is null")
 		}
 	} else {
-		if assertions.Type != "any" && !IfCompatibleAndConvert(node, assertions) {
-			return fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
+		if assertions.Type != "any" {
+			if err := IfCompatibleAndConvert(node, assertions); err != nil {
+				return err
+			}
 		}
 		// if assertions.Forced && assertions.Default != nil && assertions.Type != "url" {
 		// 	if !reflect.DeepEqual(node.Value, assertions.Default) {
@@ -1001,11 +1007,13 @@ func AssertArg(node *ArgNode, assertions Assert) error {
 	return nil
 }
 
-func IfCompatibleAndConvert(node *ArgNode, assertions Assert) bool {
+func IfCompatibleAndConvert(node *ArgNode, assertions Assert) error {
 
 	if node.Type == assertions.Type {
-		return true
+		return nil
 	}
+
+	incompatible := fmt.Errorf("type incompatible: %s !-> %s (%v)", node.Type, assertions.Type, node.Value)
 
 	switch assertions.Type {
 	case "list":
@@ -1019,28 +1027,30 @@ func IfCompatibleAndConvert(node *ArgNode, assertions Assert) bool {
 			}
 			node.Type = "list"
 			node.Value = []*ArgNode{clone}
-			return true
+			return nil
 		}
 	case "ptr":
 		if node.Type == "string" {
 			node.Type = "ptr"
-			return true
+			return nil
 		}
 		if node.Type == "map" {
 			if m, ok := node.Value.(map[string]*ArgNode); ok {
 				if _, ok := m["kind"]; ok {
 					node.Type = "ptr"
-					return true
+					return nil
 				}
 			}
 		}
 	case "duration":
 		if node.Type == "string" {
-			if dur, err := time.ParseDuration(node.Value.(string)); err == nil {
-				node.Type = "duration"
-				node.Value = dur
-				return true
+			dur, err := time.ParseDuration(node.Value.(string))
+			if err != nil {
+				return fmt.Errorf("invalid duration: %w", err)
 			}
+			node.Type = "duration"
+			node.Value = dur
+			return nil
 		}
 	case "url": // iface%scheme://host:port/path?query#fragment
 		if node.Type == "string" {
@@ -1058,7 +1068,7 @@ func IfCompatibleAndConvert(node *ArgNode, assertions Assert) bool {
 
 			_url, err := url.Parse(str)
 			if err != nil {
-				return false
+				return fmt.Errorf("invalid url: %w", err)
 			}
 
 			node.Type = "url"
@@ -1066,35 +1076,41 @@ func IfCompatibleAndConvert(node *ArgNode, assertions Assert) bool {
 				Interface: iface_ptr,
 				URL:       *_url,
 			}
-			return true
+			return nil
 		}
 	case "hostname": // should be a valid hostname, use regexp to check
 		if node.Type == "string" {
 			re := regexp2.MustCompile(`^[A-Za-z0-9.*-]+(?::\d{1,5})?$`, regexp2.RE2)
 			if ok, _ := re.MatchString(node.Value.(string)); ok {
 				node.Type = "hostname"
-				return true
+				return nil
 			}
+			return fmt.Errorf("invalid hostname: %q", node.Value)
 		}
 	case "regexp":
 		if node.Type == "string" {
 			pattern := node.Value.(string)
 			exp, err := regexp2.Compile(pattern, regexp2.RE2)
 			if err != nil {
-				return false
+				return fmt.Errorf("invalid regexp: %w", err)
 			}
 			node.Type = "regexp"
 			node.Value = exp
-			return true
+			return nil
 		}
 	case "expr":
 		if node.Type == "string" {
+			if assertions.ExprCheck != nil {
+				if err := assertions.ExprCheck(node.Value.(string)); err != nil {
+					return fmt.Errorf("expr compile: %w", err)
+				}
+			}
 			node.Type = "expr"
-			return true
+			return nil
 		}
 	}
 
-	return false
+	return incompatible
 }
 
 func validateInterfaces(a Assert, v any) error {

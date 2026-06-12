@@ -1,11 +1,14 @@
 package expr
 
 import (
+	"net/http"
+
 	"github.com/expr-lang/expr"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/nghttp"
 	"github.com/mrhaoxx/OpenNG/pkg/groupexp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngexpr"
+	zlog "github.com/rs/zerolog/log"
 )
 
 type HttpExpr struct {
@@ -25,7 +28,9 @@ func (e *HttpExpr) HandleHTTP(ctx *nghttp.HttpCtx) nghttp.Ret {
 		Http: ctx, Vars: e.Vars, Continue: true, End: false,
 	})
 	if err != nil {
-		panic(err)
+		zlog.Error().Str("type", "expr/http").Str("reqid", ctx.Id).Err(err).Msg("expression eval failed")
+		ctx.Resp.ErrorPage(http.StatusInternalServerError, "Internal Server Error")
+		return nghttp.RequestEnd
 	}
 	ret, _ := output.(bool)
 	return nghttp.Ret(ret)

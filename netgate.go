@@ -37,6 +37,9 @@ var unmarshalerInterfaceType = reflect.TypeFor[Unmarshaler]()
 var errorType = reflect.TypeOf((*error)(nil)).Elem()
 
 func Register(name string, args Assert, ret Assert, inst Inst) {
+	if _, ok := refs[name]; ok {
+		panic("ng: duplicate kind registered: " + name)
+	}
 	refs[name] = inst
 	args_asserts[name] = args
 	ret_asserts[name] = ret

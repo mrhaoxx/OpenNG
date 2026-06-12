@@ -5,6 +5,7 @@ import (
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/modules/ngtcp"
 	"github.com/mrhaoxx/OpenNG/pkg/ngexpr"
+	zlog "github.com/rs/zerolog/log"
 )
 
 type TcpExprEnv struct {
@@ -18,7 +19,8 @@ type TcpExpr struct {
 func (e *TcpExpr) HandleTCP(ctx *ngtcp.Conn) ngtcp.Ret {
 	output, err := expr.Run(e.cond.Program, TcpExprEnv{Tcp: ctx})
 	if err != nil {
-		panic(err)
+		zlog.Error().Str("type", "expr/tcp").Str("conn", ctx.Id).Err(err).Msg("expression eval failed")
+		return ngtcp.Close
 	}
 	ret, _ := output.(int)
 	return ngtcp.Ret(ret)
