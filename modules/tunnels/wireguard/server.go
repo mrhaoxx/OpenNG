@@ -226,3 +226,18 @@ func (wg *WireGuardServer) Listen(network, address string) (gnet.Listener, error
 		return nil, ngnet.ErrListenNotSupport
 	}
 }
+
+func (wg *WireGuardServer) ListenPacket(network, address string) (gnet.PacketConn, error) {
+	switch network {
+	case "udp", "udp4", "udp6":
+		addr, err := gnet.ResolveUDPAddr(network, address)
+		if err != nil {
+			return nil, err
+		}
+		return wg.tnet.ListenUDP(addr)
+	default:
+		return nil, ngnet.ErrListenNotSupport
+	}
+}
+
+var _ ngnet.Interface = (*WireGuardServer)(nil)

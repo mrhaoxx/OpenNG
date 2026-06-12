@@ -1,7 +1,6 @@
 package dns
 
 import (
-	"context"
 	"net"
 	"strings"
 	"sync"
@@ -36,6 +35,8 @@ type server struct {
 	domain string
 
 	count uint64
+
+	iface ngnet.Interface
 
 	muServers sync.Mutex
 	servers   []*mdns.Server
@@ -137,8 +138,11 @@ _end:
 // closes its socket — no rebind gap, and a failed reload's half-built
 // generation gives the address straight back to the running one.
 func (s *server) Listen(address string) error {
-	lc := ngnet.ReusePortListenConfig()
-	pc, err := lc.ListenPacket(context.Background(), "udp", address)
+	iface := s.iface
+	if iface == nil {
+		iface = &ngnet.SysInterface{}
+	}
+	pc, err := iface.ListenPacket("udp", address)
 	if err != nil {
 		zlog.Error().Str("type", "dns/listen").Str("addr", address).Err(err).Msg("dns bind failed")
 		return err
@@ -188,6 +192,11 @@ func (s *server) AddRecordWithIP(name string, ip string) error {
 }
 func (s *server) SetDomain(domain string) *server {
 	s.domain = domain
+	return s
+}
+
+func (s *server) SetInterface(iface ngnet.Interface) *server {
+	s.iface = iface
 	return s
 }
 

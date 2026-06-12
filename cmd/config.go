@@ -55,18 +55,30 @@ func LoadCfg(cfgs []byte, reload bool) error {
 
 	space.Services["@"] = space
 
+	if reload && !ngnet.SupportsListenerHandoff && CurSpace != nil {
+		// No SO_REUSEPORT: the new generation cannot co-bind, so release
+		// the old generation's listeners before applying the new config.
+		// This leaves a brief window where the addresses are unbound and,
+		// if Apply fails, the old generation is already gone — the
+		// platform tradeoff for not stealing ports.
+		CurSpace.Stop()
+		CurSpace = nil
+	}
+
 	err = space.Apply(nodes, reload, false)
 
 	if err == nil {
 		old := CurSpace
 		CurSpace = &space
 		if old != nil {
+			// Handoff platforms: the new generation already co-bound, so
+			// retiring the old one now completes a gapless cutover.
 			old.Stop()
 		}
 	} else if reload {
-		// Retire the half-built generation instead of leaking it. TCP
-		// addresses it acquired fall back to the running generation via
-		// the listener registry; dns/wireguard rebinds still cut over at
+		// Retire the half-built generation instead of leaking it. On
+		// handoff platforms its addresses fall back to the still-running
+		// old generation via SO_REUSEPORT; dns/wireguard cut over at
 		// construction time.
 		space.Stop()
 	}

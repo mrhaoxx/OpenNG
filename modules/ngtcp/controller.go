@@ -33,7 +33,8 @@ type ServiceBinding struct {
 type Controller struct {
 	binds map[string][]ServiceBinding
 
-	releases []func() // listener registry releases, one per acquired address
+	iface     ngnet.Interface
+	listeners []net.Listener // owned by this generation, closed on Stop
 
 	muActiveConnection sync.RWMutex
 	activeConnections  map[string]*Conn
@@ -128,29 +129,44 @@ _restart:
 
 }
 
-// Listen acquires each address on the process-wide listener registry; this
-// controller becomes the active receiver, and the previous holder (an older
-// generation during reload) resumes if this one is stopped.
+// Listen binds each address through the controller's interface (the system
+// interface by default, or a tunnel when configured). On platforms with
+// listener handoff the bind uses SO_REUSEPORT, so a new generation co-binds
+// alongside the old one during reload and the kernel routes connections to
+// whoever is still listening; elsewhere the reload stops the old generation
+// first (see ngnet.SupportsListenerHandoff).
 func (ctl *Controller) Listen(addrs []string) error {
 	for _, addr := range addrs {
-		release, err := ngnet.AcquireListener("tcp", addr, func(socket net.Conn) {
-			ctl.Deliver(head(socket))
-		})
+		l, err := ctl.iface.Listen("tcp", addr)
 		if err != nil {
 			return err
 		}
-		ctl.releases = append(ctl.releases, release)
+		ctl.listeners = append(ctl.listeners, l)
+		go ctl.accept(l)
 	}
 	return nil
 }
 
-// Stop hands this controller's addresses back to the listener registry.
-// Established connections are left to drain naturally.
-func (ctl *Controller) Stop() {
-	for _, release := range ctl.releases {
-		release()
+func (ctl *Controller) accept(l net.Listener) {
+	for {
+		socket, err := l.Accept()
+		if err != nil {
+			if !errors.Is(err, net.ErrClosed) {
+				zlog.Error().Str("type", "tcp/listen").Err(err).Msg("accept failed")
+			}
+			return
+		}
+		go ctl.Deliver(head(socket))
 	}
-	ctl.releases = nil
+}
+
+// Stop closes this generation's listeners. Accept loops exit on the resulting
+// ErrClosed; established connections drain naturally.
+func (ctl *Controller) Stop() {
+	for _, l := range ctl.listeners {
+		l.Close()
+	}
+	ctl.listeners = nil
 }
 
 type funcInterface func(*Conn) Ret
@@ -197,13 +213,19 @@ func (ctl *Controller) KillConnection(connection_id string) error {
 }
 
 type TcpControllerConfig struct {
-	Services map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers"`
-	Listen   []string                    `ng:"listen" desc:"addresses to listen on (e.g. 0.0.0.0:443)"`
+	Services  map[string][]ServiceBinding `ng:"services" desc:"protocol-specific service handlers"`
+	Listen    []string                    `ng:"listen" desc:"addresses to listen on (e.g. 0.0.0.0:443)"`
+	Interface ngnet.Interface             `ng:"interface" default:"sys" desc:"interface to listen on (default system)"`
 }
 
 func NewTcpController(cfg TcpControllerConfig) (*Controller, error) {
+	iface := cfg.Interface
+	if iface == nil {
+		iface = &ngnet.SysInterface{}
+	}
 	ctl := &Controller{
 		binds:              map[string][]ServiceBinding{},
+		iface:              iface,
 		muActiveConnection: sync.RWMutex{},
 		activeConnections:  map[string]*Conn{},
 	}

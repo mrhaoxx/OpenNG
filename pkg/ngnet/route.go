@@ -84,6 +84,23 @@ func (rt *RouteTable) Listen(network, address string) (net.Listener, error) {
 	return nil, errors.New("no interface found")
 }
 
+func (rt *RouteTable) ListenPacket(network, address string) (net.PacketConn, error) {
+	host := address
+	if h, _, err := net.SplitHostPort(address); err == nil {
+		host = h
+	}
+	ip := resolveHostToIP(host)
+	if ip != nil && !ip.IsUnspecified() {
+		ifc := rt.findInterfaceForIP(ip)
+		if ifc != nil {
+			return ifc.ListenPacket(network, address)
+		}
+	}
+	return nil, errors.New("no interface found")
+}
+
+var _ Interface = (*RouteTable)(nil)
+
 var DefaultRouteTable = &RouteTable{
 	Routes: []Route{
 		{

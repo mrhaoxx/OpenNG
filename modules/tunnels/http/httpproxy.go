@@ -75,6 +75,12 @@ func (s *HttpProxyInterface) Listen(network, address string) (gonet.Listener, er
 	return nil, ngnet.ErrListenNotSupport
 }
 
+func (s *HttpProxyInterface) ListenPacket(network, address string) (gonet.PacketConn, error) {
+	return nil, ngnet.ErrListenNotSupport
+}
+
+var _ ngnet.Interface = (*HttpProxyInterface)(nil)
+
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
 	return base64.StdEncoding.EncodeToString([]byte(auth))

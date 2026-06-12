@@ -4,6 +4,7 @@ import (
 	"github.com/dlclark/regexp2"
 	ng "github.com/mrhaoxx/OpenNG"
 	"github.com/mrhaoxx/OpenNG/pkg/ngdns"
+	"github.com/mrhaoxx/OpenNG/pkg/ngnet"
 )
 
 func init() {
@@ -28,16 +29,20 @@ type BindConfig struct {
 }
 
 type DnsServerConfig struct {
-	AddressBindings []string       `ng:"AddressBindings"`
-	Domain          string         `ng:"Domain" default:"local"`
-	Records         []RecordConfig `ng:"Records"`
-	Filters         []FilterConfig `ng:"Filters"`
-	Binds           []BindConfig   `ng:"Binds"`
+	AddressBindings []string        `ng:"AddressBindings"`
+	Domain          string          `ng:"Domain" default:"local"`
+	Records         []RecordConfig  `ng:"Records"`
+	Filters         []FilterConfig  `ng:"Filters"`
+	Binds           []BindConfig    `ng:"Binds"`
+	Interface       ngnet.Interface `ng:"interface" default:"sys" desc:"interface to listen on (default system)"`
 }
 
 func NewDnsServerFromConfig(cfg DnsServerConfig) (any, error) {
 	srv := NewServer()
 	srv.SetDomain(cfg.Domain)
+	if cfg.Interface != nil {
+		srv.SetInterface(cfg.Interface)
+	}
 
 	for _, record := range cfg.Records {
 		name := regexp2.MustCompile(ngdns.Dnsname2Regexp(record.Name), regexp2.RE2)
